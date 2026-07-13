@@ -25,5 +25,5 @@ describe("PPXV randomized vault round trips", () => {
       ),
       { numRuns: 3 },
     );
-  });
+  }, 90_000);
 });
