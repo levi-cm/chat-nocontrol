@@ -64,7 +64,7 @@ select {
   min-height: 100dvh;
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
-  grid-template-rows: 72px minmax(0, 1fr);
+  grid-template-rows: minmax(72px, auto) minmax(0, 1fr);
 }
 
 .material {
