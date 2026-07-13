@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Chat NoControl">
+  <rect width="512" height="512" rx="112" fill="#075fad"/>
+  <path fill="#fff" d="M116 152c0-20 16-36 36-36h208c20 0 36 16 36 36v144c0 20-16 36-36 36H232l-88 68v-68h-8c-11 0-20-9-20-20V152Z"/>
+  <path fill="#075fad" d="M188 202h136v24H188zm0 52h96v24h-96z"/>
+</svg>

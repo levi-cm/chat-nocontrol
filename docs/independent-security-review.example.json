@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 2,
+  "reviewer": {
+    "name": "Independent reviewer name",
+    "organization": "Independent reviewer organization"
+  },
+  "independenceStatement": "The reviewer and organization did not design or implement the reviewed code.",
+  "reviewedCommit": "0000000000000000000000000000000000000000",
+  "completedAt": "2026-01-01T00:00:00.000Z",
+  "outcome": "cleared-for-public-beta",
+  "openCriticalOrHigh": 0,
+  "reportPath": "docs/reviews/independent-cryptographic-review.pdf",
+  "reportSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "signaturePath": "docs/reviews/independent-cryptographic-review.pdf.sig",
+  "allowedSignersPath": "docs/reviews/independent-review.allowed_signers",
+  "signingIdentity": "reviewer@example.com",
+  "signatureNamespace": "chat-nocontrol-security-review-v1"
+}

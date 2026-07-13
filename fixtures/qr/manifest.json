@@ -1,0 +1,15 @@
+{
+  "source": "deterministic PPXC fixture; 32-byte entropy filled with 7",
+  "valid": {
+    "file": "contact-valid.png",
+    "payloadSha256": "0334a6d5f6cd040109f4366eb6e1ffbdd8f653036b4ce845edca79f2607864d6",
+    "pngSha256": "e9bef3070a62cb07bba89526fdf018e46df62fd7303e8eb71f5c017d50a76503"
+  },
+  "damaged": {
+    "file": "contact-checksum-damaged.png",
+    "mutationIndex": 113,
+    "payloadSha256": "d78aed9ff407ad5f2287f49ea7a03b4c489e4d0f365a97cb3536168b9756bc67",
+    "pngSha256": "cfecbf30bc960565609d28984531b14c576a3395399e3794013d0c3d43508ae9",
+    "expected": "ZXing decodes; strict PPXC classification rejects"
+  }
+}

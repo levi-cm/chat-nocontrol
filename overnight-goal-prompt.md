@@ -1,0 +1,3 @@
+[$caveman](/home/opsec/.codex/skills/caveman/SKILL.md) ultra
+
+/goal Build Chat NoControl from `Chat_NoControl_full_plan.md` + `docs/implementation-plan.md`. Loop overnight: implement next task → test/build → run local dev server → use Playwright on mobile/desktop EN/DE UI → inspect console/network/a11y/visuals → fix → repeat. Preserve PPX/security rules; no backend, analytics, remote assets, or fake pass claims. Recover server/test crashes and continue all unblocked work. Stop only when `npm run verify`, all Playwright flows, accessibility checks, network-denial checks, and visual QA pass with evidence. If externally blocked, record exact blocker/evidence, finish every unblocked task, then report.

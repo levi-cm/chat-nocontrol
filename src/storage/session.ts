@@ -1,0 +1,58 @@
+import type { LockedVaultObject, PublicContact } from "../protocol/types";
+import { contactStorageId } from "./contacts";
+import type { StoredContact } from "./db";
+
+export class SessionStorage {
+  readonly #contacts = new Map<string, StoredContact>();
+  #vault: LockedVaultObject | undefined;
+  #locale: "en" | "de" = "en";
+
+  putContact(contact: PublicContact, nickname?: string): StoredContact {
+    const id = contactStorageId(contact.fingerprint);
+    const existing = this.#contacts.get(id);
+    const record = {
+      id,
+      contact,
+      nickname: nickname ?? existing?.nickname ?? "",
+    };
+    this.#contacts.set(id, record);
+    return record;
+  }
+
+  listContacts(): StoredContact[] {
+    return [...this.#contacts.values()];
+  }
+
+  replaceContacts(
+    contacts: ReadonlyArray<Pick<StoredContact, "contact" | "nickname">>,
+  ): void {
+    this.#contacts.clear();
+    for (const item of contacts) this.putContact(item.contact, item.nickname);
+  }
+
+  putVault(vault: LockedVaultObject): void {
+    this.#vault = vault;
+  }
+
+  getVault(): LockedVaultObject | undefined {
+    return this.#vault;
+  }
+
+  deleteVault(): void {
+    this.#vault = undefined;
+  }
+
+  setLocale(locale: "en" | "de"): void {
+    this.#locale = locale;
+  }
+
+  getLocale(): "en" | "de" {
+    return this.#locale;
+  }
+
+  eraseAll(): void {
+    this.#contacts.clear();
+    this.#vault = undefined;
+    this.#locale = "en";
+  }
+}

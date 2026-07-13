@@ -1,0 +1,63 @@
+name: Release evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Signed public-beta tag to verify and publish
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  deployments: read
+  id-token: write
+  attestations: write
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+      - name: Validate requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          node -e 'const p=require("./package.json");
+          if(process.env.RELEASE_TAG !== `v${p.version}`) process.exit(1)'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run verify
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REQUIRE_REMOTE_TAG: "1"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-evidence-${{ inputs.tag }}
+          path: output/release/
+          if-no-files-found: error
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            output/release/chat-nocontrol-${{ inputs.tag }}.tgz
+            output/release/sbom.cdx.json
+      - name: Publish beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          output/release/chat-nocontrol-"$RELEASE_TAG".tgz
+          output/release/sbom.cdx.json
+          output/release/release-record.json
+          output/release/build.log
+          output/release/test-report.json
+          --verify-tag --prerelease --generate-notes
+          --title "Chat NoControl $RELEASE_TAG"

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-13T00:29:49+02:00",
+  "title": "Design System: Chat NoControl",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Civic Blue",
+        "canonical": "#075fad",
+        "tonalRamp": [
+          "#041b2e",
+          "#063558",
+          "#075fad",
+          "#2f7fc3",
+          "#65a4df",
+          "#9dc9ef",
+          "#cce4f8",
+          "#eef7fd"
+        ]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Cool Canvas",
+        "canonical": "#f5f7fb",
+        "tonalRamp": [
+          "#171a20",
+          "#30343c",
+          "#555c69",
+          "#7c8595",
+          "#a7afbd",
+          "#ccd2dc",
+          "#e8ebf1",
+          "#f5f7fb"
+        ]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Recovery Red",
+        "canonical": "#b42318",
+        "tonalRamp": [
+          "#2f0906",
+          "#5d110c",
+          "#8b1a12",
+          "#b42318",
+          "#d85a50",
+          "#ea938c",
+          "#f6c7c3",
+          "#fff1f0"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Orientation Display",
+        "purpose": "First-use and route orientation only."
+      },
+      "body": {
+        "displayName": "System Body",
+        "purpose": "Instructions, limits, and task content."
+      },
+      "label": {
+        "displayName": "Control Label",
+        "purpose": "Controls, status, and navigation."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-material",
+        "value": "0 8px 24px rgb(46 73 112 / 0.1)",
+        "purpose": "Floating navigation and genuinely elevated surfaces only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "180ms ease",
+        "purpose": "Color and transform feedback; immediate under reduced motion."
+      }
+    ],
+    "breakpoints": [{ "name": "mobile", "value": "767px" }]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main explicit task action.",
+      "html": "<button class=\"ds-button-primary\">Encrypt</button>",
+      "css": ".ds-button-primary{min-height:48px;padding:0 20px;border:0;border-radius:12px;color:#fff;background:#075fad;font:700 1rem system-ui;transition:background 180ms ease,transform 180ms ease}.ds-button-primary:hover{background:#064f91}.ds-button-primary:active{transform:scale(.98)}.ds-button-primary:focus-visible{outline:3px solid #075fad;outline-offset:3px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Native full-width task input.",
+      "html": "<input class=\"ds-input\" aria-label=\"Pseudonym\" value=\"Cedar\">",
+      "css": ".ds-input{width:100%;min-height:48px;padding:12px 14px;border:1px solid #d8deea;border-radius:12px;color:#172033;background:#fff;font:400 1rem system-ui}.ds-input:focus-visible{outline:3px solid #075fad;outline-offset:3px}"
+    },
+    {
+      "name": "Danger Export Card",
+      "kind": "card",
+      "description": "Private PPXR/PPXV surface that cannot resemble public contact material.",
+      "html": "<article class=\"ds-danger-card\"><strong>Private recovery card</strong><p>Do not share it.</p></article>",
+      "css": ".ds-danger-card{padding:22px;border:2px solid #b42318;border-radius:16px;color:#b42318;background:#fff1f0;font:400 1rem system-ui}.ds-danger-card strong{display:block;margin-bottom:8px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Calm Local Utility",
+    "overview": "Apple-inspired polish through system typography, familiar navigation, controlled depth, precise feedback, and excellent mobile ergonomics. Privacy warnings interrupt the calm only when risk demands it.",
+    "keyCharacteristics": [
+      "Restrained cool-neutral surfaces with one blue action accent.",
+      "Danger red reserved for private recovery and destructive actions.",
+      "Native controls, generous targets, short line lengths, visible status.",
+      "Public PPXC and private PPXR/PPXV use different structure and language."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Blue is functional, never decorative. Red is semantic, never ornamental.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "Forms and content surfaces stay flat until hierarchy requires elevation.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep primary tasks familiar, one-handed, keyboard-complete, and honest.",
+      "Do show warning severity in words, structure, and color."
+    ],
+    "donts": [
+      "Don't use crypto-hacker aesthetics, neon security theater, or fear-driven copy.",
+      "Don't imitate official Apple UI, use fake Liquid Glass, or imply Apple endorsement."
+    ]
+  }
+}

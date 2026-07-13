@@ -1,0 +1,7 @@
+{
+  "description": "SHA-512-locked canonical PPXF v1 header, records, terminal transport, and manifest commitment",
+  "encodedLength": 1059,
+  "encodedSha512": "5a5cdc7b6000158d54afc7926e8e7a824842ab143757ca852b3ff0132425541c744fcbe8af1fbd3d96ae9438e68ed8d74d02a9260a2a95063e43f76e4290ead9",
+  "manifestEncodedLength": 1170,
+  "manifestSha512": "113607f7bb59c63363099716c49a40a2f0f5e8d6960b2e6e8227680b5827da38a4a3c0077c6a48482af894c0f71f7f9cbc759b55ef71995dd7d5b1f663146868"
+}

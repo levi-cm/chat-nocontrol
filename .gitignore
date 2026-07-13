@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.playwright-cli/
+output/playwright/
+output/release/
+*.log
+.DS_Store
