@@ -100,7 +100,17 @@ type Step =
   | "import-remember"
   | "import-vault";
 
-type WordBackupMethod = "written" | "printed" | "pdf" | null;
+interface RecoveryDocumentCompletion {
+  wordsWritten: boolean;
+  printStored: boolean;
+  pdfStored: boolean;
+}
+
+const emptyRecoveryDocumentCompletion = (): RecoveryDocumentCompletion => ({
+  wordsWritten: false,
+  printStored: false,
+  pdfStored: false,
+});
 
 function WizardProgress({
   t,
@@ -186,8 +196,8 @@ export function IdentityCreate({
   const [fileStored, setFileStored] = useState(false);
   const [printUsed, setPrintUsed] = useState(false);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
-  const [wordBackupMethod, setWordBackupMethod] =
-    useState<WordBackupMethod>(null);
+  const [recoveryDocumentCompletion, setRecoveryDocumentCompletion] =
+    useState<RecoveryDocumentCompletion>(emptyRecoveryDocumentCompletion);
   const [printModel, setPrintModel] = useState<RecoveryDocumentModel | null>(
     null,
   );
@@ -284,6 +294,9 @@ export function IdentityCreate({
       return null;
     });
     setRecoveryPdfFilename("");
+    setRecoveryDocumentCompletion(emptyRecoveryDocumentCompletion());
+    setPrintUsed(false);
+    setPdfDownloaded(false);
     setQrPracticeValue("");
     if (recoveryBytesOwner.current) {
       zeroize(recoveryBytesOwner.current);
@@ -311,7 +324,7 @@ export function IdentityCreate({
     setFileStored(false);
     setPrintUsed(false);
     setPdfDownloaded(false);
-    setWordBackupMethod(null);
+    setRecoveryDocumentCompletion(emptyRecoveryDocumentCompletion());
     setPrintModel(null);
     setRecoveryPdfBytes((current) => {
       if (current) zeroize(current);
@@ -1148,30 +1161,42 @@ export function IdentityCreate({
             <legend>{t("confirmWordBackup")}</legend>
             <label class="check-row">
               <input
-                type="radio"
-                name="word-backup"
-                checked={wordBackupMethod === "written"}
-                onChange={() => setWordBackupMethod("written")}
+                type="checkbox"
+                checked={recoveryDocumentCompletion.wordsWritten}
+                onChange={(event) =>
+                  setRecoveryDocumentCompletion((current) => ({
+                    ...current,
+                    wordsWritten: event.currentTarget.checked,
+                  }))
+                }
               />
               <span>{t("confirmWordsWritten")}</span>
             </label>
             <label class="check-row">
               <input
-                type="radio"
-                name="word-backup"
+                type="checkbox"
                 disabled={!printUsed}
-                checked={wordBackupMethod === "printed"}
-                onChange={() => setWordBackupMethod("printed")}
+                checked={recoveryDocumentCompletion.printStored}
+                onChange={(event) =>
+                  setRecoveryDocumentCompletion((current) => ({
+                    ...current,
+                    printStored: event.currentTarget.checked,
+                  }))
+                }
               />
               <span>{t("confirmPrintedRecovery")}</span>
             </label>
             <label class="check-row">
               <input
-                type="radio"
-                name="word-backup"
+                type="checkbox"
                 disabled={!pdfDownloaded}
-                checked={wordBackupMethod === "pdf"}
-                onChange={() => setWordBackupMethod("pdf")}
+                checked={recoveryDocumentCompletion.pdfStored}
+                onChange={(event) =>
+                  setRecoveryDocumentCompletion((current) => ({
+                    ...current,
+                    pdfStored: event.currentTarget.checked,
+                  }))
+                }
               />
               <span>{t("confirmPdfStored")}</span>
             </label>
@@ -1184,7 +1209,11 @@ export function IdentityCreate({
           <button
             class="button primary"
             type="button"
-            disabled={wordBackupMethod === null}
+            disabled={
+              !recoveryDocumentCompletion.wordsWritten ||
+              !recoveryDocumentCompletion.printStored ||
+              !recoveryDocumentCompletion.pdfStored
+            }
             onClick={leaveSecretScreens}
           >
             {t("continueRestorePractice")}

@@ -120,7 +120,7 @@ const en = {
     "These words, the private QR, and the .ppxrecovery file can all restore your identity. Anyone who gets them can decrypt as you.",
   openPrintPreview: "Open print preview",
   downloadRecoveryPdf: "Download recovery PDF",
-  confirmWordBackup: "Confirm one recovery-word backup",
+  confirmWordBackup: "Confirm all recovery backups",
   confirmWordsWritten: "I wrote down all 24 words",
   confirmPrintedRecovery: "I printed and safely stored the recovery document",
   confirmPdfStored: "I safely stored the recovery PDF",
@@ -496,7 +496,7 @@ const de: Record<keyof typeof en, string> = {
     "Diese Wörter, der private QR-Code und die .ppxrecovery-Datei können alle deine Identität wiederherstellen. Wer sie erhält, kann als du entschlüsseln.",
   openPrintPreview: "Druckansicht öffnen",
   downloadRecoveryPdf: "Wiederherstellungs-PDF herunterladen",
-  confirmWordBackup: "Eine Sicherung der Wiederherstellungswörter bestätigen",
+  confirmWordBackup: "Alle Wiederherstellungssicherungen bestätigen",
   confirmWordsWritten: "Ich habe alle 24 Wörter aufgeschrieben",
   confirmPrintedRecovery:
     "Ich habe das Wiederherstellungsdokument gedruckt und sicher verwahrt",

@@ -304,8 +304,8 @@ describe("seven-screen identity wizard", () => {
     expect(continueButton.disabled).toBe(true);
     await user.click(written);
     expect(continueButton.disabled).toBe(true);
-    expect(printed).toBeDisabled();
-    expect(pdf).toBeDisabled();
+    expect((printed as HTMLInputElement).disabled).toBe(true);
+    expect((pdf as HTMLInputElement).disabled).toBe(true);
     expect(download).toHaveBeenCalledTimes(2);
   });
 

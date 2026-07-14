@@ -54,7 +54,9 @@ test("high-reflow viewport keeps critical actions reachable", async ({
 }) => {
   await page.setViewportSize({ width: 320, height: 640 });
   await page.goto("/#/help");
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Hilfe" }).click();
   const dimensions = await page.evaluate(() => ({
     client: document.documentElement.clientWidth,
     scroll: document.documentElement.scrollWidth,
@@ -80,6 +82,44 @@ test("primary actions meet practical touch target height", async ({ page }) => {
   expect((await create.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
 });
 
+test("focused form controls use one continuous accent ring without layout shift", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new identity" }).click();
+  const username = page.getByLabel("Username");
+  const readDocumentBox = () =>
+    username.evaluate((element) => {
+      const input = element as HTMLInputElement;
+      return {
+        x: input.offsetLeft,
+        y: input.offsetTop,
+        width: input.offsetWidth,
+        height: input.offsetHeight,
+      };
+    });
+  const before = await readDocumentBox();
+  await username.focus();
+  const after = await readDocumentBox();
+  const focusStyle = await username.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      borderColor: style.borderColor,
+      outlineColor: style.outlineColor,
+      outlineOffset: style.outlineOffset,
+      outlineStyle: style.outlineStyle,
+      outlineWidth: style.outlineWidth,
+      boxShadow: style.boxShadow,
+    };
+  });
+  expect(after).toEqual(before);
+  expect(focusStyle.borderColor).toBe(focusStyle.outlineColor);
+  expect(focusStyle.outlineStyle).toBe("solid");
+  expect(focusStyle.outlineWidth).toBe("2px");
+  expect(focusStyle.outlineOffset).toBe("0px");
+  expect(focusStyle.boxShadow).not.toBe("none");
+});
+
 test("unlocked mobile topbar keeps every action inside its header", async ({
   page,
 }) => {
@@ -93,9 +133,11 @@ test("unlocked mobile topbar keeps every action inside its header", async ({
   const lockBox = await page
     .getByRole("button", { name: "Lock now" })
     .boundingBox();
-  const localeBox = await page.getByLabel("Language").boundingBox();
+  const settingsBox = await page
+    .getByRole("link", { name: "Open settings" })
+    .boundingBox();
   expect(headerBox).not.toBeNull();
-  for (const box of [lockBox, localeBox]) {
+  for (const box of [lockBox, settingsBox]) {
     expect(box).not.toBeNull();
     expect(box?.y ?? -1).toBeGreaterThanOrEqual(headerBox?.y ?? 0);
     expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
@@ -111,44 +153,90 @@ test("identity creation is keyboard complete through recovery guard", async ({
   const create = page.getByRole("button", { name: "Create new identity" });
   await create.focus();
   await page.keyboard.press("Enter");
-  const pseudonym = page.getByLabel("Pseudonym");
-  await pseudonym.focus();
+  const username = page.getByLabel("Username");
+  await username.focus();
   await page.keyboard.type("Keyboard Alice");
   const generate = page.getByRole("button", { name: "Generate identity" });
   await generate.focus();
   await page.keyboard.press("Enter");
 
-  const words = await page.locator(".word-grid li").allTextContents();
-  const downloadEvent = page.waitForEvent("download");
-  const download = page.getByRole("button", {
-    name: "Press and hold to export private recovery card",
-  });
-  await download.focus();
-  await page.keyboard.press("Enter");
-  await downloadEvent;
-  const phrase = page.getByLabel("Type EXPORT PRIVATE to continue");
-  await phrase.focus();
-  await page.keyboard.type("EXPORT PRIVATE");
-  const confirmations = page.locator(
-    'input[id^="recovery-word-confirmation-"]',
+  const password = page.getByLabel("Browser-vault password", { exact: true });
+  await password.focus();
+  await page.keyboard.type("Keyboard vault pass 123!");
+  const confirmation = page.getByLabel("Confirm browser-vault password");
+  await confirmation.focus();
+  await page.keyboard.type("Keyboard vault pass 123!");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Create encrypted vault" }),
   );
-  for (let index = 0; index < (await confirmations.count()); index += 1) {
-    const input = confirmations.nth(index);
-    const id = await input.getAttribute("id");
-    const position = Number(id?.split("-").at(-1));
-    await input.focus();
-    await page.keyboard.type(words[position - 1] ?? "");
-  }
-  const confirm = page.getByRole("button", {
-    name: "Confirm recovery saved",
+  const qrDownloadEvent = page.waitForEvent("download");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Save private QR as PNG" }),
+  );
+  await qrDownloadEvent;
+  const qrStored = page.getByRole("checkbox", {
+    name: "I stored the private QR safely",
   });
-  await confirm.focus();
+  await qrStored.focus();
+  await page.keyboard.press("Space");
+  const fileDownloadEvent = page.waitForEvent("download");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Download .ppxrecovery file" }),
+  );
+  await fileDownloadEvent;
+  const fileStored = page.getByRole("checkbox", {
+    name: "I stored the .ppxrecovery file safely",
+  });
+  await fileStored.focus();
+  await page.keyboard.press("Space");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Continue to recovery words" }),
+  );
+  const printPage = page.waitForEvent("popup");
+  await activateWithKeyboard(
+    page.getByRole("link", { name: "Print / Save as PDF" }),
+  );
+  await (await printPage).close();
+  const pdfDownload = page.waitForEvent("download");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Download recovery PDF" }),
+  );
+  await pdfDownload;
+  const written = page.getByRole("checkbox", {
+    name: "I wrote down all 24 words",
+  });
+  await written.focus();
+  await page.keyboard.press("Space");
+  const printed = page.getByRole("checkbox", {
+    name: "I printed and safely stored the recovery document",
+  });
+  await printed.focus();
+  await page.keyboard.press("Space");
+  const pdfStored = page.getByRole("checkbox", {
+    name: "I safely stored the recovery PDF",
+  });
+  await pdfStored.focus();
+  await page.keyboard.press("Space");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Continue to restore practice" }),
+  );
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "I know what I’m doing" }),
+  );
+  await expect(page.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "Skip practice" }),
+  ).toBeFocused();
   await page.keyboard.press("Enter");
-  const sessionOnly = page.getByRole("button", {
-    name: "No, use session only",
+  const sessionOnly = page.getByRole("radio", {
+    name: /No, use session only/u,
   });
   await sessionOnly.focus();
-  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  await activateWithKeyboard(
+    page.getByRole("button", { name: "Finish identity setup" }),
+  );
   await expect(page.getByRole("button", { name: "Lock now" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Encrypt" })).toBeVisible();
 });
@@ -238,14 +326,19 @@ test("mobile recovery export remains fully inside its scroll viewport", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: "Create new identity" }).click();
-  await page.getByLabel("Pseudonym").fill("Recovery Visual");
+  await page.getByLabel("Username").fill("Recovery Visual");
   await page.getByRole("button", { name: "Generate identity" }).click();
-  await expect(
-    page.getByRole("img", { name: "Private recovery QR code" }),
-  ).toBeVisible();
+  await page
+    .getByLabel("Browser-vault password", { exact: true })
+    .fill("Visual vault pass 123!");
+  await page
+    .getByLabel("Confirm browser-vault password")
+    .fill("Visual vault pass 123!");
+  await page.getByRole("button", { name: "Create encrypted vault" }).click();
+  await expect(page.getByText("Step 3 of 7")).toBeVisible({ timeout: 15_000 });
   const dimensions = await page.evaluate(() => {
     const workspace = document.querySelector<HTMLElement>(".workspace");
-    const card = document.querySelector<HTMLElement>(".private-card");
+    const card = document.querySelector<HTMLElement>(".backup-actions");
     if (!workspace || !card) throw new Error("recovery layout missing");
     const workspaceBox = workspace.getBoundingClientRect();
     const cardBox = card.getBoundingClientRect();
