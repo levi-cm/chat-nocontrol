@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import fixture from "../../../fixtures/protocol/golden-v1.json";
 import compressedTextFixture from "../../../fixtures/protocol/golden-v2-ppxt.json";
+import qrTextFixture from "../../../fixtures/protocol/golden-v1-ppxq.json";
 import {
   canonicalCompressedTextBytes,
   canonicalProtocolBytes,
+  canonicalQrTextBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
 } from "../helpers/canonical-protocol";
@@ -39,5 +41,15 @@ describe("all-family protocol goldens", () => {
     expect(generated).toHaveLength(expected.encodedLength);
     expect(hex(sha512(generated))).toBe(expected.encodedSha512);
     expect(parseForCanonicalRoundTrip("ppxt", generated)()).toEqual(generated);
+  });
+
+  it("locks the canonical compact PPXQ v1 envelope", () => {
+    const generated = canonicalQrTextBytes();
+    const expected = qrTextFixture.fixture;
+    expect(generated).toEqual(
+      Uint8Array.from(Buffer.from(expected.encodedBase64, "base64")),
+    );
+    expect(generated).toHaveLength(expected.encodedLength);
+    expect(hex(sha512(generated))).toBe(expected.encodedSha512);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalCompressedTextBytes,
   canonicalProtocolBytes,
+  canonicalQrTextBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
 } from "../helpers/canonical-protocol";
@@ -16,6 +17,14 @@ describe("canonical object truncations", () => {
           parseForCanonicalRoundTrip(family, canonical.slice(0, length)),
         ).toThrow();
       }
+    }
+  });
+
+  it("rejects every shortened canonical PPXQ object", async () => {
+    const { parseEncryptedQrText } = await import("../../protocol/ppxq-outer");
+    const canonical = canonicalQrTextBytes();
+    for (let length = 0; length < canonical.length; length += 1) {
+      expect(() => parseEncryptedQrText(canonical.slice(0, length))).toThrow();
     }
   });
 

@@ -1,14 +1,18 @@
 import type {
+  DecryptedQrTextOutput,
   DecryptedFileOutput,
   DecryptedTextOutput,
   DecryptFileInput,
   DecryptTextInput,
+  DecryptQrTextInput,
   DerivedIdentity,
   EncryptedFileBlobOutput,
   EncryptedFileObject,
   EncryptedTextObject,
+  EncryptedQrTextObject,
   EncryptFileInput,
   EncryptTextInput,
+  EncryptQrTextInput,
   LockedVaultObject,
   LockVaultInput,
   PPXCryptoError,
@@ -19,6 +23,8 @@ import type {
 export type PPXWorkerRequest =
   | { kind: "encrypt-text"; requestId: string; input: EncryptTextInput }
   | { kind: "decrypt-text"; requestId: string; input: DecryptTextInput }
+  | { kind: "encrypt-qr-text"; requestId: string; input: EncryptQrTextInput }
+  | { kind: "decrypt-qr-text"; requestId: string; input: DecryptQrTextInput }
   | { kind: "encrypt-file"; requestId: string; input: EncryptFileInput }
   | { kind: "decrypt-file"; requestId: string; input: DecryptFileInput }
   | { kind: "unlock-vault"; requestId: string; input: UnlockVaultInput }
@@ -39,6 +45,7 @@ export type PPXWorkerEvent =
       requestId: string;
       result:
         | EncryptedTextObject
+        | EncryptedQrTextObject
         | EncryptedFileObject
         | EncryptedFileBlobOutput
         | LockedVaultObject
@@ -47,7 +54,7 @@ export type PPXWorkerEvent =
   | {
       kind: "completed";
       requestId: string;
-      result: DecryptedTextOutput | DecryptedFileOutput;
+      result: DecryptedTextOutput | DecryptedQrTextOutput | DecryptedFileOutput;
     }
   | { kind: "error"; requestId: string; code: PPXSafeWorkerError }
   | { kind: "cancelled"; requestId: string };

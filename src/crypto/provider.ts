@@ -1,14 +1,18 @@
 import type {
+  DecryptedQrTextOutput,
   DecryptedFileOutput,
   DecryptedTextOutput,
   DecryptFileInput,
   DecryptTextInput,
+  DecryptQrTextInput,
   DerivedIdentity,
   EncryptedFileBlobOutput,
   EncryptedFileObject,
   EncryptedTextObject,
+  EncryptedQrTextObject,
   EncryptFileInput,
   EncryptTextInput,
+  EncryptQrTextInput,
   HybridEncapsulation,
   LockedVaultObject,
   LockVaultInput,
@@ -32,6 +36,8 @@ export interface CryptoProvider {
   }): HybridEncapsulation;
   encryptText(input: EncryptTextInput): Promise<EncryptedTextObject>;
   decryptText(input: DecryptTextInput): Promise<DecryptedTextOutput>;
+  encryptQrText(input: EncryptQrTextInput): Promise<EncryptedQrTextObject>;
+  decryptQrText(input: DecryptQrTextInput): Promise<DecryptedQrTextOutput>;
   encryptFile(
     input: EncryptFileInput,
     hooks?: FileCryptoHooks,

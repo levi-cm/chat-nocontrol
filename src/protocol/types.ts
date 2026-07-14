@@ -16,6 +16,7 @@ export type PPXCryptoError =
   | "invalid-signature"
   | "invalid-hybrid-encapsulation"
   | "unsupported-compression"
+  | "unknown-sender-contact"
   | "invalid-passphrase"
   | "corrupted-vault";
 
@@ -144,6 +145,46 @@ export type EncryptedTextObject = EncryptedTextObjectBase &
   ({ formatVersion: 0x01; flags: 0x00 } | { formatVersion: 0x02; flags: 0x01 });
 
 export interface DecryptedTextOutput {
+  senderContact: PublicContact;
+  recipientId: Uint8Array;
+  messageId: Uint8Array;
+  sentAt: bigint;
+  createdAt: bigint;
+  plaintext: string;
+  signatureValid: true;
+}
+
+export interface EncryptedQrTextObject {
+  magic: "PPXQ";
+  formatVersion: 0x01;
+  suite: 0x01;
+  flags: 0x00 | 0x01;
+  mlKemCiphertext: Uint8Array;
+  ephemeralX25519PublicKey: Uint8Array;
+  salt: Uint8Array;
+  nonce: Uint8Array;
+  ciphertextLength: number;
+  ciphertext: Uint8Array;
+  checksum: Uint8Array;
+}
+
+export interface EncryptQrTextInput {
+  sender: PublicContact;
+  senderSigningCapability: SenderSigningCapability;
+  recipient: PublicContact;
+  plaintext: string;
+  messageId: Uint8Array;
+  sentAt: bigint;
+  createdAt: bigint;
+}
+
+export interface DecryptQrTextInput {
+  object: EncryptedQrTextObject;
+  activeIdentity: DerivedIdentity;
+  knownSenders: PublicContact[];
+}
+
+export interface DecryptedQrTextOutput {
   senderContact: PublicContact;
   recipientId: Uint8Array;
   messageId: Uint8Array;

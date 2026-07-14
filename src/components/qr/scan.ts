@@ -1,4 +1,5 @@
 import { loadZxingBrowser } from "./zxing";
+import { recoverQrFromImage } from "./image-recovery";
 
 export const QR_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const QR_IMAGE_MAX_DIMENSION = 4096;
@@ -148,7 +149,18 @@ export async function scanQrFile(file: File): Promise<string> {
   await validateQrImageFile(file);
   const url = URL.createObjectURL(file);
   try {
-    return await scanQrImage(url);
+    try {
+      return await scanQrImage(url);
+    } catch {
+      return await recoverQrFromImage(file, async (candidate) => {
+        const candidateUrl = URL.createObjectURL(candidate);
+        try {
+          return await scanQrImage(candidateUrl);
+        } finally {
+          URL.revokeObjectURL(candidateUrl);
+        }
+      });
+    }
   } finally {
     URL.revokeObjectURL(url);
   }

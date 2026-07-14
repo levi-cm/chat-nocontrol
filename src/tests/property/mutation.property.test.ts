@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalCompressedTextBytes,
   canonicalProtocolBytes,
+  canonicalQrTextBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
 } from "../helpers/canonical-protocol";
@@ -16,6 +17,16 @@ describe("canonical object mutations", () => {
         mutated[index] = (mutated[index] as number) ^ 1;
         expect(() => parseForCanonicalRoundTrip(family, mutated)).toThrow();
       }
+    }
+  });
+
+  it("rejects every single-byte mutation in canonical PPXQ", async () => {
+    const { parseEncryptedQrText } = await import("../../protocol/ppxq-outer");
+    const canonical = canonicalQrTextBytes();
+    for (let index = 0; index < canonical.length; index += 1) {
+      const mutated = canonical.slice();
+      mutated[index] = (mutated[index] as number) ^ 1;
+      expect(() => parseEncryptedQrText(mutated)).toThrow();
     }
   });
 

@@ -17,6 +17,10 @@ import {
   parseEncryptedTextOuter,
 } from "../../protocol/ppxt-outer";
 import {
+  encodeEncryptedQrText,
+  encodeEncryptedQrTextHeader,
+} from "../../protocol/ppxq-outer";
+import {
   encodeLockedVault,
   encodeLockedVaultHeader,
   parseLockedVault,
@@ -201,4 +205,21 @@ export function canonicalCompressedTextBytes(): Uint8Array {
     ...base,
     checksum: checksum16(payload),
   });
+}
+
+export function canonicalQrTextBytes(): Uint8Array {
+  const base = {
+    magic: "PPXQ" as const,
+    formatVersion: 1 as const,
+    suite: 1 as const,
+    flags: 0 as const,
+    mlKemCiphertext: new Uint8Array(768).fill(0xa1),
+    ephemeralX25519PublicKey: new Uint8Array(32).fill(0xa2),
+    salt: new Uint8Array(32).fill(0xa3),
+    nonce: new Uint8Array(12).fill(0xa4),
+    ciphertextLength: 170,
+    ciphertext: new Uint8Array(170).fill(0xa5),
+  };
+  const payload = concat(encodeEncryptedQrTextHeader(base), base.ciphertext);
+  return encodeEncryptedQrText({ ...base, checksum: checksum16(payload) });
 }

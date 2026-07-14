@@ -1,11 +1,15 @@
 import type { PPXWorkerEvent, PPXWorkerRequest } from "../crypto/contracts";
 import { zeroize } from "../crypto/zeroize";
 import type {
+  DecryptedQrTextOutput,
   DecryptedTextOutput,
   DecryptTextInput,
+  DecryptQrTextInput,
   DerivedIdentity,
   EncryptedTextObject,
+  EncryptedQrTextObject,
   EncryptTextInput,
+  EncryptQrTextInput,
   LockedVaultObject,
   LockVaultInput,
   UnlockVaultInput,
@@ -39,7 +43,7 @@ function startCryptoJob<T>(
       name: "ppx-crypto-worker",
     });
   } catch (error) {
-    if (request.kind === "encrypt-text") {
+    if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }
     throw error;
@@ -89,7 +93,7 @@ function startCryptoJob<T>(
   } catch {
     failWorker();
   } finally {
-    if (request.kind === "encrypt-text") {
+    if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }
   }
@@ -132,6 +136,25 @@ export function startDecryptTextJob(
 ): CryptoWorkerJob<DecryptedTextOutput> {
   const requestId = createRequestId();
   return startCryptoJob({ kind: "decrypt-text", requestId, input });
+}
+
+export function startEncryptQrTextJob(
+  input: EncryptQrTextInput,
+): CryptoWorkerJob<EncryptedQrTextObject> {
+  try {
+    const requestId = createRequestId();
+    return startCryptoJob({ kind: "encrypt-qr-text", requestId, input });
+  } catch (error) {
+    zeroize(input.senderSigningCapability.signingSecretKey);
+    throw error;
+  }
+}
+
+export function startDecryptQrTextJob(
+  input: DecryptQrTextInput,
+): CryptoWorkerJob<DecryptedQrTextOutput> {
+  const requestId = createRequestId();
+  return startCryptoJob({ kind: "decrypt-qr-text", requestId, input });
 }
 
 export function startLockVaultJob(

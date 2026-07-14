@@ -70,6 +70,28 @@ export function createCryptoRunner(
             }
             break;
           }
+          case "encrypt-qr-text": {
+            const result = await defaultCryptoProvider.encryptQrText(
+              request.input,
+            );
+            emit(
+              cancelled.has(request.requestId)
+                ? { kind: "cancelled", requestId: request.requestId }
+                : { kind: "completed", requestId: request.requestId, result },
+            );
+            break;
+          }
+          case "decrypt-qr-text": {
+            const result = await defaultCryptoProvider.decryptQrText(
+              request.input,
+            );
+            emit(
+              cancelled.has(request.requestId)
+                ? { kind: "cancelled", requestId: request.requestId }
+                : { kind: "completed", requestId: request.requestId, result },
+            );
+            break;
+          }
           case "lock-vault": {
             const result = await defaultCryptoProvider.lockVault(request.input);
             if (cancelled.has(request.requestId)) {

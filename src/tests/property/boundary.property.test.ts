@@ -16,6 +16,10 @@ import {
 } from "../../protocol/ppxt-outer";
 import { encodeSignedTextInner } from "../../protocol/ppxt-inner";
 import { parseLockedVault, PPXV_MAXIMUM_SIZE } from "../../protocol/ppxv";
+import {
+  parseEncryptedQrText,
+  PPXQ_MAXIMUM_OBJECT_SIZE,
+} from "../../protocol/ppxq-outer";
 import { checksum16 } from "../../protocol/checksum";
 import { StrictByteWriter } from "../../protocol/bytes";
 import { parseFileHeader } from "../../protocol/ppxf-header";
@@ -34,6 +38,7 @@ describe("declared protocol boundaries", () => {
       [parseRecoveryObject, PPXR_MAXIMUM_SIZE],
       [parseEncryptedTextOuter, PPXT_MAXIMUM_OBJECT_SIZE],
       [parseEncryptedFileObject, PPXF_ENCODED_MAX_BYTES],
+      [parseEncryptedQrText, PPXQ_MAXIMUM_OBJECT_SIZE],
     ] as const;
     for (const [parse, maximum] of cases) {
       expect(() => parse(oversized(maximum + 1))).toThrow(

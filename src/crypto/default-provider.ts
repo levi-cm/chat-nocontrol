@@ -1,15 +1,19 @@
 import { parsePublicContact, createPublicContact } from "../protocol/ppxc";
 import type {
+  DecryptedQrTextOutput,
   DecryptedFileOutput,
   DecryptedTextOutput,
   DecryptFileInput,
   DecryptTextInput,
+  DecryptQrTextInput,
   DerivedIdentity,
   EncryptedFileBlobOutput,
   EncryptedFileObject,
   EncryptedTextObject,
+  EncryptedQrTextObject,
   EncryptFileInput,
   EncryptTextInput,
+  EncryptQrTextInput,
   HybridEncapsulation,
   LockedVaultObject,
   LockVaultInput,
@@ -27,6 +31,7 @@ import { deriveIdentityFromEntropy } from "./identity";
 import type { CryptoProvider } from "./provider";
 import { decryptText, encryptText } from "./text";
 import { lockVault, unlockVault } from "./vault";
+import { decryptQrText, encryptQrText } from "./qr-text";
 
 export class DefaultCryptoProvider implements CryptoProvider {
   deriveIdentity(masterEntropy: Uint8Array): Promise<DerivedIdentity> {
@@ -59,6 +64,14 @@ export class DefaultCryptoProvider implements CryptoProvider {
 
   decryptText(input: DecryptTextInput): Promise<DecryptedTextOutput> {
     return decryptText(input);
+  }
+
+  encryptQrText(input: EncryptQrTextInput): Promise<EncryptedQrTextObject> {
+    return encryptQrText(input);
+  }
+
+  decryptQrText(input: DecryptQrTextInput): Promise<DecryptedQrTextOutput> {
+    return decryptQrText(input);
   }
 
   encryptFile(
