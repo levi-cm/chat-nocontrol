@@ -465,7 +465,7 @@ export function App() {
     if (acceptOwnership && !acceptOwnership()) return;
     setActiveIdentity(identity);
     setPublicContact(contact);
-    navigate("encrypt");
+    if (!existingRememberedVault) navigate("encrypt");
   };
 
   const removeStoredVault = async (): Promise<boolean> => {
