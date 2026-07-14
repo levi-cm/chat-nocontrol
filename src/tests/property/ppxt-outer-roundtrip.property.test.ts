@@ -18,7 +18,7 @@ describe("PPXT encrypted outer round trips", () => {
             magic: "PPXT" as const,
             formatVersion: 1 as const,
             suite: 1 as const,
-            flags: 0,
+            flags: 0 as const,
             mlKemCiphertext: new Uint8Array(768).fill(1),
             ephemeralX25519PublicKey: new Uint8Array(32).fill(2),
             salt: new Uint8Array(32).fill(3),
@@ -44,5 +44,51 @@ describe("PPXT encrypted outer round trips", () => {
       ),
       { numRuns: 25 },
     );
+  });
+
+  it("accepts only canonical version and flag pairs", () => {
+    const ciphertext = new Uint8Array(16).fill(9);
+    const makeBytes = (formatVersion: number, flags: number) => {
+      const base = {
+        magic: "PPXT" as const,
+        formatVersion: 1 as const,
+        suite: 1 as const,
+        flags: 0 as const,
+        mlKemCiphertext: new Uint8Array(768).fill(1),
+        ephemeralX25519PublicKey: new Uint8Array(32).fill(2),
+        salt: new Uint8Array(32).fill(3),
+        nonce: new Uint8Array(12).fill(4),
+        ciphertextLength: ciphertext.byteLength,
+      };
+      const header = encodeEncryptedTextHeader(base);
+      const payload = new Uint8Array(header.byteLength + ciphertext.byteLength);
+      payload.set(header);
+      payload.set(ciphertext, header.byteLength);
+      payload[4] = formatVersion;
+      payload[6] = flags;
+      const bytes = new Uint8Array(payload.byteLength + 16);
+      bytes.set(payload);
+      bytes.set(checksum16(payload), payload.byteLength);
+      return bytes;
+    };
+
+    expect(parseEncryptedTextOuter(makeBytes(1, 0))).toMatchObject({
+      formatVersion: 1,
+      flags: 0,
+    });
+    expect(parseEncryptedTextOuter(makeBytes(2, 1))).toMatchObject({
+      formatVersion: 2,
+      flags: 1,
+    });
+    for (const pair of [
+      [1, 1],
+      [2, 0],
+      [2, 3],
+      [3, 0],
+    ] as const) {
+      expect(() =>
+        parseEncryptedTextOuter(makeBytes(pair[0], pair[1])),
+      ).toThrow();
+    }
   });
 });

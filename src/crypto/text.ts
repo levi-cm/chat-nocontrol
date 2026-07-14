@@ -3,6 +3,7 @@ import { encodePublicContact, parsePublicContact } from "../protocol/ppxc";
 import {
   encodeSignedTextInner,
   parseSignedTextInner,
+  PPXT_MAXIMUM_INNER_SIZE,
 } from "../protocol/ppxt-inner";
 import {
   encodeEncryptedTextHeader,
@@ -18,6 +19,11 @@ import {
 } from "../protocol/types";
 import { decapsulateHybrid, encapsulateHybrid } from "./hybrid";
 import { ed25519PublicKey } from "./noble-provider";
+import {
+  gzipBytes,
+  gunzipBytesBounded,
+  supportsGzipStreams,
+} from "./text-compression";
 import { decryptAesGcm, encryptAesGcm } from "./webcrypto";
 import { zeroize } from "./zeroize";
 
@@ -37,6 +43,7 @@ export async function encryptText(
   const capability = input.senderSigningCapability;
   let hybrid: ReturnType<typeof encapsulateHybrid> | undefined;
   let inner: Uint8Array | undefined;
+  let compressed: Uint8Array | undefined;
   try {
     const sender = parsePublicContact(encodePublicContact(input.sender));
     const recipient = parsePublicContact(encodePublicContact(input.recipient));
@@ -66,22 +73,43 @@ export async function encryptText(
       createdAt: input.createdAt,
       plaintext: input.plaintext,
     });
+    let envelope:
+      { formatVersion: 1; flags: 0 } | { formatVersion: 2; flags: 1 } = {
+      formatVersion: 1,
+      flags: 0,
+    };
+    let aesPlaintext = inner;
+    if (inner.byteLength >= 1_024 && supportsGzipStreams()) {
+      try {
+        compressed = await gzipBytes(inner);
+        const minimumSavings = Math.max(64, Math.ceil(inner.byteLength * 0.1));
+        if (compressed.byteLength <= inner.byteLength - minimumSavings) {
+          envelope = { formatVersion: 2, flags: 1 };
+          aesPlaintext = compressed;
+        } else {
+          zeroize(compressed);
+          compressed = undefined;
+        }
+      } catch {
+        if (compressed) zeroize(compressed);
+        compressed = undefined;
+      }
+    }
     const base = {
       magic: "PPXT" as const,
-      formatVersion: 1 as const,
+      ...envelope,
       suite: 1 as const,
-      flags: 0,
       mlKemCiphertext: hybrid.mlKemCiphertext,
       ephemeralX25519PublicKey: hybrid.ephemeralX25519PublicKey,
       salt: hybrid.salt,
       nonce,
-      ciphertextLength: inner.byteLength + 16,
+      ciphertextLength: aesPlaintext.byteLength + 16,
     };
     const header = encodeEncryptedTextHeader(base);
     const ciphertext = await encryptAesGcm(
       hybrid.aes256Key,
       nonce,
-      inner,
+      aesPlaintext,
       header,
     );
     return {
@@ -98,6 +126,7 @@ export async function encryptText(
         hybrid.x25519SharedSecret,
       );
     if (inner) zeroize(inner);
+    if (compressed) zeroize(compressed);
   }
 }
 
@@ -105,6 +134,7 @@ export async function decryptText(
   input: DecryptTextInput,
 ): Promise<DecryptedTextOutput> {
   let key: Uint8Array | undefined;
+  let decrypted: Uint8Array | undefined;
   let inner: Uint8Array | undefined;
   try {
     const object = parseEncryptedTextOuter(
@@ -117,19 +147,37 @@ export async function decryptText(
       salt: object.salt,
     });
     const header = encodeEncryptedTextHeader(object);
-    inner = await decryptAesGcm(key, object.nonce, object.ciphertext, header);
+    decrypted = await decryptAesGcm(
+      key,
+      object.nonce,
+      object.ciphertext,
+      header,
+    );
+    if (object.formatVersion === 2) {
+      if (!supportsGzipStreams()) {
+        throw new PPXError("unsupported-compression");
+      }
+      inner = await gunzipBytesBounded(decrypted, PPXT_MAXIMUM_INNER_SIZE);
+    } else {
+      inner = decrypted;
+    }
     const output = parseSignedTextInner(inner);
     if (!equalBytes(output.recipientId, input.activeIdentity.identityId)) {
       throw new PPXError("wrong-identity-or-corruption");
     }
     return output;
   } catch (error) {
-    if (error instanceof PPXError && error.code === "invalid-signature") {
-      throw new PPXError("invalid-signature");
+    if (
+      error instanceof PPXError &&
+      (error.code === "invalid-signature" ||
+        error.code === "unsupported-compression")
+    ) {
+      throw new PPXError(error.code);
     }
     throw new PPXError("wrong-identity-or-corruption");
   } finally {
     if (key) zeroize(key);
     if (inner) zeroize(inner);
+    if (decrypted && decrypted !== inner) zeroize(decrypted);
   }
 }

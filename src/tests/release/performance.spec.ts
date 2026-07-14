@@ -17,3 +17,22 @@ test("static shell loads promptly with no remote dependency", async ({
     true,
   );
 });
+
+test("supported browser exposes exact gzip streams off the UI workflow", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const support = await page.evaluate(() => {
+    try {
+      return {
+        compression:
+          new CompressionStream("gzip").readable instanceof ReadableStream,
+        decompression:
+          new DecompressionStream("gzip").readable instanceof ReadableStream,
+      };
+    } catch {
+      return { compression: false, decompression: false };
+    }
+  });
+  expect(support).toEqual({ compression: true, decompression: true });
+});

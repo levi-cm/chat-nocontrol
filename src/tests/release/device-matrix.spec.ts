@@ -10,3 +10,20 @@ test("all main routes reflow without horizontal overflow", async ({ page }) => {
     expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
   }
 });
+
+test("device profile supports bounded PPXT gzip primitives", async ({
+  page,
+}) => {
+  await page.goto("/");
+  expect(
+    await page.evaluate(() => {
+      try {
+        new CompressionStream("gzip");
+        new DecompressionStream("gzip");
+        return true;
+      } catch {
+        return false;
+      }
+    }),
+  ).toBe(true);
+});

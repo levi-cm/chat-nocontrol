@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalCompressedTextBytes,
   canonicalProtocolBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
@@ -15,6 +16,15 @@ describe("canonical object mutations", () => {
         mutated[index] = (mutated[index] as number) ^ 1;
         expect(() => parseForCanonicalRoundTrip(family, mutated)).toThrow();
       }
+    }
+  });
+
+  it("rejects every single-byte mutation in canonical PPXT v2", () => {
+    const canonical = canonicalCompressedTextBytes();
+    for (let index = 0; index < canonical.length; index += 1) {
+      const mutated = canonical.slice();
+      mutated[index] = (mutated[index] as number) ^ 1;
+      expect(() => parseForCanonicalRoundTrip("ppxt", mutated)).toThrow();
     }
   });
 });

@@ -10,8 +10,8 @@ import {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const SIGNATURE_DOMAIN = encoder.encode("PPX/TEXT/V1/SIGNATURE");
-const MAXIMUM_PLAINTEXT_SIZE = 262_144;
-const MAXIMUM_INNER_SIZE = 264_000;
+export const PPXT_MAXIMUM_PLAINTEXT_SIZE = 262_144;
+export const PPXT_MAXIMUM_INNER_SIZE = 264_000;
 
 function readUint32At(bytes: Uint8Array, offset: number): number {
   if (offset < 0 || offset + 4 > bytes.byteLength) {
@@ -50,7 +50,7 @@ export function encodeSignedTextInner(input: {
     input.recipientId.byteLength !== 20 ||
     input.messageId.byteLength < 1 ||
     input.messageId.byteLength > 64 ||
-    plaintext.byteLength > MAXIMUM_PLAINTEXT_SIZE
+    plaintext.byteLength > PPXT_MAXIMUM_PLAINTEXT_SIZE
   ) {
     throw new PPXError("impossible-length");
   }
@@ -85,7 +85,7 @@ export function encodeSignedTextInner(input: {
 }
 
 export function parseSignedTextInner(bytes: Uint8Array): DecryptedTextOutput {
-  const reader = new StrictByteReader(bytes, MAXIMUM_INNER_SIZE);
+  const reader = new StrictByteReader(bytes, PPXT_MAXIMUM_INNER_SIZE);
   const senderLength = readUint32At(bytes, 0);
   if (senderLength < 961 || senderLength > 1008) {
     throw new PPXError("impossible-length");
@@ -101,7 +101,7 @@ export function parseSignedTextInner(bytes: Uint8Array): DecryptedTextOutput {
   const plaintextLengthOffset = messageLengthOffset + 1 + messageIdLength + 16;
   const plaintextLength = readUint32At(bytes, plaintextLengthOffset);
   if (
-    plaintextLength > MAXIMUM_PLAINTEXT_SIZE ||
+    plaintextLength > PPXT_MAXIMUM_PLAINTEXT_SIZE ||
     bytes.byteLength !== plaintextLengthOffset + 4 + plaintextLength + 64
   ) {
     throw new PPXError("impossible-length");
@@ -121,7 +121,7 @@ export function parseSignedTextInner(bytes: Uint8Array): DecryptedTextOutput {
     throw new PPXError("impossible-length");
   }
   if (
-    plaintextLength > MAXIMUM_PLAINTEXT_SIZE ||
+    plaintextLength > PPXT_MAXIMUM_PLAINTEXT_SIZE ||
     plaintextLength > reader.remaining() - 64
   ) {
     throw new PPXError("impossible-length");

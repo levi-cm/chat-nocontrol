@@ -11,9 +11,17 @@ export function encodeEncryptedTextHeader(
   object: Omit<EncryptedTextObject, "ciphertext" | "checksum">,
 ): Uint8Array {
   if (object.magic !== "PPXT") throw new PPXError("noncanonical-text");
-  if (object.formatVersion !== 1) throw new PPXError("unknown-format-version");
   if (object.suite !== 1) throw new PPXError("unknown-suite");
-  if (object.flags !== 0) throw new PPXError("unknown-flags");
+  if (!(
+    (object.formatVersion === 1 && object.flags === 0) ||
+    (object.formatVersion === 2 && object.flags === 1)
+  )) {
+    throw new PPXError(
+      object.formatVersion === 1 || object.formatVersion === 2
+        ? "unknown-flags"
+        : "unknown-format-version",
+    );
+  }
   if (
     object.mlKemCiphertext.byteLength !== 768 ||
     object.ephemeralX25519PublicKey.byteLength !== 32 ||
@@ -27,9 +35,9 @@ export function encodeEncryptedTextHeader(
   }
   const writer = new StrictByteWriter(PPXT_HEADER_SIZE);
   writer.writeBytes(MAGIC);
+  writer.writeUint8(object.formatVersion);
   writer.writeUint8(1);
-  writer.writeUint8(1);
-  writer.writeUint8(0);
+  writer.writeUint8(object.flags);
   writer.writeBytes(object.mlKemCiphertext);
   writer.writeBytes(object.ephemeralX25519PublicKey);
   writer.writeBytes(object.salt);
@@ -81,9 +89,20 @@ export function parseEncryptedTextOuter(
     throw new PPXError("impossible-length");
   }
   if (!equalBytes(magic, MAGIC)) throw new PPXError("noncanonical-text");
-  if (formatVersion !== 1) throw new PPXError("unknown-format-version");
   if (suite !== 1) throw new PPXError("unknown-suite");
-  if (flags !== 0) throw new PPXError("unknown-flags");
+  const versionPair =
+    formatVersion === 1 && flags === 0
+      ? ({ formatVersion: 1, flags: 0 } as const)
+      : formatVersion === 2 && flags === 1
+        ? ({ formatVersion: 2, flags: 1 } as const)
+        : null;
+  if (!versionPair) {
+    throw new PPXError(
+      formatVersion === 1 || formatVersion === 2
+        ? "unknown-flags"
+        : "unknown-format-version",
+    );
+  }
   const ciphertext = reader.readBytes(ciphertextLength);
   const checksum = reader.readBytes(16);
   reader.requireEnd();
@@ -92,9 +111,8 @@ export function parseEncryptedTextOuter(
   }
   return {
     magic: "PPXT",
-    formatVersion: 1,
+    ...versionPair,
     suite: 1,
-    flags,
     mlKemCiphertext,
     ephemeralX25519PublicKey,
     salt,

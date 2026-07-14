@@ -2,7 +2,9 @@ import { sha512 } from "@noble/hashes/sha2.js";
 import { describe, expect, it } from "vitest";
 
 import fixture from "../../../fixtures/protocol/golden-v1.json";
+import compressedTextFixture from "../../../fixtures/protocol/golden-v2-ppxt.json";
 import {
+  canonicalCompressedTextBytes,
   canonicalProtocolBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
@@ -26,5 +28,16 @@ describe("all-family protocol goldens", () => {
         committed,
       );
     }
+  });
+
+  it("locks the canonical PPXT v2 compressed envelope", () => {
+    const generated = canonicalCompressedTextBytes();
+    const expected = compressedTextFixture.fixture;
+    expect(generated).toEqual(
+      Uint8Array.from(Buffer.from(expected.encodedBase64, "base64")),
+    );
+    expect(generated).toHaveLength(expected.encodedLength);
+    expect(hex(sha512(generated))).toBe(expected.encodedSha512);
+    expect(parseForCanonicalRoundTrip("ppxt", generated)()).toEqual(generated);
   });
 });

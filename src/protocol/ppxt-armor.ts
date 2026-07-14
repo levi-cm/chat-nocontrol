@@ -31,7 +31,7 @@ export function encodeTextArmor(object: EncryptedTextObject): string {
   const body = wrapBase64Url(encodeBase64UrlNoPad(bytes), 72);
   return [
     BEGIN,
-    "Version: 1",
+    `Version: ${object.formatVersion}`,
     "Suite: PPX-HYBRID-1",
     `Bytes: ${bytes.byteLength}`,
     `Digest: ${hex(sha512Digest(bytes))}`,
@@ -49,7 +49,7 @@ export function decodeTextArmor(armor: string): EncryptedTextObject {
   if (
     lines.length < 8 ||
     lines[0] !== BEGIN ||
-    lines[1] !== "Version: 1" ||
+    !/^Version: [12]$/u.test(lines[1] ?? "") ||
     lines[2] !== "Suite: PPX-HYBRID-1" ||
     lines[5] !== "" ||
     lines.at(-1) !== END
@@ -86,6 +86,9 @@ export function decodeTextArmor(armor: string): EncryptedTextObject {
     throw new PPXError("checksum-mismatch");
   }
   const object = parseEncryptedText(bytes);
+  if (lines[1] !== `Version: ${object.formatVersion}`) {
+    throw new PPXError("noncanonical-text");
+  }
   if (encodeTextArmor(object) !== armor)
     throw new PPXError("noncanonical-text");
   return object;

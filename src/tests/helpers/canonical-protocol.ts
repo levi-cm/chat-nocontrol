@@ -93,7 +93,7 @@ export async function canonicalProtocolBytes(
     magic: "PPXR",
     formatVersion: 1,
     suite: 1,
-    flags: 0,
+    flags: 0 as const,
     masterEntropy: entropy,
     creationTime: 1_700_000_000n,
     pseudonym,
@@ -128,7 +128,7 @@ export async function canonicalProtocolBytes(
     magic: "PPXT" as const,
     formatVersion: 1 as const,
     suite: 1 as const,
-    flags: 0,
+    flags: 0 as const,
     mlKemCiphertext: new Uint8Array(768).fill(0x44),
     ephemeralX25519PublicKey: new Uint8Array(32).fill(0x55),
     salt: new Uint8Array(32).fill(0x66),
@@ -181,4 +181,24 @@ export async function canonicalProtocolBytes(
   const ppxf = encodeEncryptedFileObject(fileObject);
 
   return { ppxc, ppxv, ppxr, ppxt, ppxf };
+}
+
+export function canonicalCompressedTextBytes(): Uint8Array {
+  const base = {
+    magic: "PPXT" as const,
+    formatVersion: 2 as const,
+    suite: 1 as const,
+    flags: 1 as const,
+    mlKemCiphertext: new Uint8Array(768).fill(0x91),
+    ephemeralX25519PublicKey: new Uint8Array(32).fill(0x92),
+    salt: new Uint8Array(32).fill(0x93),
+    nonce: new Uint8Array(12).fill(0x94),
+    ciphertextLength: 48,
+    ciphertext: new Uint8Array(48).fill(0x95),
+  };
+  const payload = concat(encodeEncryptedTextHeader(base), base.ciphertext);
+  return encodeEncryptedTextOuter({
+    ...base,
+    checksum: checksum16(payload),
+  });
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canonicalCompressedTextBytes,
   canonicalProtocolBytes,
   parseForCanonicalRoundTrip,
   protocolFamilies,
@@ -15,6 +16,15 @@ describe("canonical object truncations", () => {
           parseForCanonicalRoundTrip(family, canonical.slice(0, length)),
         ).toThrow();
       }
+    }
+  });
+
+  it("rejects every shortened canonical PPXT v2 object", () => {
+    const canonical = canonicalCompressedTextBytes();
+    for (let length = 0; length < canonical.length; length += 1) {
+      expect(() =>
+        parseForCanonicalRoundTrip("ppxt", canonical.slice(0, length)),
+      ).toThrow();
     }
   });
 });

@@ -15,6 +15,7 @@ export type PPXCryptoError =
   | "invalid-aead"
   | "invalid-signature"
   | "invalid-hybrid-encapsulation"
+  | "unsupported-compression"
   | "invalid-passphrase"
   | "corrupted-vault";
 
@@ -127,11 +128,9 @@ export interface DecryptTextInput {
   activeIdentity: DerivedIdentity;
 }
 
-export interface EncryptedTextObject {
+interface EncryptedTextObjectBase {
   magic: "PPXT";
-  formatVersion: 0x01;
   suite: 0x01;
-  flags: number;
   mlKemCiphertext: Uint8Array;
   ephemeralX25519PublicKey: Uint8Array;
   salt: Uint8Array;
@@ -140,6 +139,9 @@ export interface EncryptedTextObject {
   ciphertext: Uint8Array;
   checksum: Uint8Array;
 }
+
+export type EncryptedTextObject = EncryptedTextObjectBase &
+  ({ formatVersion: 0x01; flags: 0x00 } | { formatVersion: 0x02; flags: 0x01 });
 
 export interface DecryptedTextOutput {
   senderContact: PublicContact;
