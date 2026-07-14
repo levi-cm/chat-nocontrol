@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { displayIdentityId } from "../../components/cards/contact-management-card";
 import { downloadBlob } from "../../components/media/blob-url";
+import { PasteButton } from "../../components/forms/paste-button";
 import { copyWithBestEffortClear } from "../identity/clipboard";
 import { createSenderSigningCapability } from "../../crypto/identity";
 import type { Locale, MessageKey } from "../../i18n";
@@ -43,6 +44,7 @@ export function EncryptTextFlow({
   const [mode, setMode] = useState<"text" | "file">("text");
   const [fileBusy, setFileBusy] = useState(false);
   const job = useRef<CryptoWorkerJob<EncryptedTextObject> | null>(null);
+  const outputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(
     () => () => {
@@ -134,8 +136,17 @@ export function EncryptTextFlow({
   };
 
   const copy = async () => {
-    const copied = await copyWithBestEffortClear(output);
-    setCopyStatus(t(copied ? "copySucceeded" : "copyFailed"));
+    if (!outputRef.current) return;
+    const result = await copyWithBestEffortClear(output, outputRef.current);
+    setCopyStatus(
+      t(
+        result === "copied"
+          ? "copySucceeded"
+          : result === "selected"
+            ? "copySelected"
+            : "copyFailed",
+      ),
+    );
   };
 
   const share = async () => {
@@ -229,7 +240,22 @@ export function EncryptTextFlow({
       {mode === "text" && (
         <>
           <div class="field">
-            <label for="encrypt-text">{t("encryptedTextLabel")}</label>
+            <div class="field-heading">
+              <label for="encrypt-text">{t("encryptedTextLabel")}</label>
+              <PasteButton
+                label={t("paste")}
+                unavailableLabel={t("pasteUnavailable")}
+                failureLabel={t("pasteFailed")}
+                disabled={busy}
+                onPaste={(value) => {
+                  setPlaintext(value);
+                  setOutput("");
+                  setCopyStatus("");
+                  setError("");
+                }}
+                onError={setError}
+              />
+            </div>
             <textarea
               class="field-control"
               id="encrypt-text"
@@ -294,6 +320,7 @@ export function EncryptTextFlow({
             <div class="output-panel">
               <label for="encrypted-output">{t("encryptedOutput")}</label>
               <textarea
+                ref={outputRef}
                 class="field-control mono-output"
                 id="encrypted-output"
                 rows={10}

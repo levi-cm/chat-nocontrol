@@ -272,6 +272,8 @@ const en = {
   encryptedOutput: "Encrypted output",
   copyOutput: "Copy encrypted output",
   copySucceeded: "Copied. Clipboard clearing after 60 seconds is best effort.",
+  copySelected:
+    "Automatic copy is unavailable. The complete text is selected; press Ctrl+C or use Copy.",
   copyFailed: "Could not copy. Select the encrypted output manually.",
   saveOutput: "Save encrypted output",
   shareOutput: "Share encrypted output",
@@ -310,6 +312,7 @@ const en = {
   technicalDetails: "Technical details",
   technicalFailureCode: "Validation failed before content release.",
   decryptedText: "Decrypted text",
+  copyDecryptedText: "Copy decrypted text",
   unknownSender: "Unknown sender",
   authenticatedSender: "Authenticated sender",
   sender: "Sender",
@@ -662,6 +665,8 @@ const de: Record<keyof typeof en, string> = {
   copyOutput: "Verschlüsselte Ausgabe kopieren",
   copySucceeded:
     "Kopiert. Das Löschen der Zwischenablage nach 60 Sekunden ist nur ein bestmöglicher Versuch.",
+  copySelected:
+    "Automatisches Kopieren ist nicht verfügbar. Der vollständige Text ist ausgewählt; drücke Strg+C oder verwende Kopieren.",
   copyFailed:
     "Kopieren nicht möglich. Wähle die verschlüsselte Ausgabe manuell aus.",
   saveOutput: "Verschlüsselte Ausgabe speichern",
@@ -705,6 +710,7 @@ const de: Record<keyof typeof en, string> = {
   technicalFailureCode:
     "Die Prüfung ist fehlgeschlagen, bevor Inhalte freigegeben wurden.",
   decryptedText: "Entschlüsselter Text",
+  copyDecryptedText: "Entschlüsselten Text kopieren",
   unknownSender: "Unbekannter Absender",
   authenticatedSender: "Authentifizierter Absender",
   sender: "Absender",

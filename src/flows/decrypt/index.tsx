@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { AuthenticatedSenderCard } from "../../components/cards/authenticated-sender-card";
+import { PasteButton } from "../../components/forms/paste-button";
+import { copyWithBestEffortClear } from "../identity/clipboard";
 import type { Locale, MessageKey } from "../../i18n";
 import { decodeTextArmor } from "../../protocol/ppxt-armor";
 import { PPXT_ARMOR_MAXIMUM_CHARS } from "../../protocol/ppxt-armor";
@@ -44,8 +46,10 @@ export function DecryptFlow({
   const [status, setStatus] = useState("");
   const [savingSender, setSavingSender] = useState(false);
   const [routingBusy, setRoutingBusy] = useState(false);
+  const [copyStatus, setCopyStatus] = useState("");
   const routingGeneration = useRef(0);
   const textJob = useRef<CryptoWorkerJob<DecryptedTextOutput> | null>(null);
+  const decryptedOutput = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(
     () => () => {
@@ -65,6 +69,7 @@ export function DecryptFlow({
     setResult(null);
     setError("");
     setStatus("");
+    setCopyStatus("");
     setCollision("");
     setCollision("");
     setBusy(false);
@@ -84,6 +89,7 @@ export function DecryptFlow({
     let operation: CryptoWorkerJob<DecryptedTextOutput> | null = null;
     setBusy(true);
     setResult(null);
+    setCopyStatus("");
     setError("");
     setStatus("");
     try {
@@ -224,6 +230,23 @@ export function DecryptFlow({
     ? isKnownSender(result.senderContact.fingerprint, contacts)
     : false;
 
+  const copyDecryptedText = async () => {
+    if (!result || !decryptedOutput.current) return;
+    const copyResult = await copyWithBestEffortClear(
+      result.plaintext,
+      decryptedOutput.current,
+    );
+    setCopyStatus(
+      t(
+        copyResult === "copied"
+          ? "copySucceeded"
+          : copyResult === "selected"
+            ? "copySelected"
+            : "copyFailed",
+      ),
+    );
+  };
+
   const saveTextSender = async () => {
     if (!result || senderSaved || savingSender) return;
     setSavingSender(true);
@@ -268,7 +291,17 @@ export function DecryptFlow({
         <h2>{t("smartDecryptPrompt")}</h2>
         <p class="input-meta">{t("smartDecryptHelper")}</p>
         <div class="field">
-          <label for="encrypted-item">{t("encryptedItem")}</label>
+          <div class="field-heading">
+            <label for="encrypted-item">{t("encryptedItem")}</label>
+            <PasteButton
+              label={t("paste")}
+              unavailableLabel={t("pasteUnavailable")}
+              failureLabel={t("pasteFailed")}
+              disabled={busy || fileBusy || routingBusy}
+              onPaste={chooseDroppedText}
+              onError={setSmartError}
+            />
+          </div>
           <textarea
             class="field-control mono-output"
             id="encrypted-item"
@@ -347,7 +380,29 @@ export function DecryptFlow({
             contacts={contacts}
             t={t}
           />
-          <pre>{result.plaintext}</pre>
+          <div class="field decrypted-output-field">
+            <label for="decrypted-text-output">{t("decryptedText")}</label>
+            <textarea
+              ref={decryptedOutput}
+              class="field-control decrypted-output"
+              id="decrypted-text-output"
+              rows={10}
+              readOnly
+              value={result.plaintext}
+            />
+          </div>
+          <button
+            class="button secondary"
+            type="button"
+            onClick={() => void copyDecryptedText()}
+          >
+            {t("copyDecryptedText")}
+          </button>
+          {copyStatus && (
+            <p class="input-meta" role="status">
+              {copyStatus}
+            </p>
+          )}
           {!senderSaved && (
             <div class="warning-panel" role="status">
               <h3>{t("unknownSender")}</h3>

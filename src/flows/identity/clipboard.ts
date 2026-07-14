@@ -3,6 +3,8 @@ interface ClipboardPort {
   readText(): Promise<string>;
 }
 
+export type CopyResult = "copied" | "selected" | "failed";
+
 async function clearIfUnchanged(
   copiedValue: string,
   clipboard: ClipboardPort,
@@ -18,15 +20,32 @@ async function clearIfUnchanged(
 
 export async function copyWithBestEffortClear(
   value: string,
-  clipboard: ClipboardPort = navigator.clipboard,
-): Promise<boolean> {
-  try {
-    await clipboard.writeText(value);
-  } catch {
-    return false;
+  target: HTMLTextAreaElement,
+  clipboard: ClipboardPort | undefined = navigator.clipboard,
+  legacyCopy: () => boolean = () => document.execCommand("copy"),
+): Promise<CopyResult> {
+  if (clipboard) {
+    try {
+      await clipboard.writeText(value);
+      setTimeout(() => {
+        void clearIfUnchanged(value, clipboard);
+      }, 60_000);
+      return "copied";
+    } catch {
+      // Continue with the synchronous selection fallback from this user click.
+    }
   }
-  setTimeout(() => {
-    void clearIfUnchanged(value, clipboard);
-  }, 60_000);
-  return true;
+
+  try {
+    target.focus();
+    target.select();
+    target.setSelectionRange(0, target.value.length);
+  } catch {
+    return "failed";
+  }
+  try {
+    return legacyCopy() ? "copied" : "selected";
+  } catch {
+    return "selected";
+  }
 }

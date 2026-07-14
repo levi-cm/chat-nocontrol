@@ -1151,6 +1151,12 @@ textarea.field-control {
   resize: vertical;
   text-overflow: clip;
 }
+.decrypted-output {
+  white-space: pre-wrap;
+}
+.decrypted-output-field {
+  margin: 0;
+}
 
 .passphrase-meter {
   display: grid;

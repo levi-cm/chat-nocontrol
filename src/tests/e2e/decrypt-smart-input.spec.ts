@@ -19,6 +19,19 @@ import { formatFingerprintBytes } from "../../components/cards/public-contact-ca
 test("validates then decrypts armored text with unknown-sender warning", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    let value = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: () => Promise.resolve(value),
+        writeText: (next: string) => {
+          value = next;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
   const alice = await deriveIdentityFromEntropy(
     new Uint8Array(32).fill(1),
     "Alice",
@@ -66,8 +79,15 @@ test("validates then decrypts armored text with unknown-sender warning", async (
   await expect(smartArea.getByLabel("Encrypted file")).toBeVisible();
   await page.getByLabel("Encrypted item").fill(armor);
   await page.getByRole("button", { name: "Decrypt locally" }).click();
+  const decrypted = page.getByLabel("Decrypted text");
+  await expect(decrypted).toHaveValue("Verified secret");
+  await expect(decrypted).toHaveAttribute("readonly", "");
+  await page.getByRole("button", { name: "Copy decrypted text" }).click();
   await expect(
-    page.getByText("Verified secret", { exact: true }),
+    page.getByText(
+      "Copied. Clipboard clearing after 60 seconds is best effort.",
+      { exact: true },
+    ),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Unknown sender" }),
