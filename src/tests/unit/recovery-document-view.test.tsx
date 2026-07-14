@@ -14,7 +14,7 @@ describe("recovery print view", () => {
     ["mobile", true, 0],
   ] as const)(
     "uses one generated PDF preview on %s",
-    async (_label, mobile, expectedFrames) => {
+    (_label, mobile, expectedFrames) => {
       Object.defineProperty(window, "matchMedia", {
         configurable: true,
         value: vi.fn(() => ({

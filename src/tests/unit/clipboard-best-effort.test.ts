@@ -1,14 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { copyWithBestEffortClear } from "../../flows/identity/clipboard";
 
-type Copy = (
-  value: string,
-  target: HTMLTextAreaElement,
-  clipboard?: { writeText(value: string): Promise<void>; readText(): Promise<string> },
-  legacyCopy?: () => boolean,
-) => Promise<"copied" | "selected" | "failed">;
-
-const copy = copyWithBestEffortClear as unknown as Copy;
+const copy = copyWithBestEffortClear;
 
 function textarea(value = "secret"): HTMLTextAreaElement {
   const target = document.createElement("textarea");
