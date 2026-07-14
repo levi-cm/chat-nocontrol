@@ -768,6 +768,25 @@ select {
   color: #7f1d1d;
   font-weight: 800;
 }
+.recovery-pdf-preview {
+  display: grid;
+  gap: 16px;
+}
+.recovery-pdf-frame {
+  width: 100%;
+  aspect-ratio: 210 / 297;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: #ffffff;
+  box-shadow: var(--shadow);
+}
+.recovery-pdf-actions {
+  margin: 0;
+}
+.recovery-preview-mobile-note {
+  margin: 0;
+  color: var(--muted);
+}
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -1638,6 +1657,9 @@ textarea.field-control {
 }
 
 @media (max-width: 640px) {
+  .recovery-pdf-frame {
+    display: none;
+  }
   .recovery-print-page {
     padding: 18px;
   }

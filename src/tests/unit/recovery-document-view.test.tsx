@@ -1,37 +1,14 @@
 import { cleanup, render, screen } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RecoveryPrintView } from "../../flows/identity/recovery-document";
-import { createRecoveryDocumentModel } from "../../flows/identity/recovery-artifacts";
+import { RecoveryPdfPreview } from "../../flows/identity/recovery-document";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("recovery print view", () => {
-  it("shows every private recovery representation and invokes printing", async () => {
-    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
-    const model = createRecoveryDocumentModel({
-      locale: "en",
-      username: "Alice",
-      creationTime: 1_782_864_000n,
-      recoveryCode: "PPX1:RECOVERY:ABC",
-      words: Array.from({ length: 24 }, (_, index) => `word${index + 1}`),
-      password: "Vault pass 123!",
-      qrDataUrl:
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
-    });
-    render(<RecoveryPrintView model={model} onBack={vi.fn()} />);
-
-    expect(screen.getByText("Alice")).not.toBeNull();
-    expect(screen.getByText("PPX1:RECOVERY:ABC")).not.toBeNull();
-    expect(screen.getByText("Vault pass 123!")).not.toBeNull();
-    expect(screen.getAllByRole("listitem")).toHaveLength(24);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Print / Save as PDF" }),
-    );
-    expect(print).toHaveBeenCalledOnce();
-    print.mockRestore();
-  });
-
   it.each([
     ["desktop", false, 1],
     ["mobile", true, 0],
@@ -49,22 +26,8 @@ describe("recovery print view", () => {
           dispatchEvent: vi.fn(),
         })),
       });
-      const module = (await import(
-        "../../flows/identity/recovery-document"
-      )) as unknown as {
-        RecoveryPdfPreview?: (props: {
-          bytes: Uint8Array;
-          filename: string;
-          locale: "en" | "de";
-          onPrint: () => void;
-          onDownload: () => void;
-        }) => preact.JSX.Element;
-      };
-      expect(module.RecoveryPdfPreview).toBeTypeOf("function");
-      if (!module.RecoveryPdfPreview) return;
-      const Preview = module.RecoveryPdfPreview;
       render(
-        <Preview
+        <RecoveryPdfPreview
           bytes={new Uint8Array([37, 80, 68, 70])}
           filename="recovery.pdf"
           locale="en"
@@ -84,4 +47,44 @@ describe("recovery print view", () => {
       ).not.toBeNull();
     },
   );
+
+  it("uses byte-identical blobs for preview and download", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: vi.fn(() => ({
+        matches: false,
+        media: "(max-width: 640px)",
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+    const createUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:preview")
+      .mockReturnValueOnce("blob:download");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+      () => undefined,
+    );
+    const bytes = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
+    render(
+      <RecoveryPdfPreview
+        bytes={bytes}
+        filename="recovery.pdf"
+        locale="en"
+        onPrint={vi.fn()}
+        onDownload={vi.fn()}
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Download recovery PDF" }),
+    );
+    const previewBlob = createUrl.mock.calls[0]?.[0] as Blob;
+    const downloadBlob = createUrl.mock.calls[1]?.[0] as Blob;
+    expect(new Uint8Array(await previewBlob.arrayBuffer())).toEqual(bytes);
+    expect(new Uint8Array(await downloadBlob.arrayBuffer())).toEqual(bytes);
+  });
 });

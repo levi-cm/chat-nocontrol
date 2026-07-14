@@ -26,3 +26,11 @@ export function downloadBlob(blob: Blob, filename: string): void {
   anchor.click();
   setTimeout(() => objectUrl.revoke(), 0);
 }
+
+/** Starts a download for a browser-generated data URL without network access. */
+export function downloadDataUrl(dataUrl: string, filename: string): void {
+  const anchor = document.createElement("a");
+  anchor.href = dataUrl;
+  anchor.download = filename;
+  anchor.click();
+}

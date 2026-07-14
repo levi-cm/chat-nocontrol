@@ -44,7 +44,7 @@ import {
   generateRecoveryQrDataUrl,
   generateRecoveryUsernameDataUrl,
 } from "./recovery-card";
-import { RecoveryPrintView } from "./recovery-document";
+import { RecoveryPdfPreview } from "./recovery-document";
 import { generateRecoveryPdfBytes } from "./recovery-pdf";
 import {
   chooseRecoveryWordPositions,
@@ -191,6 +191,9 @@ export function IdentityCreate({
   const [printModel, setPrintModel] = useState<RecoveryDocumentModel | null>(
     null,
   );
+  const [recoveryPdfBytes, setRecoveryPdfBytes] =
+    useState<Uint8Array | null>(null);
+  const [recoveryPdfFilename, setRecoveryPdfFilename] = useState("");
   const [qrPracticeValue, setQrPracticeValue] = useState("");
   const [qrVerified, setQrVerified] = useState(false);
   const [practiceFile, setPracticeFile] = useState<File | null>(null);
@@ -276,6 +279,11 @@ export function IdentityCreate({
     setPassphrase("");
     setPassphraseConfirmation("");
     setPrintModel(null);
+    setRecoveryPdfBytes((current) => {
+      if (current) zeroize(current);
+      return null;
+    });
+    setRecoveryPdfFilename("");
     setQrPracticeValue("");
     if (recoveryBytesOwner.current) {
       zeroize(recoveryBytesOwner.current);
@@ -305,6 +313,11 @@ export function IdentityCreate({
     setPdfDownloaded(false);
     setWordBackupMethod(null);
     setPrintModel(null);
+    setRecoveryPdfBytes((current) => {
+      if (current) zeroize(current);
+      return null;
+    });
+    setRecoveryPdfFilename("");
     setQrPracticeValue("");
     setQrVerified(false);
     setPracticeFile(null);
@@ -625,71 +638,47 @@ export function IdentityCreate({
     });
   };
 
-  const openPrintPreview = async () => {
-    if (!pendingIdentity) return;
+  useEffect(() => {
+    if (step !== "recovery-document" || !pendingIdentity) return;
     const identitySnapshot = pendingIdentity;
     const operation = ++artifactOperation.current;
     setBusy(true);
     setError("");
-    try {
-      const model = await buildRecoveryDocument();
-      if (
-        operation !== artifactOperation.current ||
-        pendingIdentityOwner.current !== identitySnapshot
-      ) {
-        return;
+    void (async () => {
+      try {
+        const model = await buildRecoveryDocument();
+        const bytes = await pdfGenerator(model);
+        if (
+          operation !== artifactOperation.current ||
+          pendingIdentityOwner.current !== identitySnapshot
+        ) {
+          zeroize(bytes);
+          return;
+        }
+        setPrintModel(model);
+        setRecoveryPdfBytes(bytes);
+        setRecoveryPdfFilename(
+          recoveryArtifactFilename(model.username, model.isoDate, "pdf"),
+        );
+      } catch {
+        if (
+          operation === artifactOperation.current &&
+          pendingIdentityOwner.current === identitySnapshot
+        ) {
+          setError(t("recoveryArtifactError"));
+        }
+      } finally {
+        if (mounted.current && operation === artifactOperation.current) {
+          setBusy(false);
+        }
       }
-      setPrintModel(model);
-    } catch {
-      if (
-        operation === artifactOperation.current &&
-        pendingIdentityOwner.current === identitySnapshot
-      ) {
-        setError(t("recoveryArtifactError"));
+    })();
+    return () => {
+      if (artifactOperation.current === operation) {
+        artifactOperation.current += 1;
       }
-    } finally {
-      if (mounted.current && operation === artifactOperation.current) {
-        setBusy(false);
-      }
-    }
-  };
-
-  const downloadRecoveryPdf = async () => {
-    if (!pendingIdentity) return;
-    const identitySnapshot = pendingIdentity;
-    const operation = ++artifactOperation.current;
-    setBusy(true);
-    setError("");
-    try {
-      const model = await buildRecoveryDocument();
-      const bytes = await pdfGenerator(model);
-      if (
-        operation !== artifactOperation.current ||
-        pendingIdentityOwner.current !== identitySnapshot
-      ) {
-        zeroize(bytes);
-        return;
-      }
-      downloadBlob(
-        new Blob([Uint8Array.from(bytes).buffer], {
-          type: "application/pdf",
-        }),
-        recoveryArtifactFilename(model.username, model.isoDate, "pdf"),
-      );
-      setPdfDownloaded(true);
-    } catch {
-      if (
-        operation === artifactOperation.current &&
-        pendingIdentityOwner.current === identitySnapshot
-      ) {
-        setError(t("recoveryArtifactError"));
-      }
-    } finally {
-      if (mounted.current && operation === artifactOperation.current) {
-        setBusy(false);
-      }
-    }
-  };
+    };
+  }, [step]);
 
   const leaveSecretScreens = () => {
     clearSecretPresentation();
@@ -897,16 +886,6 @@ export function IdentityCreate({
           fingerprintGuidance={t("verifyFingerprintGuidance")}
         />
       </div>
-    );
-  }
-
-  if (printModel) {
-    return (
-      <RecoveryPrintView
-        model={printModel}
-        onBack={() => setPrintModel(null)}
-        onPrint={() => setPrintUsed(true)}
-      />
     );
   }
 
@@ -1154,24 +1133,17 @@ export function IdentityCreate({
               <li key={`${index}-${word}`}>{word}</li>
             ))}
           </ol>
-          <div class="action-row">
-            <button
-              class="button secondary"
-              type="button"
-              disabled={busy}
-              onClick={() => void openPrintPreview()}
-            >
-              {t("openPrintPreview")}
-            </button>
-            <button
-              class="button secondary"
-              type="button"
-              disabled={busy}
-              onClick={() => void downloadRecoveryPdf()}
-            >
-              {t("downloadRecoveryPdf")}
-            </button>
-          </div>
+          {printModel && recoveryPdfBytes ? (
+            <RecoveryPdfPreview
+              bytes={recoveryPdfBytes}
+              filename={recoveryPdfFilename}
+              locale={locale}
+              onPrint={() => setPrintUsed(true)}
+              onDownload={() => setPdfDownloaded(true)}
+            />
+          ) : (
+            <p aria-live="polite">{busy ? t("creatingIdentity") : error}</p>
+          )}
           <fieldset class="backup-methods">
             <legend>{t("confirmWordBackup")}</legend>
             <label class="check-row">
