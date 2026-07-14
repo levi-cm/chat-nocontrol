@@ -12,6 +12,25 @@ const en = {
   navContacts: "Contacts",
   navIdentity: "Identity",
   navHelp: "Help",
+  openSettings: "Open settings",
+  settingsTitle: "Settings",
+  settingsBody: "Choose how Chat NoControl looks on this device.",
+  appearance: "Appearance",
+  theme: "Theme",
+  themeSystem: "System",
+  themeLight: "Light",
+  themeDark: "Dark",
+  accentColor: "Accent color",
+  accentBlue: "Blue",
+  accentIndigo: "Indigo",
+  accentPurple: "Purple",
+  accentTeal: "Teal",
+  accentPink: "Pink",
+  accentOrange: "Orange",
+  accentGraphite: "Graphite",
+  translucentEffects: "Translucent interface effects",
+  translucentEffectsHint:
+    "Use subtle blur on navigation and elevated interface surfaces.",
   localOnly: "On-device only",
   firstTitle: "Create identity or import identity",
   firstBody:
@@ -22,6 +41,7 @@ const en = {
   publicLabel: "Public contact",
   publicAuthority: "Safe to share",
   publicQrAlt: "Public contact QR code",
+  saveContactQr: "Save contact QR as PNG",
   downloadContact: "Download public contact",
   publicContactHelper: "Share this contact so other people can encrypt to you.",
   publicContactHint: "Non-dangerous PPXC",
@@ -29,10 +49,12 @@ const en = {
   privateLabel: "Private recovery card",
   privateAuthority: "Private secret",
   recoveryQrAlt: "Private recovery QR code",
+  savePrivateQr: "Save private QR as PNG",
   vaultTitle: "Private identity vault",
   vaultWarning:
     "This vault is encrypted, but it still contains your private identity. Keep it private.",
   vaultQrAlt: "Encrypted private identity vault QR code",
+  saveVaultQr: "Save private vault QR as PNG",
   downloadVault: "Download encrypted vault",
   vaultHint: "Encrypted PPXV",
   privateBody: "Keep secret. Anyone who has it can recover your identity.",
@@ -53,9 +75,89 @@ const en = {
   noBackend: "No backend",
   noTelemetry: "No analytics or telemetry",
   noHistory: "No message history",
-  betaWarning:
-    "Public beta target. Independent security review is still required.",
+  secureContextRequiredTitle: "Secure connection required",
+  secureContextRequiredBody:
+    "Open Chat NoControl through HTTPS or localhost. Plain HTTP cannot access the browser cryptography required to create or use an identity.",
+  webCryptoUnavailableTitle: "Browser encryption unavailable",
+  webCryptoUnavailableBody:
+    "This browser does not provide the required Web Crypto API. Update it or use another current browser.",
   pseudonym: "Pseudonym",
+  username: "Username",
+  wizardStep: "Step {current} of 7",
+  vaultPassword: "Browser-vault password",
+  confirmVaultPassword: "Confirm browser-vault password",
+  createEncryptedVault: "Create encrypted vault",
+  weakVaultPasswordTitle: "Use a weak browser-vault password?",
+  weakVaultPasswordBody:
+    "This password is estimated as weak. It protects the encrypted browser copy. Choose a longer, less predictable password when possible.",
+  changeVaultPassword: "Change password",
+  useWeakVaultPassword: "Use weak password",
+  vaultCreationErrorTitle: "Browser vault could not be created",
+  vaultCreationErrorBody:
+    "Nothing was saved. Your identity setup is still open. Try again or restart identity creation.",
+  digitalBackupsTitle: "Save two digital recovery copies",
+  digitalBackupsBody:
+    "The private QR PNG, .ppxrecovery file, pasted recovery code, and 24 English words are four forms of the same login secret. Each restores the same identity. Never share them.",
+  downloadRecoveryFile: "Download .ppxrecovery file",
+  confirmQrStored: "I stored the private QR safely",
+  confirmFileStored: "I stored the .ppxrecovery file safely",
+  continueRecoveryWords: "Continue to recovery words",
+  usernameHint:
+    "People will see this username in their contacts. Do not use your real name or anything that can be traced back to you. Choose a made-up name instead.",
+  usernameWarningTitle: "Public username, not a secret",
+  usernameWarningText:
+    "Other people can see this username. It is not unique and does not protect your identity.",
+  passwordStepTitle: "Create your browser-vault password",
+  passwordStepBody:
+    "This password encrypts the copy remembered by this browser. Recovery QR, file, and words work without it. Use a unique password; it will be printed on your private recovery document.",
+  restartIdentityCreation: "Restart identity creation",
+  restartIdentityTitle: "Restart identity creation?",
+  restartIdentityBody:
+    "This destroys the unfinished identity and every recovery copy currently shown. Downloaded files are not deleted.",
+  recoveryArtifactError: "Could not create this recovery document",
+  recoveryDocumentTitle: "Write down or print your recovery words",
+  recoveryDocumentBody:
+    "These words, the private QR, and the .ppxrecovery file can all restore your identity. Anyone who gets them can decrypt as you.",
+  openPrintPreview: "Open print preview",
+  downloadRecoveryPdf: "Download recovery PDF",
+  confirmWordBackup: "Confirm one recovery-word backup",
+  confirmWordsWritten: "I wrote down all 24 words",
+  confirmPrintedRecovery: "I printed and safely stored the recovery document",
+  confirmPdfStored: "I safely stored the recovery PDF",
+  continueRestorePractice: "Continue to restore practice",
+  qrPracticeTitle: "Practice restoring with your private QR",
+  qrPracticeBody:
+    "If this browser is cleared, open Import identity and upload the saved QR, scan it with a camera, or paste the private recovery code.",
+  privateRecoveryCode: "Private recovery code",
+  verifyQrRecovery: "Verify private QR recovery",
+  practiceRecoveryError:
+    "This recovery copy is damaged or belongs to a different identity. Try again.",
+  continueFilePractice: "Continue to file practice",
+  fileWordPracticeTitle: "Practice file and recovery-word restore",
+  filePracticeBody:
+    "Choose the .ppxrecovery file you saved. The app will fully restore it locally and compare the identity.",
+  verifyRecoveryFile: "Verify .ppxrecovery file",
+  wordPracticeBody:
+    "Now enter the four requested positions from your written or printed 24-word seed.",
+  verifyRecoveryWords: "Verify four recovery words",
+  wordPracticeError: "One or more recovery words are incorrect. Try again.",
+  wordIncorrect: "This word is incorrect.",
+  expertSkip: "I know what I’m doing",
+  expertSkipTitle: "Skip restore practice?",
+  expertSkipBody:
+    "Your backups have not been proven. If they are missing or unreadable, losing browser access can permanently prevent decryption.",
+  skipPractice: "Skip practice",
+  continueStorageChoice: "Continue to storage choice",
+  storageChoiceTitle: "Remember this identity on this device?",
+  storageChoiceBody:
+    "Recommended: remember an encrypted convenience copy in this browser. Its password is printed on your private recovery document. The QR, .ppxrecovery file, 24 words, and PDF or printout can each restore the identity without that password. Nothing is saved until you confirm below.",
+  rememberRecommended: "Remember on this device (recommended)",
+  rememberRecommendedBody:
+    "Stores the encrypted vault in this browser’s IndexedDB. Your password is required to unlock it.",
+  finishIdentitySetup: "Finish identity setup",
+  passwordSurroundingSpace: "The password must not start or end with a space.",
+  passwordPrintableAscii: "Use printable English-keyboard characters only.",
+  passwordMismatch: "The two passwords do not match.",
   pseudonymHint:
     "This name is public and not unique. Use a fictional, recognizable name if you want one.",
   pseudonymError:
@@ -70,15 +172,7 @@ const en = {
     "This card is dangerous. Anyone who gets it can recover your private identity. Do not share it.",
   recoveryWordsTitle: "24 recovery words",
   recoveryWordsWarning: "These words are equally private. Store them offline.",
-  downloadRecovery: "Press and hold to export private recovery card",
-  recoveryExportKeyboard:
-    "Focus the export action, activate it, type the confirmation phrase, then confirm. This path is not time-dependent.",
-  holdExportProgress: "Keep holding to export private recovery card.",
   recoveryHint: "Dangerous PPXR",
-  recoveryExportBlocker: "Export the private recovery card before you finish.",
-  confirmationLabel: "Type EXPORT PRIVATE to continue",
-  confirmationPhrase: "EXPORT PRIVATE",
-  confirmRecovery: "Confirm recovery saved",
   confirmWordsTitle: "Confirm recovery words",
   confirmWordsHelper:
     "The app will ask you to re-enter a few randomly selected word positions.",
@@ -95,8 +189,13 @@ const en = {
   rememberDevice: "Yes, create an encrypted local vault",
   passphrase: "Vault passphrase",
   passphraseHint:
-    "Use 12 to 256 UTF-8 bytes; 16+ characters or 5+ random words is recommended.",
-  passphraseError: "Use a passphrase between 12 and 256 UTF-8 bytes.",
+    "Any non-empty passphrase can be saved. Longer, uncommon passphrases are safer. Maximum 256 UTF-8 bytes.",
+  passphraseError:
+    "Enter at least one character and no more than 256 UTF-8 bytes.",
+  estimatedBits: "Estimated strength: {bits} bits",
+  passphraseWeak: "Weak",
+  passphraseMedium: "Caution",
+  passphraseStrong: "Strong",
   saveEncryptedVault: "Save encrypted vault",
   identityReady: "Identity ready",
   back: "Back",
@@ -148,6 +247,9 @@ const en = {
   cameraUnavailable: "Camera scanning is unavailable.",
   qrScanError: "Could not read this QR image.",
   importScannedQr: "Import scanned QR",
+  paste: "Paste",
+  pasteUnavailable: "Clipboard paste is unavailable in this browser context.",
+  pasteFailed: "Could not read the clipboard. Paste into the field manually.",
   fingerprint: "Fingerprint",
   shortIdentityId: "Short identity ID",
   recipient: "Recipient",
@@ -255,7 +357,7 @@ const en = {
   contentNotMetadata: "Chat NoControl hides content, not metadata.",
   noPasswordReset: "There is no password reset.",
   identityLossWarning:
-    "Losing both private identity material and recovery material permanently loses access.",
+    "If you lose browser-vault access and every QR, .ppxrecovery, seed, PDF, and print recovery copy, the identity cannot be restored and its messages can never be decrypted again.",
   exactSecurityClaim:
     "PPX v1 combines ML-KEM-512 and X25519 confidentiality with classical Ed25519 sender authentication.",
   securityNonclaims:
@@ -281,6 +383,25 @@ const de: Record<keyof typeof en, string> = {
   navContacts: "Kontakte",
   navIdentity: "Identität",
   navHelp: "Hilfe",
+  openSettings: "Einstellungen öffnen",
+  settingsTitle: "Einstellungen",
+  settingsBody: "Lege fest, wie Chat NoControl auf diesem Gerät aussieht.",
+  appearance: "Darstellung",
+  theme: "Farbschema",
+  themeSystem: "System",
+  themeLight: "Hell",
+  themeDark: "Dunkel",
+  accentColor: "Akzentfarbe",
+  accentBlue: "Blau",
+  accentIndigo: "Indigo",
+  accentPurple: "Violett",
+  accentTeal: "Türkis",
+  accentPink: "Pink",
+  accentOrange: "Orange",
+  accentGraphite: "Graphit",
+  translucentEffects: "Transparente Oberflächeneffekte",
+  translucentEffectsHint:
+    "Dezenten Weichzeichner für Navigation und erhöhte Oberflächen verwenden.",
   localOnly: "Nur auf diesem Gerät",
   firstTitle: "Identität erstellen oder importieren",
   firstBody:
@@ -291,6 +412,7 @@ const de: Record<keyof typeof en, string> = {
   publicLabel: "Öffentlicher Kontakt",
   publicAuthority: "Darf geteilt werden",
   publicQrAlt: "QR-Code des öffentlichen Kontakts",
+  saveContactQr: "Kontakt-QR als PNG speichern",
   downloadContact: "Öffentlichen Kontakt herunterladen",
   publicContactHelper:
     "Teile diesen Kontakt, damit andere dir verschlüsselt schreiben können.",
@@ -300,10 +422,12 @@ const de: Record<keyof typeof en, string> = {
   privateLabel: "Private Wiederherstellungskarte",
   privateAuthority: "Privates Geheimnis",
   recoveryQrAlt: "QR-Code der privaten Wiederherstellung",
+  savePrivateQr: "Privaten QR-Code als PNG speichern",
   vaultTitle: "Privater Identitätstresor",
   vaultWarning:
     "Dieser Tresor ist verschlüsselt, enthält aber weiterhin deine private Identität. Halte ihn privat.",
   vaultQrAlt: "QR-Code des verschlüsselten privaten Identitätstresors",
+  saveVaultQr: "QR des privaten Tresors als PNG speichern",
   downloadVault: "Verschlüsselten Tresor herunterladen",
   vaultHint: "Verschlüsseltes PPXV",
   privateBody:
@@ -326,9 +450,94 @@ const de: Record<keyof typeof en, string> = {
   noBackend: "Kein Backend",
   noTelemetry: "Keine Analyse oder Telemetrie",
   noHistory: "Kein Nachrichtenverlauf",
-  betaWarning:
-    "Ziel ist eine öffentliche Beta. Eine unabhängige Sicherheitsprüfung ist noch erforderlich.",
+  secureContextRequiredTitle: "Sichere Verbindung erforderlich",
+  secureContextRequiredBody:
+    "Öffne Chat NoControl über HTTPS oder localhost. Über einfaches HTTP kann die erforderliche Browser-Verschlüsselung nicht verwendet werden.",
+  webCryptoUnavailableTitle: "Browser-Verschlüsselung nicht verfügbar",
+  webCryptoUnavailableBody:
+    "Dieser Browser stellt die erforderliche Web-Crypto-API nicht bereit. Aktualisiere ihn oder verwende einen anderen aktuellen Browser.",
   pseudonym: "Pseudonym",
+  username: "Benutzername",
+  wizardStep: "Schritt {current} von 7",
+  vaultPassword: "Browser-Tresor-Passwort",
+  confirmVaultPassword: "Browser-Tresor-Passwort bestätigen",
+  createEncryptedVault: "Verschlüsselten Tresor erstellen",
+  weakVaultPasswordTitle: "Schwaches Browser-Tresor-Passwort verwenden?",
+  weakVaultPasswordBody:
+    "Dieses Passwort wird als schwach eingeschätzt. Es schützt die verschlüsselte Browser-Kopie. Verwende möglichst ein längeres, weniger vorhersehbares Passwort.",
+  changeVaultPassword: "Passwort ändern",
+  useWeakVaultPassword: "Schwaches Passwort verwenden",
+  vaultCreationErrorTitle: "Browser-Tresor konnte nicht erstellt werden",
+  vaultCreationErrorBody:
+    "Es wurde nichts gespeichert. Deine Identitätseinrichtung bleibt geöffnet. Versuche es erneut oder starte die Identitätserstellung neu.",
+  digitalBackupsTitle: "Zwei digitale Wiederherstellungskopien speichern",
+  digitalBackupsBody:
+    "Privates QR-PNG, .ppxrecovery-Datei, eingefügter Wiederherstellungscode und 24 englische Wörter sind vier Formen desselben Anmeldegeheimnisses. Jede stellt dieselbe Identität wieder her. Teile sie niemals.",
+  downloadRecoveryFile: ".ppxrecovery-Datei herunterladen",
+  confirmQrStored: "Ich habe den privaten QR-Code sicher gespeichert",
+  confirmFileStored: "Ich habe die .ppxrecovery-Datei sicher gespeichert",
+  continueRecoveryWords: "Weiter zu den Wiederherstellungswörtern",
+  usernameHint:
+    "Andere Personen sehen diesen Benutzernamen in ihren Kontakten. Verwende nicht deinen echten Namen oder etwas, das zu dir zurückverfolgt werden kann. Wähle stattdessen einen erfundenen Namen.",
+  usernameWarningTitle: "Öffentlicher Benutzername, kein Geheimnis",
+  usernameWarningText:
+    "Andere können diesen Benutzernamen sehen. Er ist nicht eindeutig und schützt deine Identität nicht.",
+  passwordStepTitle: "Browser-Tresor-Passwort erstellen",
+  passwordStepBody:
+    "Dieses Passwort verschlüsselt die in diesem Browser gemerkte Kopie. Wiederherstellungs-QR, Datei und Wörter funktionieren ohne das Passwort. Verwende ein einzigartiges Passwort; es wird auf dein privates Wiederherstellungsdokument gedruckt.",
+  restartIdentityCreation: "Identitätserstellung neu starten",
+  restartIdentityTitle: "Identitätserstellung neu starten?",
+  restartIdentityBody:
+    "Dadurch werden die unfertige Identität und alle momentan angezeigten Wiederherstellungskopien vernichtet. Heruntergeladene Dateien werden nicht gelöscht.",
+  recoveryArtifactError:
+    "Dieses Wiederherstellungsdokument konnte nicht erstellt werden",
+  recoveryDocumentTitle: "Wiederherstellungswörter aufschreiben oder drucken",
+  recoveryDocumentBody:
+    "Diese Wörter, der private QR-Code und die .ppxrecovery-Datei können alle deine Identität wiederherstellen. Wer sie erhält, kann als du entschlüsseln.",
+  openPrintPreview: "Druckansicht öffnen",
+  downloadRecoveryPdf: "Wiederherstellungs-PDF herunterladen",
+  confirmWordBackup: "Eine Sicherung der Wiederherstellungswörter bestätigen",
+  confirmWordsWritten: "Ich habe alle 24 Wörter aufgeschrieben",
+  confirmPrintedRecovery:
+    "Ich habe das Wiederherstellungsdokument gedruckt und sicher verwahrt",
+  confirmPdfStored: "Ich habe das Wiederherstellungs-PDF sicher verwahrt",
+  continueRestorePractice: "Weiter zur Wiederherstellungsübung",
+  qrPracticeTitle: "Wiederherstellung mit dem privaten QR-Code üben",
+  qrPracticeBody:
+    "Wenn dieser Browser gelöscht wird, öffne Identität importieren und lade den gespeicherten QR-Code hoch, scanne ihn mit einer Kamera oder füge den privaten Wiederherstellungscode ein.",
+  privateRecoveryCode: "Privater Wiederherstellungscode",
+  verifyQrRecovery: "Private QR-Wiederherstellung prüfen",
+  practiceRecoveryError:
+    "Diese Wiederherstellungskopie ist beschädigt oder gehört zu einer anderen Identität. Versuche es erneut.",
+  continueFilePractice: "Weiter zur Dateiübung",
+  fileWordPracticeTitle: "Datei- und Wörterwiederherstellung üben",
+  filePracticeBody:
+    "Wähle die gespeicherte .ppxrecovery-Datei. Die App stellt sie vollständig lokal wieder her und vergleicht die Identität.",
+  verifyRecoveryFile: ".ppxrecovery-Datei prüfen",
+  wordPracticeBody:
+    "Gib jetzt die vier verlangten Positionen aus deinem aufgeschriebenen oder gedruckten 24-Wörter-Seed ein.",
+  verifyRecoveryWords: "Vier Wiederherstellungswörter prüfen",
+  wordPracticeError:
+    "Mindestens ein Wiederherstellungswort ist falsch. Versuche es erneut.",
+  wordIncorrect: "Dieses Wort ist falsch.",
+  expertSkip: "Ich weiß, was ich tue",
+  expertSkipTitle: "Wiederherstellungsübung überspringen?",
+  expertSkipBody:
+    "Deine Sicherungen wurden nicht geprüft. Wenn sie fehlen oder unlesbar sind, kann der Verlust des Browserzugriffs die Entschlüsselung dauerhaft verhindern.",
+  skipPractice: "Übung überspringen",
+  continueStorageChoice: "Weiter zur Speicherwahl",
+  storageChoiceTitle: "Diese Identität auf diesem Gerät merken?",
+  storageChoiceBody:
+    "Empfohlen: Eine verschlüsselte Komfortkopie in diesem Browser merken. Das Passwort steht auf deinem privaten Wiederherstellungsdokument. QR-Code, .ppxrecovery-Datei, 24 Wörter und PDF oder Ausdruck können die Identität jeweils ohne dieses Passwort wiederherstellen. Bis zur Bestätigung unten wird nichts gespeichert.",
+  rememberRecommended: "Auf diesem Gerät merken (empfohlen)",
+  rememberRecommendedBody:
+    "Speichert den verschlüsselten Tresor im IndexedDB dieses Browsers. Zum Entsperren wird dein Passwort benötigt.",
+  finishIdentitySetup: "Identitätseinrichtung abschließen",
+  passwordSurroundingSpace:
+    "Das Passwort darf nicht mit einem Leerzeichen beginnen oder enden.",
+  passwordPrintableAscii:
+    "Verwende nur druckbare Zeichen einer englischen Tastatur.",
+  passwordMismatch: "Die beiden Passwörter stimmen nicht überein.",
   pseudonymHint:
     "Dieser Name ist öffentlich und nicht eindeutig. Nimm einen erfundenen, gut wiedererkennbaren Namen, wenn du einen verwenden willst.",
   pseudonymError:
@@ -344,18 +553,7 @@ const de: Record<keyof typeof en, string> = {
   recoveryWordsTitle: "24 Wiederherstellungswörter",
   recoveryWordsWarning:
     "Diese Wörter sind genauso privat. Bewahre sie offline auf.",
-  downloadRecovery:
-    "Zum Export der privaten Wiederherstellungskarte gedrückt halten",
-  recoveryExportKeyboard:
-    "Fokussiere die Exportaktion, aktiviere sie, gib PRIVAT EXPORTIEREN ein und bestätige.",
-  holdExportProgress:
-    "Weiter gedrückt halten, um die private Wiederherstellungskarte zu exportieren.",
   recoveryHint: "Gefährliches PPXR",
-  recoveryExportBlocker:
-    "Exportiere die private Wiederherstellungskarte, bevor du fertig bist.",
-  confirmationLabel: "Tippe PRIVAT EXPORTIEREN zum Fortfahren",
-  confirmationPhrase: "PRIVAT EXPORTIEREN",
-  confirmRecovery: "Gespeicherte Wiederherstellung bestätigen",
   confirmWordsTitle: "Wiederherstellungswörter bestätigen",
   confirmWordsHelper:
     "Die App fordert dich auf, einige zufällig ausgewählte Wortpositionen erneut einzugeben.",
@@ -372,8 +570,13 @@ const de: Record<keyof typeof en, string> = {
   rememberDevice: "Ja, verschlüsselten lokalen Tresor erstellen",
   passphrase: "Tresor-Passphrase",
   passphraseHint:
-    "Nutze 12 bis 256 UTF-8-Bytes; empfohlen sind mindestens 16 Zeichen oder 5 zufällige Wörter.",
-  passphraseError: "Nutze eine Passphrase mit 12 bis 256 UTF-8-Bytes.",
+    "Jede nicht leere Passphrase kann gespeichert werden. Längere, ungewöhnliche Passphrasen sind sicherer. Höchstens 256 UTF-8-Bytes.",
+  passphraseError:
+    "Gib mindestens ein Zeichen und höchstens 256 UTF-8-Bytes ein.",
+  estimatedBits: "Geschätzte Stärke: {bits} Bit",
+  passphraseWeak: "Schwach",
+  passphraseMedium: "Vorsicht",
+  passphraseStrong: "Stark",
   saveEncryptedVault: "Verschlüsselten Tresor speichern",
   identityReady: "Identität bereit",
   back: "Zurück",
@@ -426,6 +629,11 @@ const de: Record<keyof typeof en, string> = {
   cameraUnavailable: "Das Scannen mit der Kamera ist nicht verfügbar.",
   qrScanError: "Dieses QR-Bild konnte nicht gelesen werden.",
   importScannedQr: "Gescannten QR-Code importieren",
+  paste: "Einfügen",
+  pasteUnavailable:
+    "Das Einfügen aus der Zwischenablage ist in diesem Browser-Kontext nicht verfügbar.",
+  pasteFailed:
+    "Die Zwischenablage konnte nicht gelesen werden. Füge den Inhalt manuell in das Feld ein.",
   fingerprint: "Fingerabdruck",
   shortIdentityId: "Kurze Identitäts-ID",
   recipient: "Empfänger",
@@ -540,7 +748,7 @@ const de: Record<keyof typeof en, string> = {
   contentNotMetadata: "Chat NoControl versteckt Inhalt, nicht Metadaten.",
   noPasswordReset: "Es gibt keine Passwortzurücksetzung.",
   identityLossWarning:
-    "Wenn sowohl privates Identitätsmaterial als auch Wiederherstellungsmaterial verloren gehen, ist der Zugriff dauerhaft verloren.",
+    "Wenn du den Browser-Tresor und alle QR-, .ppxrecovery-, Seed-, PDF- und Ausdruck-Kopien verlierst, kann die Identität nicht wiederhergestellt und ihre Nachrichten können nie wieder entschlüsselt werden.",
   exactSecurityClaim:
     "PPX v1 kombiniert Vertraulichkeit durch ML-KEM-512 und X25519 mit klassischer Ed25519-Absenderauthentifizierung.",
   securityNonclaims:

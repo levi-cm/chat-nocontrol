@@ -43,7 +43,7 @@ describe("recovery artifact model", () => {
   });
 
   it("uses the approved taller private QR card geometry", () => {
-    expect(privateRecoveryCardLayout).toEqual({
+    expect(privateRecoveryCardLayout).toMatchObject({
       width: 1024,
       height: 1280,
       qrTop: 256,
@@ -51,6 +51,20 @@ describe("recovery artifact model", () => {
       dark: "#7f1d1d",
       light: "#ffffff",
     });
+    const { border, header, headerText } = privateRecoveryCardLayout;
+    expect(header.x).toBeGreaterThanOrEqual(border.x + border.lineWidth / 2);
+    expect(header.y).toBeGreaterThanOrEqual(border.y + border.lineWidth / 2);
+    expect(header.x + header.width).toBeLessThanOrEqual(
+      border.x + border.width - border.lineWidth / 2,
+    );
+    for (const box of Object.values(headerText)) {
+      expect(box.x).toBeGreaterThanOrEqual(header.x);
+      expect(box.y).toBeGreaterThanOrEqual(header.y);
+      expect(box.x + box.width).toBeLessThanOrEqual(header.x + header.width);
+      expect(box.y + box.height).toBeLessThanOrEqual(
+        privateRecoveryCardLayout.qrTop,
+      );
+    }
   });
 
   it("keeps the username and never-share warning above the QR", () => {
