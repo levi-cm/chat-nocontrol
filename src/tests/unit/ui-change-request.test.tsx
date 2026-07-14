@@ -71,7 +71,7 @@ describe("approved UI change request", () => {
 
   it("keeps storage and unlocked identity content in explicit layout flows", () => {
     expect(createSource).toContain('class="flow-panel storage-flow"');
-    expect(appSource).toContain('class="identity-page"');
+    expect(appSource).toContain('"identity-page"');
     expect(appSource).toContain('class="identity-exports"');
     expect(appSource).toContain('class="local-data-toolbar"');
     expect(appSource.indexOf('class="identity-exports"')).toBeLessThan(

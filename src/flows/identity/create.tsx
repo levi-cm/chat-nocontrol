@@ -879,26 +879,23 @@ export function IdentityCreate({
 
   if (identity && contact) {
     return (
-      <div class="identity-detail">
-        <p class="status-label">{t("identityReady")}</p>
-        <PublicContactCard
-          pseudonym={contact.pseudonym}
-          qrText={encodePublicContactQr(contact)}
-          authorityLabel={t("publicAuthority")}
-          title={t("publicLabel")}
-          qrLabel={t("publicQrAlt")}
-          qrDownloadLabel={t("saveContactQr")}
-          helper={t("publicContactHelper")}
-          formatHint={t("publicContactHint")}
-          fileBytes={encodePublicContact(contact)}
-          downloadLabel={t("downloadContact")}
-          identityId={contact.identityId}
-          fingerprint={contact.fingerprint}
-          identityIdLabel={t("shortIdentityId")}
-          fingerprintLabel={t("fingerprint")}
-          fingerprintGuidance={t("verifyFingerprintGuidance")}
-        />
-      </div>
+      <PublicContactCard
+        pseudonym={contact.pseudonym}
+        qrText={encodePublicContactQr(contact)}
+        authorityLabel={t("publicAuthority")}
+        title={t("publicLabel")}
+        qrLabel={t("publicQrAlt")}
+        qrDownloadLabel={t("saveContactQr")}
+        helper={t("publicContactHelper")}
+        formatHint={t("publicContactHint")}
+        fileBytes={encodePublicContact(contact)}
+        downloadLabel={t("downloadContact")}
+        identityId={contact.identityId}
+        fingerprint={contact.fingerprint}
+        identityIdLabel={t("shortIdentityId")}
+        fingerprintLabel={t("fingerprint")}
+        fingerprintGuidance={t("verifyFingerprintGuidance")}
+      />
     );
   }
 
@@ -1398,7 +1395,7 @@ export function IdentityCreate({
 
   if (step === "storage") {
     return (
-      <section class="flow-panel" ref={wizardPanel}>
+      <section class="flow-panel storage-flow" ref={wizardPanel}>
         <WizardProgress t={t} current={7} />
         <h1 tabIndex={-1}>{t("storageChoiceTitle")}</h1>
         <p class="lead">{t("storageChoiceBody")}</p>
@@ -1435,6 +1432,7 @@ export function IdentityCreate({
             <span>{t("sessionOnlyText")}</span>
           </label>
         </fieldset>
+        <p class="storage-recovery-note">{t("storageRecoveryNote")}</p>
         <p class="danger-copy">{t("identityLossWarning")}</p>
         {error && (
           <p class="field-error" role="alert">

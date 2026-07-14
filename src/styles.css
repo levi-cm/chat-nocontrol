@@ -350,6 +350,22 @@ select {
   align-items: center;
   min-height: calc(100dvh - 180px);
 }
+.identity-page {
+  display: grid;
+  gap: 24px;
+  width: 100%;
+  align-content: start;
+}
+.identity-exports {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 520px));
+  gap: 24px;
+  align-items: start;
+  justify-content: start;
+}
+.identity-exports > * {
+  align-self: start;
+}
 
 .intro-panel h1,
 .route-panel h1 {
@@ -679,6 +695,24 @@ select {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
+.storage-flow {
+  gap: 0;
+}
+.storage-flow > * {
+  margin-block: 0;
+}
+.storage-flow > * + * {
+  margin-top: 16px;
+}
+.storage-flow .action-row {
+  margin-top: 24px;
+}
+.storage-recovery-note {
+  color: var(--muted);
+}
+.storage-flow .danger-copy {
+  max-width: 62ch;
+}
 .recovery-print-page {
   width: min(100%, 900px);
   margin: 0 auto;
@@ -809,9 +843,24 @@ select {
 .confirmation-dialog h2 {
   margin-top: 0;
 }
-.local-data-actions {
-  justify-content: center;
-  margin-top: 18px;
+.local-data-section {
+  display: grid;
+  gap: 10px;
+}
+.local-data-section h2,
+.local-data-section p {
+  margin: 0;
+}
+.local-data-section p {
+  max-width: 62ch;
+  color: var(--muted);
+}
+.local-data-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-top: 6px;
 }
 .session-note {
   grid-column: 1 / -1;
@@ -1584,6 +1633,9 @@ textarea.field-control {
   .identity-layout {
     display: block;
     min-height: auto;
+  }
+  .identity-exports {
+    grid-template-columns: minmax(0, 1fr);
   }
   .word-grid,
   .confirmation-words,

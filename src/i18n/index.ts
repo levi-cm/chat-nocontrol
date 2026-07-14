@@ -150,7 +150,9 @@ const en = {
   continueStorageChoice: "Continue to storage choice",
   storageChoiceTitle: "Remember this identity on this device?",
   storageChoiceBody:
-    "Recommended: remember an encrypted convenience copy in this browser. Its password is printed on your private recovery document. The QR, .ppxrecovery file, 24 words, and PDF or printout can each restore the identity without that password. Nothing is saved until you confirm below.",
+    "Recommended: remember an encrypted convenience copy in this browser.",
+  storageRecoveryNote:
+    "Your recovery QR, .ppxrecovery file, 24 words, PDF, or printout can restore the identity without the browser-vault password.",
   rememberRecommended: "Remember on this device (recommended)",
   rememberRecommendedBody:
     "Stores the encrypted vault in this browser’s IndexedDB. Your password is required to unlock it.",
@@ -184,6 +186,9 @@ const en = {
   useSessionOnly: "No, use session only",
   sessionOnlyTitle: "Session only",
   sessionOnlyText: "Nothing will be kept after you close the app.",
+  localDataTitle: "Local data",
+  localDataBody:
+    "Remove the encrypted browser vault or all local app data from this device.",
   storageUnavailable:
     "Storage is unavailable, so this session will not be remembered.",
   rememberDevice: "Yes, create an encrypted local vault",
@@ -528,7 +533,9 @@ const de: Record<keyof typeof en, string> = {
   continueStorageChoice: "Weiter zur Speicherwahl",
   storageChoiceTitle: "Diese Identität auf diesem Gerät merken?",
   storageChoiceBody:
-    "Empfohlen: Eine verschlüsselte Komfortkopie in diesem Browser merken. Das Passwort steht auf deinem privaten Wiederherstellungsdokument. QR-Code, .ppxrecovery-Datei, 24 Wörter und PDF oder Ausdruck können die Identität jeweils ohne dieses Passwort wiederherstellen. Bis zur Bestätigung unten wird nichts gespeichert.",
+    "Empfohlen: Merke eine verschlüsselte Komfortkopie in diesem Browser.",
+  storageRecoveryNote:
+    "Wiederherstellungs-QR, .ppxrecovery-Datei, 24 Wörter, PDF oder Ausdruck können die Identität ohne das Browser-Tresor-Passwort wiederherstellen.",
   rememberRecommended: "Auf diesem Gerät merken (empfohlen)",
   rememberRecommendedBody:
     "Speichert den verschlüsselten Tresor im IndexedDB dieses Browsers. Zum Entsperren wird dein Passwort benötigt.",
@@ -565,6 +572,9 @@ const de: Record<keyof typeof en, string> = {
   useSessionOnly: "Nein, nur für diese Sitzung verwenden",
   sessionOnlyTitle: "Nur Sitzung",
   sessionOnlyText: "Nichts bleibt erhalten, wenn du die App schließt.",
+  localDataTitle: "Lokale Daten",
+  localDataBody:
+    "Entferne den verschlüsselten Browser-Tresor oder alle lokalen App-Daten von diesem Gerät.",
   storageUnavailable:
     "Speicher ist nicht verfügbar, deshalb wird sich diese Sitzung nicht merken.",
   rememberDevice: "Ja, verschlüsselten lokalen Tresor erstellen",

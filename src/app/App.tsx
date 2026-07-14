@@ -4,9 +4,12 @@ import { ContactsManage } from "../flows/contacts/manage";
 import { DecryptFlow } from "../flows/decrypt";
 import { EncryptTextFlow } from "../flows/encrypt/text";
 import { HelpFlow } from "../flows/help";
+import { SettingsFlow } from "../flows/settings";
 import { ConfirmationDialog } from "../components/dialogs/confirmation";
 import { PrivateExportCard } from "../components/cards/private-export-card";
 import { TextField } from "../components/forms/text-field";
+import { PassphraseMeter } from "../components/forms/passphrase-meter";
+import { BrandMark, NavigationIcon } from "../components/navigation/icons";
 import type { ManagedContact } from "../components/cards/contact-management-card";
 import { defaultCryptoProvider } from "../crypto/default-provider";
 import { zeroizeIdentitySecrets } from "../crypto/zeroize";
@@ -27,7 +30,16 @@ import {
 } from "../storage/db";
 import { deleteAllLocalData } from "../storage/erase";
 import { deleteVault, getVault, putVault } from "../storage/vault";
-import { deleteSettings, getSettings, putSettings } from "../storage/settings";
+import {
+  DEFAULT_SETTINGS,
+  deleteSettings,
+  getSettings,
+  normalizeSettings,
+  putSettings,
+  type AccentPreference,
+  type AppSettings,
+  type ThemePreference,
+} from "../storage/settings";
 import { SessionStorage } from "../storage/session";
 import {
   type CryptoWorkerJob,
@@ -42,12 +54,12 @@ import {
 import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
 import { ROUTES, routeFromHash, type RouteName } from "./routes";
 
-const navItems: { route: RouteName; key: MessageKey; mark: string }[] = [
-  { route: "encrypt", key: "navEncrypt", mark: "E" },
-  { route: "decrypt", key: "navDecrypt", mark: "D" },
-  { route: "contacts", key: "navContacts", mark: "C" },
-  { route: "identity", key: "navIdentity", mark: "I" },
-  { route: "help", key: "navHelp", mark: "?" },
+const navItems: { route: RouteName; key: MessageKey }[] = [
+  { route: "encrypt", key: "navEncrypt" },
+  { route: "decrypt", key: "navDecrypt" },
+  { route: "contacts", key: "navContacts" },
+  { route: "identity", key: "navIdentity" },
+  { route: "help", key: "navHelp" },
 ];
 
 function canonicalContacts(
@@ -71,6 +83,11 @@ function canonicalContacts(
 
 export function App() {
   const [locale, setLocale] = useState<Locale>(readStoredLocale);
+  const [theme, setTheme] = useState<ThemePreference>(DEFAULT_SETTINGS.theme);
+  const [accent, setAccent] = useState<AccentPreference>(
+    DEFAULT_SETTINGS.accent,
+  );
+  const [translucent, setTranslucent] = useState(DEFAULT_SETTINGS.translucent);
   const [route, setRoute] = useState<RouteName>(() =>
     routeFromHash(window.location.hash),
   );
@@ -130,6 +147,10 @@ export function App() {
             getSettings(context.db),
           ]);
         let loadedLocale: Locale = locale;
+        let loadedSettings: AppSettings = normalizeSettings(
+          undefined,
+          loadedLocale,
+        );
         let readFailed =
           contactsResult.status === "rejected" ||
           vaultResult.status === "rejected" ||
@@ -158,6 +179,10 @@ export function App() {
               readFailed = true;
             } else {
               loadedLocale = settingsResult.value.locale;
+              loadedSettings = normalizeSettings(
+                settingsResult.value,
+                loadedLocale,
+              );
             }
           }
           if (loaded.length !== savedContacts.length) {
@@ -170,13 +195,16 @@ export function App() {
           degradedPersistentDb.current = context.db;
           const session = sessionMemory.current;
           session.replaceContacts(loaded);
-          session.setLocale(loadedLocale);
+          session.setSettings(loadedSettings);
           if (loadedVault) session.putVault(loadedVault);
           if (!cancelled) {
             setStorage({ mode: "session-only", session });
             setContacts(loaded);
             setStoredVault(loadedVault);
             setLocale(loadedLocale);
+            setTheme(loadedSettings.theme);
+            setAccent(loadedSettings.accent);
+            setTranslucent(loadedSettings.translucent);
             setSessionOnly(true);
             setStorageFailure("fallback");
             clearStoredLocale();
@@ -185,9 +213,12 @@ export function App() {
           setContacts(loaded);
           setStoredVault(loadedVault);
           setLocale(loadedLocale);
+          setTheme(loadedSettings.theme);
+          setAccent(loadedSettings.accent);
+          setTranslucent(loadedSettings.translucent);
         }
       } else {
-        context.session.setLocale(locale);
+        context.session.setSettings({ locale, theme, accent, translucent });
         setContacts(
           canonicalContacts(
             context.session
@@ -258,6 +289,12 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.accent = accent;
+    document.documentElement.dataset.translucency = translucent ? "on" : "off";
+  }, [accent, theme, translucent]);
+
+  useEffect(() => {
     const updateRoute = () => setRoute(routeFromHash(window.location.hash));
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
@@ -283,7 +320,7 @@ export function App() {
   ) => {
     const session = sessionMemory.current;
     session.replaceContacts(nextContacts);
-    session.setLocale(locale);
+    session.setSettings({ locale, theme, accent, translucent });
     if (vault) session.putVault(vault);
     else session.deleteVault();
     if (storage?.mode === "persistent") {
@@ -306,12 +343,12 @@ export function App() {
         storage.mode === "session-only"
           ? storage.session
           : sessionMemory.current;
-      session.setLocale(locale);
+      session.setSettings({ locale, theme, accent, translucent });
       clearStoredLocale();
       return;
     }
     let cancelled = false;
-    void putSettings(storage.db, { locale })
+    void putSettings(storage.db, { locale, theme, accent, translucent })
       .then(() => {
         if (!cancelled && !clearStoredLocale()) {
           setStorageFailure("delete-failed");
@@ -323,7 +360,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [locale, sessionOnly, storage, storageReady]);
+  }, [accent, locale, sessionOnly, storage, storageReady, theme, translucent]);
 
   const saveContacts = async (next: ManagedContact[]): Promise<boolean> => {
     if (!storageReady || !storage) return false;
@@ -376,7 +413,7 @@ export function App() {
     let persistenceFailed = false;
     let vaultPersisted = false;
     if (vault) {
-      if (!sessionOnly && storage?.mode === "persistent") {
+      if (storage?.mode === "persistent") {
         try {
           await putVault(storage.db, vault);
           vaultPersisted = true;
@@ -401,7 +438,6 @@ export function App() {
     }
     const persistentIdentity =
       !persistenceFailed &&
-      !sessionOnly &&
       storage?.mode === "persistent" &&
       (vaultPersisted || existingRememberedVault);
     setSessionOnly(!persistentIdentity);
@@ -477,6 +513,9 @@ export function App() {
     const localeCleared = clearStoredLocale();
     if (locale !== "en") suppressNextLocalePersistence.current = true;
     setLocale("en");
+    setTheme(DEFAULT_SETTINGS.theme);
+    setAccent(DEFAULT_SETTINGS.accent);
+    setTranslucent(DEFAULT_SETTINGS.translucent);
     setContacts([]);
     setStoredVault(null);
     lockActiveIdentity();
@@ -497,7 +536,7 @@ export function App() {
           onClick={() => navigate("identity")}
         >
           <span class="brand-mark" aria-hidden="true">
-            NC
+            <BrandMark />
           </span>
           <span>{t("brand")}</span>
         </a>
@@ -511,18 +550,15 @@ export function App() {
               {t("lockNow")}
             </button>
           )}
-          <label class="locale-control">
-            <span>{t("language")}</span>
-            <select
-              value={locale}
-              onChange={(event) =>
-                setLocale(event.currentTarget.value as Locale)
-              }
-            >
-              <option value="en">{t("english")}</option>
-              <option value="de">{t("german")}</option>
-            </select>
-          </label>
+          <a
+            class={route === "settings" ? "icon-button active" : "icon-button"}
+            href={ROUTES.settings}
+            aria-label={t("openSettings")}
+            aria-current={route === "settings" ? "page" : undefined}
+            onClick={() => navigate("settings")}
+          >
+            <NavigationIcon route="settings" />
+          </a>
         </div>
       </header>
 
@@ -534,8 +570,8 @@ export function App() {
             aria-current={route === item.route ? "page" : undefined}
             onClick={() => navigate(item.route)}
           >
-            <span class="nav-mark" aria-hidden="true">
-              {item.mark}
+            <span class="nav-icon" aria-hidden="true">
+              <NavigationIcon route={item.route} />
             </span>
             <span>{t(item.key)}</span>
           </a>
@@ -578,6 +614,18 @@ export function App() {
           <section class="flow-panel" aria-busy="true">
             <h1>{t("loadingStorage")}</h1>
           </section>
+        ) : route === "settings" ? (
+          <SettingsFlow
+            t={t}
+            locale={locale}
+            theme={theme}
+            accent={accent}
+            translucent={translucent}
+            onLocaleChange={setLocale}
+            onThemeChange={setTheme}
+            onAccentChange={setAccent}
+            onTranslucentChange={setTranslucent}
+          />
         ) : route === "help" ? (
           <HelpFlow
             t={t}
@@ -607,6 +655,7 @@ export function App() {
         ) : route === "identity" ? (
           <IdentityHome
             t={t}
+            locale={locale}
             identity={activeIdentity}
             contact={publicContact}
             storedVault={storedVault}
@@ -627,6 +676,7 @@ export function App() {
 
 function IdentityHome({
   t,
+  locale,
   identity,
   contact,
   storedVault,
@@ -638,6 +688,7 @@ function IdentityHome({
   onEraseAll,
 }: {
   t: (key: MessageKey) => string;
+  locale: Locale;
   identity: DerivedIdentity | null;
   contact: PublicContact | null;
   storedVault: LockedVaultObject | null;
@@ -662,7 +713,7 @@ function IdentityHome({
   const unlockJob = useRef<CryptoWorkerJob<DerivedIdentity> | null>(null);
   const [confirming, setConfirming] = useState<"vault" | "all" | null>(null);
 
-  const unlock = async () => {
+  const unlock = async (candidatePassphrase = passphrase) => {
     if (!storedVault) return;
     let operation: CryptoWorkerJob<DerivedIdentity> | null = null;
     let unlocked: DerivedIdentity | undefined;
@@ -672,7 +723,7 @@ function IdentityHome({
     try {
       operation = startUnlockVaultJob({
         vault: storedVault,
-        passphrase,
+        passphrase: candidatePassphrase,
       });
       unlockJob.current = operation;
       unlocked = await operation.promise;
@@ -717,20 +768,32 @@ function IdentityHome({
     return (
       <section class="flow-panel">
         <h1>{t("unlockRemembered")}</h1>
-        <TextField
-          id="unlock-vault-passphrase"
-          label={t("passphrase")}
-          type="password"
-          value={passphrase}
-          onInput={setPassphrase}
-        />
+        <div class="passphrase-field-group">
+          <TextField
+            id="unlock-vault-passphrase"
+            label={t("passphrase")}
+            type="password"
+            value={passphrase}
+            onInput={setPassphrase}
+            onPaste={(value) => {
+              const bytes = new TextEncoder().encode(value).byteLength;
+              if (
+                window.matchMedia("(max-width: 767px)").matches &&
+                bytes > 0 &&
+                bytes <= 256
+              ) {
+                void unlock(value);
+              }
+            }}
+          />
+          <PassphraseMeter value={passphrase} t={t} />
+        </div>
         <p class="input-meta">{t("passphraseHint")}</p>
-        {passphrase !== "" &&
-          (passphraseBytes < 12 || passphraseBytes > 256) && (
-            <p class="field-error" role="alert">
-              {t("passphraseError")}
-            </p>
-          )}
+        {passphraseBytes > 256 && (
+          <p class="field-error" role="alert">
+            {t("passphraseError")}
+          </p>
+        )}
         {unlockError && (
           <p class="field-error" role="alert">
             {unlockError}
@@ -740,7 +803,7 @@ function IdentityHome({
           <button
             class="button primary"
             type="button"
-            disabled={busy || passphraseBytes < 12 || passphraseBytes > 256}
+            disabled={busy || passphraseBytes === 0 || passphraseBytes > 256}
             onClick={() => void unlock()}
           >
             {t("unlockIdentity")}
@@ -774,29 +837,73 @@ function IdentityHome({
   const encodedVault = storedVault ? encodeLockedVault(storedVault) : null;
 
   return (
-    <div class="identity-layout">
-      <IdentityCreate
-        key={identity ? "identity-unlocked" : "identity-locked"}
-        t={t}
-        identity={identity}
-        contact={contact}
-        onReady={(
-          readyIdentity,
-          readyContact,
-          vault,
-          signal,
-          acceptOwnership,
-        ) =>
-          onReady(
+    <div class={identity ? "identity-page" : "identity-layout"}>
+      {identity ? (
+        <div class="identity-exports">
+          <IdentityCreate
+            key="identity-unlocked"
+            t={t}
+            locale={locale}
+            identity={identity}
+            contact={contact}
+            persistentStorageAvailable={storageMode === "persistent"}
+            onReady={(
+              readyIdentity,
+              readyContact,
+              vault,
+              signal,
+              acceptOwnership,
+            ) =>
+              onReady(
+                readyIdentity,
+                readyContact,
+                vault,
+                false,
+                signal,
+                acceptOwnership,
+              )
+            }
+          />
+          {encodedVault && (
+            <PrivateExportCard
+              title={t("vaultTitle")}
+              warning={t("vaultWarning")}
+              qrText={`PPX1:PRIVATE:${encodeBase45Upper(encodedVault)}`}
+              authorityLabel={t("privateAuthority")}
+              qrLabel={t("vaultQrAlt")}
+              qrDownloadLabel={t("saveVaultQr")}
+              formatHint={t("vaultHint")}
+              fileBytes={encodedVault}
+              downloadLabel={t("downloadVault")}
+            />
+          )}
+        </div>
+      ) : (
+        <IdentityCreate
+          key="identity-locked"
+          t={t}
+          locale={locale}
+          identity={identity}
+          contact={contact}
+          persistentStorageAvailable={storageMode === "persistent"}
+          onReady={(
             readyIdentity,
             readyContact,
             vault,
-            false,
             signal,
             acceptOwnership,
-          )
-        }
-      />
+          ) =>
+            onReady(
+              readyIdentity,
+              readyContact,
+              vault,
+              false,
+              signal,
+              acceptOwnership,
+            )
+          }
+        />
+      )}
       {identity && sessionOnly && (
         <p class="session-note" role="status">
           <strong>{t("sessionOnlyTitle")}</strong>{" "}
@@ -805,37 +912,32 @@ function IdentityHome({
             : t("sessionOnlyText")}
         </p>
       )}
-      {encodedVault && identity && (
-        <PrivateExportCard
-          title={t("vaultTitle")}
-          warning={t("vaultWarning")}
-          qrText={`PPX1:PRIVATE:${encodeBase45Upper(encodedVault)}`}
-          authorityLabel={t("privateAuthority")}
-          qrLabel={t("vaultQrAlt")}
-          formatHint={t("vaultHint")}
-          fileBytes={encodedVault}
-          downloadLabel={t("downloadVault")}
-        />
-      )}
       {hasLocalData && (
-        <div class="local-data-actions">
-          {storedVault && identity && (
-            <button
-              class="button danger-button"
-              type="button"
-              onClick={() => setConfirming("vault")}
-            >
-              {t("deleteVault")}
-            </button>
-          )}
-          <button
-            class="button danger-button"
-            type="button"
-            onClick={() => setConfirming("all")}
-          >
-            {t("eraseAll")}
-          </button>
-        </div>
+        <>
+          <hr class="flow-divider" />
+          <section class="local-data-section" aria-labelledby="local-data-title">
+            <h2 id="local-data-title">{t("localDataTitle")}</h2>
+            <p>{t("localDataBody")}</p>
+            <div class="local-data-toolbar">
+              {storedVault && identity && (
+                <button
+                  class="button danger-button"
+                  type="button"
+                  onClick={() => setConfirming("vault")}
+                >
+                  {t("deleteVault")}
+                </button>
+              )}
+              <button
+                class="button danger-button"
+                type="button"
+                onClick={() => setConfirming("all")}
+              >
+                {t("eraseAll")}
+              </button>
+            </div>
+          </section>
+        </>
       )}
       {confirming && (
         <ConfirmationDialog
@@ -860,7 +962,7 @@ function IdentityHome({
 }
 
 const routeContent: Record<
-  Exclude<RouteName, "identity">,
+  Exclude<RouteName, "identity" | "settings">,
   [MessageKey, MessageKey]
 > = {
   encrypt: ["encryptTitle", "encryptBody"],
@@ -873,7 +975,7 @@ function RoutePanel({
   route,
   t,
 }: {
-  route: Exclude<RouteName, "identity">;
+  route: Exclude<RouteName, "identity" | "settings">;
   t: (key: MessageKey) => string;
 }) {
   const [title, body] = routeContent[route];
@@ -882,16 +984,11 @@ function RoutePanel({
       <h1>{t(title)}</h1>
       <p class="lead">{t(body)}</p>
       {route === "help" && (
-        <>
-          <ul class="fact-list">
-            <li>{t("noBackend")}</li>
-            <li>{t("noTelemetry")}</li>
-            <li>{t("noHistory")}</li>
-          </ul>
-          <p class="beta-warning" role="note">
-            {t("betaWarning")}
-          </p>
-        </>
+        <ul class="fact-list">
+          <li>{t("noBackend")}</li>
+          <li>{t("noTelemetry")}</li>
+          <li>{t("noHistory")}</li>
+        </ul>
       )}
     </section>
   );
