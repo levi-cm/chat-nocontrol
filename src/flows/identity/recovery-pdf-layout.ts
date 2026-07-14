@@ -81,8 +81,7 @@ export function calculateRecoveryPdfLayout(
     width: contentWidth,
     height: 130,
   };
-  const warningHeight =
-    18 + input.warningLineCount * (input.bodyFontSize + 3);
+  const warningHeight = 18 + input.warningLineCount * (input.bodyFontSize + 3);
   const warning = {
     x: margin,
     y: margin,

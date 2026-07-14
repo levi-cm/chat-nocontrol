@@ -132,18 +132,15 @@ describe("recovery artifact model", () => {
       password: "P".repeat(256),
       qrDataUrl: pixel,
     });
-    const pdfModule = (await import(
-      "../../flows/identity/recovery-pdf"
-    )) as unknown as {
-      inspectRecoveryPdfLayout?: (
-        input: typeof model,
-      ) => Promise<{
-        pageCount: number;
-        outOfBounds: readonly string[];
-        intersections: readonly string[];
-        warningLines: readonly string[];
-      }>;
-    };
+    const pdfModule =
+      (await import("../../flows/identity/recovery-pdf")) as unknown as {
+        inspectRecoveryPdfLayout?: (input: typeof model) => Promise<{
+          pageCount: number;
+          outOfBounds: readonly string[];
+          intersections: readonly string[];
+          warningLines: readonly string[];
+        }>;
+      };
 
     expect(pdfModule.inspectRecoveryPdfLayout).toBeTypeOf("function");
     if (!pdfModule.inspectRecoveryPdfLayout) return;

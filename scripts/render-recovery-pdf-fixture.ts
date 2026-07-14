@@ -5,7 +5,9 @@ import { generateRecoveryPdfBytes } from "../src/flows/identity/recovery-pdf";
 
 const output = process.argv[2];
 if (!output) {
-  throw new Error("Usage: tsx scripts/render-recovery-pdf-fixture.ts <output.pdf>");
+  throw new Error(
+    "Usage: tsx scripts/render-recovery-pdf-fixture.ts <output.pdf>",
+  );
 }
 
 const recoveryCode = `PPX1:RECOVERY:${"ABCDE12345".repeat(120)}`;

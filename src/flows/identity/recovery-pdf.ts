@@ -1,9 +1,4 @@
-import {
-  PDFDocument,
-  StandardFonts,
-  rgb,
-  type PDFFont,
-} from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
 import type { RecoveryDocumentModel } from "./recovery-artifacts";
 import {
   calculateRecoveryPdfLayout,
@@ -176,11 +171,17 @@ async function prepareRecoveryPdf(
   };
 
   page.drawRectangle({ ...layout.header, color: danger });
-  drawText("header-brand", "CHAT NOCONTROL", layout.header.x + 14, layout.header.y + 37, {
-    font: bold,
-    size: 16,
-    color: rgb(1, 1, 1),
-  });
+  drawText(
+    "header-brand",
+    "CHAT NOCONTROL",
+    layout.header.x + 14,
+    layout.header.y + 37,
+    {
+      font: bold,
+      size: 16,
+      color: rgb(1, 1, 1),
+    },
+  );
   drawText(
     "header-warning",
     model.locale === "de"
@@ -215,12 +216,18 @@ async function prepareRecoveryPdf(
       height: displayHeight,
     });
   } else {
-    drawText("username", model.username, layout.metadata.x, layout.metadata.y + 14, {
-      font: bold,
-      size: 15,
-      color: ink,
-      maxWidth: layout.metadata.width * 0.62,
-    });
+    drawText(
+      "username",
+      model.username,
+      layout.metadata.x,
+      layout.metadata.y + 14,
+      {
+        font: bold,
+        size: 15,
+        color: ink,
+        maxWidth: layout.metadata.width * 0.62,
+      },
+    );
   }
   drawText(
     "created",
@@ -245,7 +252,10 @@ async function prepareRecoveryPdf(
       `recovery-${index}`,
       line,
       layout.recoveryCode.x,
-      layout.recoveryCode.y + layout.recoveryCode.height - 28 - index * recoveryLineHeight,
+      layout.recoveryCode.y +
+        layout.recoveryCode.height -
+        28 -
+        index * recoveryLineHeight,
       { font: mono, size: layout.codeFontSize, color: ink },
     );
   });
@@ -253,7 +263,9 @@ async function prepareRecoveryPdf(
 
   drawText(
     "password-title",
-    model.locale === "de" ? "Browser-Tresor-Passwort" : "Browser-vault password",
+    model.locale === "de"
+      ? "Browser-Tresor-Passwort"
+      : "Browser-vault password",
     layout.password.x,
     layout.password.y + layout.password.height - 11,
     { font: bold, size: 10, color: danger },
@@ -290,7 +302,9 @@ async function prepareRecoveryPdf(
 
   drawText(
     "words-title",
-    model.locale === "de" ? "24 Wiederherstellungswoerter" : "24 recovery words",
+    model.locale === "de"
+      ? "24 Wiederherstellungswoerter"
+      : "24 recovery words",
     layout.words.x,
     layout.words.y + layout.words.height - 12,
     { font: bold, size: 11, color: ink },

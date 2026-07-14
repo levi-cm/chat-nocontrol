@@ -201,8 +201,9 @@ export function IdentityCreate({
   const [printModel, setPrintModel] = useState<RecoveryDocumentModel | null>(
     null,
   );
-  const [recoveryPdfBytes, setRecoveryPdfBytes] =
-    useState<Uint8Array | null>(null);
+  const [recoveryPdfBytes, setRecoveryPdfBytes] = useState<Uint8Array | null>(
+    null,
+  );
   const [recoveryPdfFilename, setRecoveryPdfFilename] = useState("");
   const [qrPracticeValue, setQrPracticeValue] = useState("");
   const [qrVerified, setQrVerified] = useState(false);

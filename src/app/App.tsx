@@ -915,7 +915,10 @@ function IdentityHome({
       {hasLocalData && (
         <>
           <hr class="flow-divider" />
-          <section class="local-data-section" aria-labelledby="local-data-title">
+          <section
+            class="local-data-section"
+            aria-labelledby="local-data-title"
+          >
             <h2 id="local-data-title">{t("localDataTitle")}</h2>
             <p>{t("localDataBody")}</p>
             <div class="local-data-toolbar">

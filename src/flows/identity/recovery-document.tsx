@@ -19,8 +19,8 @@ export function RecoveryPdfPreview({
   onDownload: () => void;
 }) {
   const [url, setUrl] = useState("");
-  const [mobile, setMobile] = useState(() =>
-    window.matchMedia("(max-width: 640px)").matches,
+  const [mobile, setMobile] = useState(
+    () => window.matchMedia("(max-width: 640px)").matches,
   );
 
   useEffect(() => {
@@ -41,7 +41,10 @@ export function RecoveryPdfPreview({
 
   const de = locale === "de";
   return (
-    <section class="recovery-pdf-preview" aria-label={de ? "Wiederherstellungs-PDF" : "Recovery PDF"}>
+    <section
+      class="recovery-pdf-preview"
+      aria-label={de ? "Wiederherstellungs-PDF" : "Recovery PDF"}
+    >
       {mobile ? (
         <p class="recovery-preview-mobile-note">
           {de
