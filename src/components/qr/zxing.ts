@@ -11,6 +11,7 @@ interface QrResult {
 export interface QrReader {
   decodeFromImageUrl(source: string): Promise<QrResult>;
   decodeFromImageElement(source: HTMLImageElement): Promise<QrResult>;
+  decodeFromCanvas(source: HTMLCanvasElement): QrResult;
   decodeFromVideoDevice(
     deviceId: string | undefined,
     preview: HTMLVideoElement | undefined,

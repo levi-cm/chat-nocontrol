@@ -1,7 +1,7 @@
 export const QR_IMAGE_RECOVERY_MAX_ATTEMPTS = 32;
 export const QR_IMAGE_RECOVERY_MAX_MS = 2_000;
 
-const cropRatios = [0.9, 0.75, 0.6, 0.45, 0.33, 0.25] as const;
+const cropRatios = [0.75, 0.9, 0.6, 0.45, 0.33, 0.25] as const;
 const variants = [
   "color",
   "grayscale",
@@ -10,14 +10,22 @@ const variants = [
   "threshold-high",
 ] as const;
 
-function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) =>
-        blob ? resolve(blob) : reject(new Error("canvas encode failed")),
-      "image/png",
-    );
-  });
+interface QrCrop {
+  x: number;
+  y: number;
+  size: number;
+}
+
+export function priorityQrCropForImage(
+  width: number,
+  height: number,
+): QrCrop | null {
+  if (width < 1 || height < 1 || height * 4 !== width * 5) return null;
+  return {
+    x: width / 8,
+    y: height / 5,
+    size: (width * 3) / 4,
+  };
 }
 
 function transformPixels(
@@ -63,7 +71,7 @@ function transformPixels(
 
 export async function recoverQrFromImage(
   file: File,
-  decode: (blob: Blob) => Promise<string>,
+  decode: (canvas: HTMLCanvasElement) => Promise<string>,
 ): Promise<string> {
   if (typeof createImageBitmap !== "function")
     throw new Error("image recovery unavailable");
@@ -72,12 +80,29 @@ export async function recoverQrFromImage(
   let attempts = 0;
   try {
     const shortEdge = Math.min(bitmap.width, bitmap.height);
-    for (const ratio of cropRatios) {
-      const sourceSize = Math.max(1, Math.floor(shortEdge * ratio));
-      const scale = Math.max(2, Math.min(6, Math.floor(2_048 / sourceSize)));
-      const targetSize = Math.min(2_048, sourceSize * scale);
-      const sourceX = Math.floor((bitmap.width - sourceSize) / 2);
-      const sourceY = Math.floor((bitmap.height - sourceSize) / 2);
+    const priority = priorityQrCropForImage(bitmap.width, bitmap.height);
+    const crops: QrCrop[] = [
+      ...(priority ? [priority] : []),
+      ...cropRatios.map((ratio) => {
+        const size = Math.max(1, Math.floor(shortEdge * ratio));
+        return {
+          x: Math.floor((bitmap.width - size) / 2),
+          y: Math.floor((bitmap.height - size) / 2),
+          size,
+        };
+      }),
+    ].filter(
+      (crop, index, all) =>
+        all.findIndex(
+          (other) =>
+            other.x === crop.x &&
+            other.y === crop.y &&
+            other.size === crop.size,
+        ) === index,
+    );
+    for (const crop of crops) {
+      const scale = Math.max(1, Math.min(4, Math.floor(800 / crop.size)));
+      const targetSize = Math.min(800, crop.size * scale);
       for (const variant of variants) {
         attempts += 1;
         if (
@@ -95,10 +120,10 @@ export async function recoverQrFromImage(
           context.imageSmoothingEnabled = false;
           context.drawImage(
             bitmap,
-            sourceX,
-            sourceY,
-            sourceSize,
-            sourceSize,
+            crop.x,
+            crop.y,
+            crop.size,
+            crop.size,
             0,
             0,
             targetSize,
@@ -114,7 +139,7 @@ export async function recoverQrFromImage(
             }
           }
           try {
-            return await decode(await canvasBlob(canvas));
+            return await decode(canvas);
           } catch {
             // Continue through the fixed bounded recovery matrix.
           }

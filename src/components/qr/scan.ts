@@ -1,5 +1,5 @@
 import { loadZxingBrowser } from "./zxing";
-import { recoverQrFromImage } from "./image-recovery";
+import { priorityQrCropForImage, recoverQrFromImage } from "./image-recovery";
 
 export const QR_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const QR_IMAGE_MAX_DIMENSION = 4096;
@@ -101,7 +101,9 @@ export function readQrImageDimensions(
   return null;
 }
 
-export async function validateQrImageFile(file: File): Promise<void> {
+export async function validateQrImageFile(
+  file: File,
+): Promise<[number, number]> {
   if (file.size < 10 || file.size > QR_IMAGE_MAX_BYTES) {
     throw new Error("QR image byte size is outside the supported bounds");
   }
@@ -120,17 +122,60 @@ export async function validateQrImageFile(file: File): Promise<void> {
   ) {
     throw new Error("QR image dimensions are outside the supported bounds");
   }
+  return dimensions;
 }
 
-export async function scanQrImage(
-  source: string | HTMLImageElement,
-): Promise<string> {
-  const { BrowserQRCodeReader } = await loadZxingBrowser();
-  const reader = new BrowserQRCodeReader();
-  const result: unknown =
-    typeof source === "string"
-      ? await reader.decodeFromImageUrl(source)
-      : await reader.decodeFromImageElement(source);
+function loadQrImageElement(source: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    let settled = false;
+    const finish = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      image.removeEventListener("load", loadedImage);
+      image.removeEventListener("error", failedImage);
+      if (loaded) resolve(image);
+      else reject(new Error("QR image did not load"));
+    };
+    const loadedImage = () => finish(true);
+    const failedImage = () => finish(false);
+    const timeout = window.setTimeout(
+      () => finish(image.complete && image.naturalWidth > 0),
+      10_000,
+    );
+    image.addEventListener("load", loadedImage);
+    image.addEventListener("error", failedImage);
+    image.src = source;
+    if (image.complete && image.naturalWidth > 0) finish(true);
+  });
+}
+
+const QR_DECODE_MAX_DIMENSION = 800;
+
+function decodeQrImage(
+  reader: { decodeFromCanvas(canvas: HTMLCanvasElement): unknown },
+  image: HTMLImageElement,
+): unknown {
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const scale = Math.min(1, QR_DECODE_MAX_DIMENSION / Math.max(width, height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("QR decode canvas is unavailable");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  try {
+    return reader.decodeFromCanvas(canvas);
+  } finally {
+    canvas.width = 0;
+    canvas.height = 0;
+  }
+}
+
+function qrResultText(result: unknown): string {
   if (typeof result !== "object" || result === null || !("getText" in result)) {
     throw new Error("QR scanner returned an invalid result");
   }
@@ -145,21 +190,45 @@ export async function scanQrImage(
   return decoded;
 }
 
-export async function scanQrFile(file: File): Promise<string> {
-  await validateQrImageFile(file);
-  const url = URL.createObjectURL(file);
+async function scanQrCanvas(canvas: HTMLCanvasElement): Promise<string> {
+  const { BrowserQRCodeReader } = await loadZxingBrowser();
+  const reader = new BrowserQRCodeReader();
+  return qrResultText(reader.decodeFromCanvas(canvas));
+}
+
+export async function scanQrImage(
+  source: string | HTMLImageElement,
+): Promise<string> {
+  const { BrowserQRCodeReader } = await loadZxingBrowser();
+  const reader = new BrowserQRCodeReader();
+  const ownedImage =
+    typeof source === "string" ? await loadQrImageElement(source) : null;
+  const image = ownedImage ?? (source as HTMLImageElement);
+  let result: unknown;
   try {
+    result = decodeQrImage(reader, image);
+  } finally {
+    ownedImage?.removeAttribute("src");
+  }
+  return qrResultText(result);
+}
+
+export async function scanQrFile(file: File): Promise<string> {
+  const dimensions = await validateQrImageFile(file);
+  const url = URL.createObjectURL(file);
+  const recover = () => recoverQrFromImage(file, scanQrCanvas);
+  try {
+    if (priorityQrCropForImage(...dimensions)) {
+      try {
+        return await recover();
+      } catch {
+        // A 4:5 image may not be an app recovery card; retain normal scanning.
+      }
+    }
     try {
       return await scanQrImage(url);
     } catch {
-      return await recoverQrFromImage(file, async (candidate) => {
-        const candidateUrl = URL.createObjectURL(candidate);
-        try {
-          return await scanQrImage(candidateUrl);
-        } finally {
-          URL.revokeObjectURL(candidateUrl);
-        }
-      });
+      return await recover();
     }
   } finally {
     URL.revokeObjectURL(url);
