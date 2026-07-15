@@ -58,13 +58,45 @@ for (const locale of ["en", "de"] as const) {
       }
       await route.continue();
     });
+    await page.addInitScript(() => {
+      const violations: Array<{
+        blockedURI: string;
+        violatedDirective: string;
+        sourceFile: string;
+      }> = [];
+      Object.defineProperty(window, "__chatNoControlCspViolations", {
+        configurable: false,
+        value: violations,
+      });
+      document.addEventListener("securitypolicyviolation", (event) => {
+        violations.push({
+          blockedURI: event.blockedURI,
+          violatedDirective: event.violatedDirective,
+          sourceFile: event.sourceFile,
+        });
+      });
+    });
 
     await mkdir(evidenceDirectory, { recursive: true });
     await page.goto("/");
     if (locale === "de") {
+      await page.getByRole("link", { name: "Open settings" }).click();
       await page.getByLabel("Language").selectOption("de");
+      await page.getByRole("link", { name: "Chat NoControl" }).click();
     }
     await page.waitForTimeout(100);
+    const initialCspViolations = await page.evaluate(
+      () =>
+        (Reflect.get(window, "__chatNoControlCspViolations") ?? []) as Array<{
+          blockedURI: string;
+          violatedDirective: string;
+          sourceFile: string;
+        }>,
+    );
+    const appCspViolations = initialCspViolations.filter(
+      ({ blockedURI }) =>
+        !/^(?:chrome|moz|safari)-extension:/u.test(blockedURI),
+    );
     const initialConsoleErrors = [...consoleErrors];
     await page.screenshot({
       path: join(evidenceDirectory, `${projectSlug}-${locale}-identity.png`),
@@ -237,5 +269,6 @@ for (const locale of ["en", "de"] as const) {
     expect(productPageErrors).toEqual([]);
     expect(productFailedRequests).toEqual([]);
     expect(productExternalRequests).toEqual([]);
+    expect(appCspViolations).toEqual([]);
   });
 }

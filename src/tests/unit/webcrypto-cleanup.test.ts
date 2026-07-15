@@ -61,6 +61,28 @@ function subtleFixture(
 }
 
 describe("WebCrypto temporary ownership", () => {
+  it("uses the development AES-GCM fallback when SubtleCrypto is unavailable", async () => {
+    const key = new Uint8Array(32);
+    const nonce = new Uint8Array(12);
+    const encrypted = await encryptAesGcm(
+      key,
+      nonce,
+      new Uint8Array(),
+      undefined,
+      null,
+    );
+
+    expect(encrypted).toEqual(
+      new Uint8Array([
+        0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9, 0xa9, 0x63, 0xb4, 0xf1,
+        0xc4, 0xcb, 0x73, 0x8b,
+      ]),
+    );
+    await expect(
+      decryptAesGcm(key, nonce, encrypted, undefined, null),
+    ).resolves.toEqual(new Uint8Array());
+  });
+
   it("wipes owned key, nonce, AAD, and plaintext copies after success", async () => {
     const captured: ArrayBuffer[] = [];
     await expect(

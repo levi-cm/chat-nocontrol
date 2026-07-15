@@ -56,8 +56,8 @@ export async function completeRecoveryConfirmation(
           pdfDownload: "Wiederherstellungs-PDF herunterladen",
           wordsWritten: "Ich habe alle 24 Wörter aufgeschrieben",
           printStored:
-            "Ich habe das gedruckte Wiederherstellungsdokument sicher gespeichert",
-          pdfStored: "Ich habe die Wiederherstellungs-PDF sicher gespeichert",
+            "Ich habe das Wiederherstellungsdokument gedruckt und sicher verwahrt",
+          pdfStored: "Ich habe das Wiederherstellungs-PDF sicher verwahrt",
           continuePractice: "Weiter zur Wiederherstellungsübung",
           expertSkip: "Ich weiß, was ich tue",
           confirmSkip: "Übung überspringen",

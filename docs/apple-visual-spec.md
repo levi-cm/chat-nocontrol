@@ -21,10 +21,11 @@ Design dials:
 - System light and dark modes through semantic CSS variables.
 - No remote fonts, images, scripts, tracking, analytics, or decorative downloads.
 - Frosted material is a labeled web approximation using transparency and `backdrop-filter`; opaque fallbacks are mandatory.
+- A Settings toggle disables all translucent material and blur, replacing it with opaque theme surfaces.
 
 ## Palette
 
-One product accent: accessible cool blue. Red and green are reserved for semantic danger and success only.
+The default product accent is accessible cool blue. Settings may select blue, indigo, purple, teal, pink, orange, or graphite. Red, orange, and green remain reserved for semantic danger, passphrase caution, and success when they communicate status rather than the selected accent.
 
 Light:
 
@@ -39,6 +40,8 @@ Light:
 - Danger: `#b42318`
 - Danger surface: `#fff1f0`
 - Success: `#137a48`
+
+The selected accent changes primary actions, focus, and selection only. It does not recolor warnings or passphrase-strength bands.
 
 Dark:
 

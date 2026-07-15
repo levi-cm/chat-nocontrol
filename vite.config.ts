@@ -41,5 +41,5 @@ export default defineConfig(({ command }) => ({
       },
     }),
   ],
-  build: { target: "es2023", sourcemap: true },
+  build: { target: "es2023", sourcemap: false },
 }));

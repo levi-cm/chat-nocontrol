@@ -62,6 +62,8 @@ Apple-inspired means polished system typography, familiar navigation, controlled
 
 Desktop uses a narrow rail and centered workspace. Mobile changes structure into a fixed safe-area bottom bar and one-column task surface. Motion reports state in 180ms; reduced-motion users get immediate changes.
 
+The top bar and floating mobile navigation may use restrained translucent material. A persisted Settings toggle replaces those materials with fully opaque theme surfaces.
+
 **Key Characteristics:**
 
 - Restrained cool-neutral surfaces with one blue action accent.
@@ -89,7 +91,7 @@ Cool blue provides action and selection. Neutral surfaces carry nearly all area;
 
 - **Recovery Red:** Private recovery, destructive actions, and safe failure.
 
-**The One Accent Rule.** Blue is functional, never decorative. Red is semantic, never ornamental.
+**The Selected Accent Rule.** Blue is the default. Settings may choose indigo, purple, teal, pink, orange, or graphite. The selected accent is functional, never decorative. Red, orange, and green remain semantic and are never replaced by the chosen accent.
 
 ## Typography
 

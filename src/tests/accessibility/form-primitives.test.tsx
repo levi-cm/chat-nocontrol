@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/preact";
+import { createRef } from "preact";
 import { afterEach, describe, expect, it } from "vitest";
 import { ErrorSummary } from "../../components/feedback/error-summary";
 import { LiveRegion } from "../../components/feedback/live-region";
@@ -9,10 +10,12 @@ describe("accessible form primitives", () => {
   afterEach(cleanup);
 
   it("binds labels, errors, live status, and progress", () => {
+    const inputRef = createRef<HTMLInputElement>();
     render(
       <main>
         <TextField
           id="name"
+          inputRef={inputRef}
           label="Pseudonym"
           value=""
           error="Pseudonym is required"
@@ -34,5 +37,6 @@ describe("accessible form primitives", () => {
     expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe(
       "25",
     );
+    expect(inputRef.current).toBe(screen.getByLabelText("Pseudonym"));
   });
 });

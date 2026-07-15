@@ -94,12 +94,11 @@ test("encrypts one file locally and produces a decryptable PPXF download", async
     (
       window as typeof window & { __allowPpxFileShare: boolean }
     ).__allowPpxFileShare = false;
+    window.dispatchEvent(new Event("offline"));
   });
-  await page.getByLabel("Language").selectOption("de");
   await expect(
-    page.getByRole("button", { name: "Verschlüsselte Datei teilen" }),
+    page.getByRole("button", { name: "Share encrypted file" }),
   ).toHaveCount(0);
-  await page.getByLabel("Sprache").selectOption("en");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download encrypted file" }).click();
   const download = await downloadPromise;

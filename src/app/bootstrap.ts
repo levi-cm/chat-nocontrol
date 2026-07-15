@@ -4,6 +4,10 @@ const LOCALE_KEY = "ppx-locale";
 const UPDATE_FLAG = "__PPX_UPDATE_AVAILABLE__";
 
 type UpdateWindow = Window & Partial<Record<typeof UPDATE_FLAG, boolean>>;
+type CanvasTheme = "system" | "light" | "dark";
+
+const LIGHT_CANVAS = "#f5f7fb";
+const DARK_CANVAS = "#0e1118";
 
 export function isUpdateAvailable(): boolean {
   return Boolean((window as UpdateWindow)[UPDATE_FLAG]);
@@ -45,6 +49,27 @@ export function clearStoredLocale(storage: Storage = localStorage): boolean {
   } catch {
     return false;
   }
+}
+
+export function syncThemeColor(
+  theme: CanvasTheme,
+  targetDocument: Document = document,
+  prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches,
+): string {
+  const color =
+    theme === "dark" || (theme === "system" && prefersDark)
+      ? DARK_CANVAS
+      : LIGHT_CANVAS;
+  let meta = targetDocument.querySelector<HTMLMetaElement>(
+    'meta[name="theme-color"]',
+  );
+  if (!meta) {
+    meta = targetDocument.createElement("meta");
+    meta.name = "theme-color";
+    targetDocument.head.append(meta);
+  }
+  meta.content = color;
+  return color;
 }
 
 export async function registerServiceWorker(

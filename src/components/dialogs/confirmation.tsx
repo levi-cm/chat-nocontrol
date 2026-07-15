@@ -5,18 +5,25 @@ export function ConfirmationDialog({
   t,
   title,
   body,
+  cancelLabel,
+  confirmLabel,
+  returnFocus,
   onCancel,
   onConfirm,
 }: {
   t: (key: MessageKey) => string;
   title: string;
   body: string;
+  cancelLabel?: string;
+  confirmLabel?: string;
+  returnFocus?: () => HTMLElement | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const cancelButton = useRef<HTMLButtonElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const returnFocusTarget = useRef(returnFocus);
 
   useEffect(() => {
     previousFocus.current =
@@ -24,7 +31,8 @@ export function ConfirmationDialog({
         ? document.activeElement
         : null;
     cancelButton.current?.focus();
-    return () => previousFocus.current?.focus();
+    return () =>
+      (returnFocusTarget.current?.() ?? previousFocus.current)?.focus();
   }, []);
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -64,7 +72,7 @@ export function ConfirmationDialog({
             type="button"
             onClick={onCancel}
           >
-            {t("cancel")}
+            {cancelLabel ?? t("cancel")}
           </button>
           <button
             ref={confirmButton}
@@ -72,7 +80,7 @@ export function ConfirmationDialog({
             type="button"
             onClick={onConfirm}
           >
-            {t("delete")}
+            {confirmLabel ?? t("delete")}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { gcm } from "@noble/ciphers/aes.js";
 import { PPXError } from "../protocol/types";
 import { zeroize } from "./zeroize";
 
@@ -30,7 +31,7 @@ export async function encryptAesGcm(
   nonce: Uint8Array,
   plaintext: Uint8Array,
   additionalData?: Uint8Array,
-  subtle: SubtleCrypto = crypto.subtle,
+  subtle: SubtleCrypto | null = getWebCryptoSubtle(),
 ): Promise<Uint8Array> {
   requireLength(nonce, 12);
   const ownedNonce = ownedBytes(nonce);
@@ -39,6 +40,19 @@ export async function encryptAesGcm(
     ? ownedBytes(additionalData)
     : undefined;
   try {
+    if (!subtle) {
+      if (__CHAT_NOCONTROL_PRODUCTION_BUILD__) {
+        throw new Error("webcrypto-unavailable");
+      }
+      const ownedKey = ownedBytes(key);
+      try {
+        return gcm(ownedKey, ownedNonce, ownedAdditionalData).encrypt(
+          ownedPlaintext,
+        );
+      } finally {
+        zeroize(ownedKey);
+      }
+    }
     const encrypted = await subtle.encrypt(
       {
         name: "AES-GCM",
@@ -62,7 +76,7 @@ export async function decryptAesGcm(
   nonce: Uint8Array,
   ciphertext: Uint8Array,
   additionalData?: Uint8Array,
-  subtle: SubtleCrypto = crypto.subtle,
+  subtle: SubtleCrypto | null = getWebCryptoSubtle(),
 ): Promise<Uint8Array> {
   requireLength(nonce, 12);
   const ownedNonce = ownedBytes(nonce);
@@ -71,6 +85,19 @@ export async function decryptAesGcm(
     ? ownedBytes(additionalData)
     : undefined;
   try {
+    if (!subtle) {
+      if (__CHAT_NOCONTROL_PRODUCTION_BUILD__) {
+        throw new Error("webcrypto-unavailable");
+      }
+      const ownedKey = ownedBytes(key);
+      try {
+        return gcm(ownedKey, ownedNonce, ownedAdditionalData).decrypt(
+          ownedCiphertext,
+        );
+      } finally {
+        zeroize(ownedKey);
+      }
+    }
     const plaintext = await subtle.decrypt(
       {
         name: "AES-GCM",

@@ -54,7 +54,9 @@ test("core shell makes no external network requests", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Import identity" }).click();
   await page.getByRole("button", { name: "Scan with camera" }).click();
-  await expect(page.getByText("Camera scanning is unavailable.")).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText(
+    /Camera permission was denied|No camera was found|The camera is busy|The camera could not start/u,
+  );
   await page.reload();
   await importSessionIdentity(page, {
     entropy: new Uint8Array(32),
@@ -63,6 +65,7 @@ test("core shell makes no external network requests", async ({ page }) => {
   for (const name of ["Encrypt", "Decrypt", "Contacts", "Identity", "Help"]) {
     await page.getByRole("link", { name }).click();
   }
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
   for (const name of [
     "Verschlüsseln",

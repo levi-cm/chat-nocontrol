@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the repository overview for the public beta docs package.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [docs/product-spec.md](docs/product-spec.md), [docs/protocol-v1.md](docs/protocol-v1.md), [docs/security-architecture.md](docs/security-architecture.md), [docs/threat-model.md](docs/threat-model.md), [docs/design-spec.md](docs/design-spec.md), [docs/ux-content-spec.md](docs/ux-content-spec.md), [docs/accessibility-i18n.md](docs/accessibility-i18n.md), [docs/user-guide.en.md](docs/user-guide.en.md), [docs/user-guide.de.md](docs/user-guide.de.md), [docs/testing-and-release.md](docs/testing-and-release.md), [docs/references.md](docs/references.md), [WebLibre_full_plan.md](WebLibre_full_plan.md)
 > **Supersedes:** The original WebLibre plan is historical only; it remains archive context, not an active specification.
 
@@ -9,14 +9,15 @@
 Chat NoControl is the calm product behind a satirical brand name. This
 repository contains a static Preact implementation plus the normative PPX
 documentation. Identity recovery, contacts, local storage, offline shell,
-encrypted text, and worker-backed encrypted files are implemented. It remains
-an unaudited public beta candidate, not a stable-security or deployed-product
-claim; current release evidence is required before publication.
+encrypted text, and worker-backed encrypted files are implemented. This source
+snapshot does not claim a current deployment or stable-security status;
+publication state is established by GitHub's release and deployment evidence.
 
-The current protocol family is PPX Protocol v1. It is an unaudited public beta candidate. There is no supported stable release version yet.
+The current protocol family is PPX Protocol v1. There is no supported stable release version yet.
 
 - Source: <https://github.com/levi-cm/chat-nocontrol>
-- Planned public beta site: <https://levi-cm.github.io/chat-nocontrol/>
+- Releases and review-bound artifacts: <https://github.com/levi-cm/chat-nocontrol/releases>
+- Public beta site and current availability: <https://levi-cm.github.io/chat-nocontrol/>
 
 ## What v1 Is
 
@@ -24,8 +25,14 @@ The current protocol family is PPX Protocol v1. It is an unaudited public beta c
 - One active identity at a time.
 - One recipient per encrypted output.
 - Local encrypt and decrypt flows for text and files.
+- Ordinary PPXT is the primary text output. Message-QR creation is an optional
+  Settings-enabled output after encryption and defaults off; receiving remains
+  available. See
+  [`docs/protocol-qr-message-v1.md`](docs/protocol-qr-message-v1.md).
 - Public contacts exchanged as QR or file payloads.
-- Private identity material stored only as an encrypted vault when the user explicitly chooses persistence.
+- Identity creation uses a seven-screen backup-and-restore wizard; the UI calls the public protocol pseudonym a `Username`.
+- Every new identity uses a matching browser-vault password. Its plaintext appears only on the private A4 recovery print/PDF and is never persisted or included in QR/PPXR artifacts.
+- Encrypted IndexedDB vault storage is recommended and preselected, but written only after explicit confirmation; session-only remains available.
 - English and German launch content.
 - Calm, Apple-like mobile/desktop UI governed by the approved visual spec.
 
@@ -35,6 +42,7 @@ The current protocol family is PPX Protocol v1. It is an unaudited public beta c
 - File support: up to `100 MiB`.
 - Optional file caption: up to `16 KiB`.
 - Session-only mode when storage is unavailable or the user declines persistence.
+- The repository stays private through implementation and review and becomes public only with an explicitly approved public beta after every release gate passes.
 - No message history.
 - No forward secrecy.
 - No group messaging.
@@ -79,6 +87,27 @@ PPX v1 uses hybrid confidentiality with ML-KEM-512 and classical X25519, classic
 5. Verify English and German parity in [docs/user-guide.en.md](docs/user-guide.en.md) and [docs/user-guide.de.md](docs/user-guide.de.md).
 6. Treat [WebLibre_full_plan.md](WebLibre_full_plan.md) as historical only.
 7. Before commenting on link integrity, run a quick local check for broken relative paths and terminology drift.
+
+## Local development
+
+Install the pinned dependencies with `npm ci`, then run `npm run dev` (or the
+equivalent `npm run dev:tailscale`). The runner reads this node's live Tailscale
+DNS name, binds Vite to `127.0.0.1:5173`, and exposes it through foreground
+Tailscale Serve. Open the printed `https://<node>.<tailnet>.ts.net/` URL. On the
+first run, Tailscale may print an administrator link for approving HTTPS
+certificates; approve it for this tailnet, then run the command again. The
+strict port prevents Vite from silently moving when another process owns
+`5173`. Stopping the command terminates both Vite and the foreground Serve.
+
+Phone camera and automatic Clipboard permissions require a browser secure
+context. Plain IP HTTP does not qualify even when the network path is encrypted
+by Tailscale. Use `npm run dev:http:tailscale` only for explicit compatibility
+checks; camera scanning will direct users to HTTPS and copy actions may fall
+back to selecting the complete text for manual copying.
+
+`npm run dev:lan` remains available for explicit raw-LAN inspection and binds
+to `0.0.0.0`. This is broader exposure than the default Tailscale-only command;
+keep the firewall enabled and stop the server when testing is finished.
 
 ## License
 

@@ -1,16 +1,15 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/preact";
+import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CryptoProvider } from "../../crypto/provider";
 import { IdentityCreate } from "../../flows/identity/create";
 import type { MessageKey } from "../../i18n";
-import type { DerivedIdentity, PublicContact } from "../../protocol/types";
+import { messages } from "../../i18n";
+import type {
+  DerivedIdentity,
+  LockedVaultObject,
+  PublicContact,
+} from "../../protocol/types";
 
 const labels: Partial<Record<MessageKey, string>> = {
   createIdentity: "Create new identity",
@@ -55,6 +54,24 @@ function contactFixture(): PublicContact {
   };
 }
 
+function vaultFixture(): LockedVaultObject {
+  return {
+    magic: "PPXV",
+    formatVersion: 1,
+    suite: 1,
+    flags: 1,
+    kdfId: 1,
+    scryptN: 65_536,
+    scryptR: 8,
+    scryptP: 2,
+    salt: new Uint8Array(16),
+    nonce: new Uint8Array(12),
+    ciphertextLength: 16,
+    ciphertext: new Uint8Array(16),
+    checksum: new Uint8Array(16),
+  };
+}
+
 function renderCreate(overrides: {
   randomBytes: (length: number) => Uint8Array;
   autoLockMs?: number;
@@ -68,10 +85,16 @@ function renderCreate(overrides: {
     CryptoProvider,
     "deriveIdentity" | "createPublicContact"
   >;
+  lockVaultJobFactory?: () => {
+    requestId: string;
+    promise: Promise<LockedVaultObject>;
+    cancel: () => void;
+  };
+  privateCardGenerator?: () => Promise<string>;
 }) {
   render(
     <IdentityCreate
-      t={(key) => labels[key] ?? key}
+      t={(key) => labels[key] ?? messages.en[key]}
       identity={null}
       contact={null}
       onReady={vi.fn()}
@@ -84,7 +107,7 @@ async function openAndGenerate() {
   await userEvent.click(
     screen.getByRole("button", { name: "Create new identity" }),
   );
-  await userEvent.type(screen.getByLabelText("Pseudonym"), "Alice");
+  await userEvent.type(screen.getByLabelText("Username"), "Alice");
   await userEvent.click(
     screen.getByRole("button", { name: "Generate identity" }),
   );
@@ -93,6 +116,56 @@ async function openAndGenerate() {
 afterEach(cleanup);
 
 describe("identity creation failure ownership", () => {
+  it("keeps password setup recoverable after vault creation fails", async () => {
+    const lockVaultJobFactory = vi
+      .fn()
+      .mockImplementationOnce(() => ({
+        requestId: "vault-failure",
+        promise: Promise.reject(new Error("injected vault failure")),
+        cancel: vi.fn(),
+      }))
+      .mockImplementationOnce(() => ({
+        requestId: "vault-retry",
+        promise: Promise.resolve(vaultFixture()),
+        cancel: vi.fn(),
+      }));
+    renderCreate({
+      identityProvider: {
+        deriveIdentity: vi.fn().mockResolvedValue(identityFixture()),
+        createPublicContact: () => contactFixture(),
+      },
+      randomBytes: (length) => new Uint8Array(length).fill(7),
+      lockVaultJobFactory,
+    });
+    await openAndGenerate();
+    const password = screen.getByLabelText<HTMLInputElement>(
+      "Browser-vault password",
+    );
+    const confirmation = screen.getByLabelText<HTMLInputElement>(
+      "Confirm browser-vault password",
+    );
+    await userEvent.type(password, "Vault pass 123!");
+    await userEvent.type(confirmation, "Vault pass 123!");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create encrypted vault" }),
+    );
+
+    const summary = await screen.findByRole("alert");
+    expect(summary.textContent).toContain("Browser vault could not be created");
+    expect(summary.textContent).toContain(
+      "Nothing was saved. Your identity setup is still open.",
+    );
+    expect(document.activeElement).toBe(summary);
+    expect(password.value).toBe("Vault pass 123!");
+    expect(confirmation.value).toBe("Vault pass 123!");
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Create encrypted vault" }),
+    );
+    expect(await screen.findByText("Step 3 of 7")).not.toBeNull();
+    expect(lockVaultJobFactory).toHaveBeenCalledTimes(2);
+  });
+
   it("clears recovery state after transfer without wiping the active identity", async () => {
     const identity = identityFixture();
     const onReady = vi.fn();
@@ -113,27 +186,78 @@ describe("identity creation failure ownership", () => {
           createPublicContact: () => contactFixture(),
         },
         randomBytes: (length) => new Uint8Array(length).fill(7),
+        lockVaultJobFactory: () => ({
+          requestId: "vault-test",
+          promise: Promise.resolve(vaultFixture()),
+          cancel: vi.fn(),
+        }),
+        privateCardGenerator: () =>
+          Promise.resolve("data:image/png;base64,AA=="),
       });
       await openAndGenerate();
-      const words = await screen.findAllByRole("listitem");
-      const recoveryWords = words.map((item) => item.textContent ?? "");
-      fireEvent.click(screen.getByRole("button", { name: "downloadRecovery" }));
       await userEvent.type(
-        screen.getByLabelText("confirmationLabel"),
-        "confirmationPhrase",
+        screen.getByLabelText("Browser-vault password"),
+        "Vault pass 123!",
       );
-      const confirmations = document.querySelectorAll<HTMLInputElement>(
-        'input[id^="recovery-word-confirmation-"]',
-      );
-      for (const input of confirmations) {
-        const position = Number(input.id.split("-").at(-1));
-        await userEvent.type(input, recoveryWords[position - 1] ?? "");
-      }
-      await userEvent.click(
-        screen.getByRole("button", { name: "confirmRecovery" }),
+      await userEvent.type(
+        screen.getByLabelText("Confirm browser-vault password"),
+        "Vault pass 123!",
       );
       await userEvent.click(
-        screen.getByRole("button", { name: "useSessionOnly" }),
+        screen.getByRole("button", { name: "Create encrypted vault" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Save private QR as PNG" }),
+      );
+      await userEvent.click(
+        screen.getByRole("checkbox", {
+          name: "I stored the private QR safely",
+        }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Download .ppxrecovery file" }),
+      );
+      await userEvent.click(
+        screen.getByRole("checkbox", {
+          name: "I stored the .ppxrecovery file safely",
+        }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Continue to recovery words" }),
+      );
+      await userEvent.click(
+        await screen.findByRole("link", { name: "Print / Save as PDF" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Download recovery PDF" }),
+      );
+      await userEvent.click(
+        screen.getByRole("checkbox", { name: "I wrote down all 24 words" }),
+      );
+      await userEvent.click(
+        screen.getByRole("checkbox", {
+          name: "I printed and safely stored the recovery document",
+        }),
+      );
+      await userEvent.click(
+        screen.getByRole("checkbox", {
+          name: "I safely stored the recovery PDF",
+        }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Continue to restore practice" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "I know what I’m doing" }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Skip practice" }),
+      );
+      await userEvent.click(
+        screen.getByRole("radio", { name: /No, use session only/u }),
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Finish identity setup" }),
       );
 
       await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
@@ -165,7 +289,7 @@ describe("identity creation failure ownership", () => {
       });
 
       await openAndGenerate();
-      await screen.findByText("24 recovery words");
+      await screen.findByLabelText("Browser-vault password");
       now = 2_001;
       document.dispatchEvent(new Event("visibilitychange"));
 
@@ -174,7 +298,7 @@ describe("identity creation failure ownership", () => {
       expect(identity.kemSecretKey).toEqual(new Uint8Array(1632));
       expect(identity.x25519SecretKey).toEqual(new Uint8Array(32));
       expect(identity.signingSecretKey).toEqual(new Uint8Array(32));
-      expect(screen.queryByText("24 recovery words")).toBeNull();
+      expect(screen.queryByLabelText("Browser-vault password")).toBeNull();
     } finally {
       clock.mockRestore();
     }

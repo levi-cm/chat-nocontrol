@@ -7,7 +7,7 @@ describe("EN/DE resources", () => {
     expect(Object.keys(messages.de).sort()).toEqual(
       Object.keys(messages.en).sort(),
     );
-    expect(translate("de", "betaWarning")).toContain("Sicherheitsprüfung");
+    expect(translate("de", "settingsTitle")).toBe("Einstellungen");
     expect(translate("fr" as never, "noBackend")).toBe("No backend");
   });
 
@@ -18,17 +18,28 @@ describe("EN/DE resources", () => {
     );
   });
 
-  it("preserves exact normative recovery confirmation phrases", () => {
-    expect(messages.en.confirmationPhrase).toBe("EXPORT PRIVATE");
-    expect(messages.de.confirmationPhrase).toBe("PRIVAT EXPORTIEREN");
-  });
-
   it("preserves exact recovery, file, and cancellation copy", () => {
-    expect(messages.en.recoveryExportKeyboard).toBe(
-      "Focus the export action, activate it, type the confirmation phrase, then confirm. This path is not time-dependent.",
+    expect(messages.en.weakVaultPasswordTitle).toBe(
+      "Use a weak browser-vault password?",
     );
-    expect(messages.de.recoveryExportKeyboard).toBe(
-      "Fokussiere die Exportaktion, aktiviere sie, gib PRIVAT EXPORTIEREN ein und bestätige.",
+    expect(messages.de.weakVaultPasswordTitle).toBe(
+      "Schwaches Browser-Tresor-Passwort verwenden?",
+    );
+    expect(messages.en.changeVaultPassword).toBe("Change password");
+    expect(messages.de.changeVaultPassword).toBe("Passwort ändern");
+    expect(messages.en.useWeakVaultPassword).toBe("Use weak password");
+    expect(messages.de.useWeakVaultPassword).toBe(
+      "Schwaches Passwort verwenden",
+    );
+    expect(messages.en.vaultCreationErrorTitle).toBe(
+      "Browser vault could not be created",
+    );
+    expect(messages.de.vaultCreationErrorTitle).toBe(
+      "Browser-Tresor konnte nicht erstellt werden",
+    );
+    expect(messages.en.savePrivateQr).toBe("Save private QR as PNG");
+    expect(messages.de.savePrivateQr).toBe(
+      "Privaten QR-Code als PNG speichern",
     );
     expect(messages.en.maximumFile).toBe("Maximum file size: 100 MiB");
     expect(messages.de.maximumFile).toBe("Maximale Dateigröße: 100 MiB");

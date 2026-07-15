@@ -48,9 +48,6 @@ export function HelpFlow({
         <li>{t("noTelemetry")}</li>
         <li>{t("noHistory")}</li>
       </ul>
-      <p class="beta-warning" role="note">
-        {t("betaWarning")}
-      </p>
       <section class="about-panel">
         <h2>{t("aboutTitle")}</h2>
         <p>{t("aboutClaim")}</p>

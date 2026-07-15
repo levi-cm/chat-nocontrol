@@ -1,12 +1,18 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the GitHub Pages deployment contract for the public beta.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [product-spec.md](product-spec.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [protocol-v1.md](protocol-v1.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
 # GitHub Pages Deployment Contract
 
-Last verified: 2026-07-13.
+Last verified: 2026-07-15.
+
+This contract does not hardcode a live/deployed assertion. Current publication
+and deployment status is established by the
+[GitHub Releases](https://github.com/levi-cm/chat-nocontrol/releases), the
+[Pages site](https://levi-cm.github.io/chat-nocontrol/), and the corresponding
+GitHub workflow, deployment, and status records.
 
 ## 1. Deployment model
 
@@ -138,6 +144,22 @@ Before publishing a Pages beta:
 7. Confirm no remote resources are loaded.
 8. Confirm the service worker caches only versioned assets.
 9. Confirm rollback can restore the previous known-good deployment.
+
+The sole prepared deployment path is the manual `release.yml` workflow. The
+workflow dispatch itself must select the same exact beta tag supplied as input,
+and explicit deployment confirmation is required. The workflow checks out the
+remote tag rather than a branch, preserves the independent-review two-commit
+gate, rejects production source maps, and uploads the verified `dist` artifact.
+Verification receives read-only repository and deployment permissions;
+attestation and Pages write permissions exist only in the later deployment job.
+Only after deployment may finalization accept an exact successful GitHub Pages
+deployment and status record matching tag, commit, environment, URL, and that
+workflow run's captured deployment-time window. Retry finalization may replace
+matching prerelease assets; identical ledger evidence is a no-op, while a later
+same-tag redeployment is retained as history.
+
+This workflow is prepared locally. Its presence does not claim that repository
+settings changed, a release exists, or Pages was deployed.
 
 ## 8. Operational limits
 

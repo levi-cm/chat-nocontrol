@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the product requirements for Chat NoControl v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
@@ -30,7 +30,7 @@ The brand voice is dry bureaucratic satire only in name. The interface itself mu
 
 ## 4. Success criteria
 
-- A first-time user can create or import an identity, export the mandatory recovery material, and reach the Encrypt screen without ambiguity.
+- A first-time user can create or import an identity, complete the mandatory backup and restore-practice steps, and reach the Encrypt screen without ambiguity.
 - A user can encrypt and decrypt text and files on both mobile and desktop without leaving the browser.
 - Public contacts and private recovery material are visually and semantically distinct.
 - The app works as a static GitHub Pages beta with no backend dependency.
@@ -63,6 +63,20 @@ The brand voice is dry bureaucratic satire only in name. The interface itself mu
 - In-app document rendering for unsupported files.
 - Bespoke visual assets or brand-font work beyond the approved local
   system-font rules in `apple-visual-spec.md`.
+
+### 5.3 Optional message-QR output
+
+Ordinary PPXT is the primary text-encryption output. Message-QR creation
+defaults off and appears only after the user enables `Offer message QR after
+text encryption` in Settings. When enabled, text encryption may additionally
+offer one compact app QR and/or one phone-camera link QR when the actual H-level
+encoder fits. It never creates a sequence or removes cryptographic primitives.
+
+Receiving remains available regardless of the creation setting: Decrypt
+supports camera and screenshot/image input, authenticates locally, and may
+auto-decrypt according to its separate browser-local setting. PPXQ protocol and
+security behavior are unchanged. Messages and pending ciphertext are not
+persisted.
 
 ## 6. Product claims
 
@@ -106,9 +120,10 @@ The product must not claim:
 
 ## 8. Identity model
 
-- The required pseudonym is public and nonunique.
+- The setup UI calls the public display label `Username`; it remains the protocol `pseudonym` field and does not change any PPX wire format.
+- The required username/pseudonym is public and nonunique.
 - It must be normalized to UTF-8 and limited to `1..48` bytes after normalization.
-- The recommended pseudonym is a fictional, recognizable name, not a real name.
+- The recommended username is a fictional, recognizable name, not a real name.
 - User copy must use the terms `identity`, `public contact`, `private recovery card`, `encrypted text`, and `encrypted file`.
 - User copy must never use `seed card` or `account` for these concepts.
 
@@ -121,13 +136,20 @@ The product must not claim:
 - The navigation items are Encrypt, Decrypt, Contacts, Identity, and Help.
 - Public contact display must show the pseudonym above the QR code.
 - The private recovery material must always be warned as dangerous.
-- The user must export recovery material before finishing identity setup.
-- The user must be asked separately whether to remember the private identity locally.
+- Identity creation is a seven-screen wizard with progress values `30%`, `42%`, `54%`, `66%`, `78%`, `90%`, and `100%`; secrets from the recovery-document screen must not be recoverable with Back navigation after the user continues.
+- Every new identity requires a matching browser-vault password before recovery artifacts are produced. The password accepts printable ASCII, permits internal spaces, rejects leading or trailing spaces, and is limited to `256` bytes.
+- The user must download both the private QR PNG and `.ppxrecovery` file and attest that each was stored safely before continuing.
+- The recovery words must be preserved through handwriting, a physical printout, or a saved PDF. The private A4 recovery print/PDF includes the exact plaintext browser-vault password; no other recovery artifact includes it.
+- Recovery practice must verify the saved QR, then the `.ppxrecovery` file, then four unique random recovery-word positions. Practice allows unlimited retries and offers restart after ten failed word submissions.
+- An expert skip may bypass only recovery practice, never required downloads or backup attestations.
+- Remembering the encrypted vault in local IndexedDB is recommended and preselected, but persistence occurs only after explicit confirmation; session-only remains available.
 - If storage is unavailable, the app must fall back to session-only mode automatically.
+- The setup flow must warn that the QR, `.ppxrecovery`, recovery code, 24 English words, and recovery document are equivalent ways to regain the identity, and that losing all recovery copies and browser-vault access permanently prevents recovery and message decryption.
 
 ## 10. Data handling requirements
 
 - No message history is stored.
+- The plaintext browser-vault password is transient setup state. It must never be persisted, logged, placed in URLs, included in the QR PNG or `.ppxrecovery`, or retained after leaving the recovery-document screen.
 - Contacts persist by default unless the user chooses session-only mode or deletes them.
 - Local nicknames are allowed and private to the device.
 - Importing the same key again is idempotent and should merge rather than duplicate.
@@ -167,6 +189,7 @@ The product spec is satisfied only if all of the following are true:
 - Every required flow can be completed without a backend.
 - English and German launch content are complete.
 - Recovery export is mandatory before finish.
+- The seven-screen backup and restore-practice contract is implemented without changing PPX wire formats.
 - Session-only mode is available and works when persistent storage is denied.
 - The app remains static-host compatible and does not depend on an account service.
 - The visual layer remains unconstrained by this spec except where semantic states and responsive behavior are required.

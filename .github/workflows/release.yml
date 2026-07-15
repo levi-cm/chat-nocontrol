@@ -1,63 +1,208 @@
-name: Release evidence
+name: Gated beta release and Pages deployment
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Signed public-beta tag to verify and publish
+        description: Exact signed beta tag to verify, release, and deploy
         required: true
         type: string
+      confirm_deployment:
+        description: I explicitly approve deployment of this exact signed tag
+        required: true
+        default: false
+        type: boolean
 
-permissions:
-  contents: write
-  deployments: read
-  id-token: write
-  attestations: write
+permissions: {}
+
+concurrency:
+  group: gated-beta-release-pages
+  cancel-in-progress: false
 
 jobs:
-  evidence:
+  verify-candidate:
+    if: ${{ inputs.confirm_deployment == true }}
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      deployments: read
+      pages: read
+    outputs:
+      commit: ${{ steps.candidate.outputs.commit }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.tag }}
-      - name: Validate requested tag
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Validate exact beta candidate
+        id: candidate
         env:
           RELEASE_TAG: ${{ inputs.tag }}
-        run: >-
-          node -e 'const p=require("./package.json");
-          if(process.env.RELEASE_TAG !== `v${p.version}`) process.exit(1)'
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        run: |
+          node -e 'const p=require("./package.json"); const tag=process.env.RELEASE_TAG; if (!/^v\d+\.\d+\.\d+-beta\.\d+$/.test(tag) || tag !== `v${p.version}`) process.exit(1)'
+          test "$GITHUB_REF" = "refs/tags/$RELEASE_TAG"
+          test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "$RELEASE_TAG")"
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium firefox webkit
-      - run: npm run verify
+      - name: Verify review evidence, signature, quality, reproducibility, SBOM, and archive
+        run: npm run verify
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_REMOTE_TAG: "1"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - name: Reject production source maps before upload
+        run: npm run test:production-artifacts
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Upload exact verified Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist
+      - name: Upload exact release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-evidence-${{ inputs.tag }}
           path: output/release/
           if-no-files-found: error
-      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+  deploy-pages:
+    needs: verify-candidate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
+      started_at: ${{ steps.deployment-window-start.outputs.timestamp }}
+      completed_at: ${{ steps.deployment-window-end.outputs.timestamp }}
+    steps:
+      - name: Download exact release evidence from this run
+        env:
+          EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
+      - name: Attest exact verified release archive and SBOM
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
             output/release/chat-nocontrol-${{ inputs.tag }}.tgz
             output/release/sbom.cdx.json
-      - name: Publish beta release
+      - name: Mark deployment window start
+        id: deployment-window-start
+        run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+      - name: Deploy exact verified Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+      - name: Mark deployment window end
+        id: deployment-window-end
+        run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+
+  finalize-evidence:
+    needs: [verify-candidate, deploy-pages]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+      deployments: read
+    steps:
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Download exact release evidence from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
+      - name: Load canonical deployment ledger from main without checking out main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/contents/docs/deployed-releases.json?ref=main" > /tmp/ledger-response.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const response = JSON.parse(readFileSync("/tmp/ledger-response.json", "utf8"));
+          const ledger = Buffer.from(response.content.replace(/\n/g, ""), "base64").toString("utf8");
+          writeFileSync("docs/deployed-releases.json", ledger);
+          writeFileSync("/tmp/ledger-before.json", ledger);
+          writeFileSync("/tmp/ledger-blob-sha", `${response.sha}\n`);
+          NODE
+      - name: Capture exact successful GitHub Pages deployment evidence
+        env:
+          DEPLOYMENT_COMPLETED_AT: ${{ needs.deploy-pages.outputs.completed_at }}
+          DEPLOYMENT_STARTED_AT: ${{ needs.deploy-pages.outputs.started_at }}
+          DEPLOYMENT_URL: ${{ needs.deploy-pages.outputs.page_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          success=false
+          for attempt in 1 2 3 4 5 6; do
+            if npm run release:record-pages-deployment; then
+              success=true
+              break
+            fi
+            sleep 10
+          done
+          test "$success" = true
+      - name: Publish or refresh matching prerelease evidence
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag }}
-        run: >-
-          gh release create "$RELEASE_TAG"
-          output/release/chat-nocontrol-"$RELEASE_TAG".tgz
-          output/release/sbom.cdx.json
-          output/release/release-record.json
-          output/release/build.log
-          output/release/test-report.json
-          --verify-tag --prerelease --generate-notes
-          --title "Chat NoControl $RELEASE_TAG"
+        run: |
+          if gh release view "$RELEASE_TAG" --json tagName,isPrerelease > /tmp/release.json 2>/dev/null; then
+            node --input-type=module <<'NODE'
+            import { readFileSync } from "node:fs";
+            const release = JSON.parse(readFileSync("/tmp/release.json", "utf8"));
+            if (release.tagName !== process.env.RELEASE_TAG || release.isPrerelease !== true) process.exit(1);
+            NODE
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --prerelease --generate-notes --title "Chat NoControl $RELEASE_TAG"
+          fi
+          gh release upload "$RELEASE_TAG" output/release/* --clobber
+      - name: Append canonical deployment ledger evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if cmp -s /tmp/ledger-before.json docs/deployed-releases.json; then
+            echo "Identical deployment evidence already recorded."
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const payload = {
+            message: `Record Pages deployment for ${process.env.RELEASE_TAG}`,
+            content: Buffer.from(readFileSync("docs/deployed-releases.json")).toString("base64"),
+            sha: readFileSync("/tmp/ledger-blob-sha", "utf8").trim(),
+            branch: "main",
+          };
+          writeFileSync("/tmp/ledger-update.json", JSON.stringify(payload));
+          NODE
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/docs/deployed-releases.json" --input /tmp/ledger-update.json

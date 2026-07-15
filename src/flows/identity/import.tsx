@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ErrorSummary } from "../../components/feedback/error-summary";
 import { TextField } from "../../components/forms/text-field";
+import { PassphraseMeter } from "../../components/forms/passphrase-meter";
+import { PasteButton } from "../../components/forms/paste-button";
 import { QrImport } from "../../components/qr/import";
 import { defaultCryptoProvider } from "../../crypto/default-provider";
 import { createRecoveryWordCodec } from "../../crypto/recovery-words";
@@ -286,7 +288,17 @@ export function IdentityImport({
           onInput={setPseudonym}
         />
         <div class="field">
-          <label for="recovery-words">{t("recoveryWordsTitle")}</label>
+          <div class="field-heading">
+            <label for="recovery-words">{t("recoveryWordsTitle")}</label>
+            <PasteButton
+              label={t("paste")}
+              unavailableLabel={t("pasteUnavailable")}
+              failureLabel={t("pasteFailed")}
+              disabled={busy}
+              onPaste={setWords}
+              onError={setError}
+            />
+          </div>
           <textarea
             class="field-control"
             id="recovery-words"
@@ -340,8 +352,9 @@ export function IdentityImport({
         value={passphrase}
         onInput={setPassphrase}
       />
+      <PassphraseMeter value={passphrase} t={t} />
       <p class="input-meta">{t("passphraseHint")}</p>
-      {passphrase !== "" && (passphraseBytes < 12 || passphraseBytes > 256) && (
+      {passphraseBytes > 256 && (
         <p class="field-error" role="alert">
           {t("passphraseError")}
         </p>
@@ -354,7 +367,7 @@ export function IdentityImport({
           routingPrivateFile ||
           file === null ||
           (fileKind === "vault" &&
-            (passphraseBytes < 12 || passphraseBytes > 256))
+            (passphraseBytes === 0 || passphraseBytes > 256))
         }
         onClick={() => void importFile()}
       >
@@ -380,7 +393,7 @@ export function IdentityImport({
           busy ||
           scannedQr === "" ||
           (qrKind === "vault" &&
-            (passphraseBytes < 12 || passphraseBytes > 256))
+            (passphraseBytes === 0 || passphraseBytes > 256))
         }
         onClick={() => void importQr()}
       >

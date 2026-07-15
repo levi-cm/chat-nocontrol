@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file is the reference registry for normative and informative source material used by the public beta docs package.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [product-spec.md](product-spec.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [accessibility-i18n.md](accessibility-i18n.md), [github-pages-deployment.md](github-pages-deployment.md), [testing-and-release.md](testing-and-release.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 

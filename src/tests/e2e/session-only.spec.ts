@@ -99,19 +99,24 @@ test("chosen session-only mode does not persist locale settings", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Import identity" }).click();
+  await page.getByRole("link", { name: "Open settings" }).click();
+  await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Chat NoControl" }).click();
+  await page.getByRole("button", { name: "Identität importieren" }).click();
   await page.getByLabel("Pseudonym").fill("Session Alice");
   await page
-    .getByLabel("24 recovery words")
+    .getByLabel("24 Wiederherstellungswörter")
     .fill(`${"abandon ".repeat(23)}art`);
-  await page.getByRole("button", { name: "Import recovery words" }).click();
-  await page.getByLabel("Language").selectOption("de");
+  await page
+    .getByRole("button", { name: "Wiederherstellungswörter importieren" })
+    .click();
   await page
     .getByRole("button", { name: "Nein, nur für diese Sitzung verwenden" })
     .click();
   await expect(page).toHaveURL(/#\/encrypt$/u);
   await page.reload();
-  await expect(page.locator(".locale-control select")).toHaveValue("en");
+  await page.getByRole("link", { name: "Open settings" }).click();
+  await expect(page.getByLabel("Language")).toHaveValue("en");
 });
 
 test("runtime IndexedDB write failure falls back without losing the session", async ({

@@ -1,135 +1,92 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import QRCode from "qrcode";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
-import { encodeBase45Upper } from "../../protocol/base45";
-import {
-  createPublicContact,
-  encodePublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
-import { encodeRecoveryObject } from "../../protocol/ppxr";
 
-async function qrFile(text: string, name: string) {
-  return {
-    name,
-    mimeType: "image/png",
-    buffer: await QRCode.toBuffer(text, {
-      errorCorrectionLevel: "H",
-      margin: 2,
-      width: 700,
-    }),
+import { encodeBase37Upper } from "../../protocol/base37";
+import { checksum16 } from "../../protocol/checksum";
+import {
+  encodeEncryptedQrText,
+  encodeEncryptedQrTextHeader,
+} from "../../protocol/ppxq-outer";
+
+function canonicalLinkPayload(): string {
+  const base = {
+    magic: "PPXQ" as const,
+    formatVersion: 1 as const,
+    suite: 1 as const,
+    flags: 0 as const,
+    mlKemCiphertext: new Uint8Array(768).fill(1),
+    ephemeralX25519PublicKey: new Uint8Array(32).fill(2),
+    salt: new Uint8Array(32).fill(3),
+    nonce: new Uint8Array(12).fill(4),
+    ciphertextLength: 170,
+    ciphertext: new Uint8Array(170).fill(5),
   };
+  const header = encodeEncryptedQrTextHeader(base);
+  const payload = new Uint8Array(
+    header.byteLength + base.ciphertext.byteLength,
+  );
+  payload.set(header);
+  payload.set(base.ciphertext, header.byteLength);
+  return encodeBase37Upper(
+    encodeEncryptedQrText({ ...base, checksum: checksum16(payload) }),
+  );
 }
 
-test("imports a public contact from a QR image", async ({ page }) => {
-  const identity = await deriveIdentityFromEntropy(
-    new Uint8Array(32).fill(7),
-    "QR Bob",
-  );
-  const qr = encodePublicContactQr(createPublicContact(identity, "QR Bob", 7n));
-
-  await page.goto("/#/contacts");
-  await page.getByLabel("QR image").setInputFiles(await qrFile(qr, "bob.png"));
-  await expect(page.getByLabel("Public contact payload")).toHaveValue(qr);
-  await page.getByRole("button", { name: "Save public contact" }).click();
-  await expect(page.getByText("QR Bob", { exact: true })).toBeVisible();
-});
-
-test("committed QR image fixtures decode valid and reject damaged contact", async ({
+test("captures a fragment-only message link and scrubs it immediately", async ({
   page,
 }) => {
-  await page.goto("/#/contacts");
-  await page.getByLabel("QR image").setInputFiles({
-    name: "contact-valid.png",
-    mimeType: "image/png",
-    buffer: await readFile("fixtures/qr/contact-valid.png"),
-  });
-  await expect(page.getByLabel("Public contact payload")).toHaveValue(
-    /^PPX1:CONTACT:/u,
-  );
-  await page.getByRole("button", { name: "Save public contact" }).click();
-  await expect(page.getByText("QR Bob", { exact: true })).toBeVisible();
-
-  await page.getByLabel("QR image").setInputFiles({
-    name: "contact-checksum-damaged.png",
-    mimeType: "image/png",
-    buffer: await readFile("fixtures/qr/contact-checksum-damaged.png"),
-  });
-  await expect(page.getByRole("alert")).toContainText(
-    "Could not read this QR image.",
-  );
-});
-
-test("imports a public contact file", async ({ page }) => {
-  const identity = await deriveIdentityFromEntropy(
-    new Uint8Array(32).fill(9),
-    "File Bob",
-  );
-  const bytes = encodePublicContact(
-    createPublicContact(identity, "File Bob", 9n),
-  );
-
-  await page.goto("/#/contacts");
-  await page.getByLabel("Public contact file").setInputFiles({
-    name: "bob.ppxcontact",
-    mimeType: "application/x-ppx-contact",
-    buffer: Buffer.from(bytes),
-  });
-  await page.getByRole("button", { name: "Save public contact" }).click();
-  await expect(page.getByText("File Bob", { exact: true })).toBeVisible();
-});
-
-test("clears private recovery scanned on the public-contact surface", async ({
-  page,
-}) => {
-  const bytes = encodeRecoveryObject({
-    magic: "PPXR",
-    formatVersion: 1,
-    suite: 1,
-    flags: 0,
-    masterEntropy: new Uint8Array(32).fill(44),
-    creationTime: 44n,
-    pseudonym: "Private Alice",
-    checksum: new Uint8Array(16),
-  });
-  const qr = `PPX1:RECOVERY:${encodeBase45Upper(bytes)}`;
-
-  await page.goto("/#/contacts");
-  await page
-    .getByLabel("QR image")
-    .setInputFiles(await qrFile(qr, "private-recovery.png"));
-  await expect(page.getByRole("alert")).toContainText(
-    "Private recovery material cannot be imported as a public contact. It was cleared.",
-  );
-  await expect(page.getByLabel("Public contact payload")).toHaveValue("");
+  const payload = canonicalLinkPayload();
+  const requests: string[] = [];
+  page.on("request", (request) => requests.push(request.url()));
+  await page.goto(`/#/decrypt/qr/${payload}`);
+  await expect(page).toHaveURL(/#\/decrypt$/u);
   await expect(
-    page.getByRole("button", { name: "Save public contact" }),
-  ).toBeDisabled();
+    page.getByText("Create or import an identity first."),
+  ).toBeVisible();
+  expect(requests.every((url) => !url.includes(payload))).toBe(true);
 });
 
-test("imports private recovery from a QR image", async ({ page }) => {
-  const bytes = encodeRecoveryObject({
-    magic: "PPXR",
-    formatVersion: 1,
-    suite: 1,
-    flags: 0,
-    masterEntropy: new Uint8Array(32).fill(5),
-    creationTime: 5n,
-    pseudonym: "QR Alice",
-    checksum: new Uint8Array(16),
-  });
-  const qr = `PPX1:RECOVERY:${encodeBase45Upper(bytes)}`;
-
-  await page.goto("/");
-  await page.getByRole("button", { name: "Import identity" }).click();
-  await page.getByLabel("Pseudonym").fill("QR Alice relabeled");
-  await page
-    .getByLabel("QR image")
-    .setInputFiles(await qrFile(qr, "recovery.png"));
-  await page.getByRole("button", { name: "Import scanned QR" }).click();
-  await page.getByRole("button", { name: "No, use session only" }).click();
-  await expect(page.getByRole("button", { name: "Lock now" })).toBeVisible();
-  await page.getByRole("link", { name: "Identity" }).click();
-  await expect(page.getByText("QR Alice", { exact: true })).toBeVisible();
+test("message QR preferences persist in browser-local settings", async ({
+  page,
+}) => {
+  await page.goto("/#/settings");
+  await expect(page.getByLabel("Export")).toBeHidden();
+  await page.getByLabel("Offer message QR after text encryption").check();
+  await page.getByLabel("Export").selectOption("app");
+  await page.getByLabel("Import controls").selectOption("image");
+  await page.getByLabel("Auto-decrypt valid message QRs").uncheck();
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const request = indexedDB.open("chat-nocontrol-ppx");
+        request.onerror = () => resolve(false);
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction("settings", "readonly");
+          const read = transaction.objectStore("settings").get("preferences");
+          read.onerror = () => resolve(false);
+          read.onsuccess = () => {
+            const value = read.result as
+              | {
+                  messageQrCreationEnabled?: boolean;
+                  qrAutoDecrypt?: boolean;
+                }
+              | undefined;
+            database.close();
+            resolve(
+              value?.messageQrCreationEnabled === true &&
+                value.qrAutoDecrypt === false,
+            );
+          };
+        };
+      }),
+  );
+  await page.reload();
+  await expect(
+    page.getByLabel("Offer message QR after text encryption"),
+  ).toBeChecked();
+  await expect(page.getByLabel("Export")).toHaveValue("app");
+  await expect(page.getByLabel("Import controls")).toHaveValue("image");
+  await expect(
+    page.getByLabel("Auto-decrypt valid message QRs"),
+  ).not.toBeChecked();
 });

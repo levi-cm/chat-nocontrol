@@ -1,12 +1,14 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the security and vulnerability reporting rules for the public beta docs package.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [docs/protocol-v1.md](docs/protocol-v1.md), [docs/security-architecture.md](docs/security-architecture.md), [docs/threat-model.md](docs/threat-model.md), [docs/product-spec.md](docs/product-spec.md), [docs/ux-content-spec.md](docs/ux-content-spec.md), [docs/design-spec.md](docs/design-spec.md), [docs/accessibility-i18n.md](docs/accessibility-i18n.md), [README.md](README.md), [WebLibre_full_plan.md](WebLibre_full_plan.md)
 > **Supersedes:** The original WebLibre plan is historical only; it remains archive context, not an active specification.
 
 # Security
 
 Chat NoControl and PPX Protocol v1 are documented here as a public beta candidate. No stable supported version exists yet. These notes are intentionally narrow and literal.
+
+The repository must remain private during implementation, candidate preparation, and independent review. It may be made public only as part of an explicitly approved public-beta publication after every release gate in [`docs/testing-and-release.md`](docs/testing-and-release.md) has passed.
 
 ## Security Claims
 
@@ -28,9 +30,11 @@ Version 1 does not claim:
 
 ## Review Gate
 
-This public beta remains unaudited until the protocol implementation and its full object formats receive independent security review.
-
-That review is a blocker for publishing or claiming public-beta readiness.
+A public-beta candidate remains unaudited until the exact frozen candidate and
+its full object formats receive independent security review. A review is valid
+for a release only when the committed evidence and GitHub Release bind that
+candidate through the evidence-only child-commit contract in
+[`docs/testing-and-release.md`](docs/testing-and-release.md).
 
 ## Vulnerability Reporting
 
@@ -40,7 +44,7 @@ Use GitHub private vulnerability reporting only:
 - Choose `Advisories`.
 - Select `Report a vulnerability`.
 
-Use that path once the repository is published and security advisories are enabled. Do not invent or publish an email address here. Do not open public issues for security vulnerabilities.
+Use that path when reporting a vulnerability. Do not invent or publish an email address here. Do not open public issues for security vulnerabilities.
 
 If private vulnerability reporting is not available yet, keep the report private until the channel exists.
 
@@ -73,4 +77,9 @@ This reporting channel is required before the repository can be treated as publi
 
 ## Supported Reality
 
-There is no stable supported version number to rely on yet. The documented state is `1.0-draft`, `public beta candidate`, `unaudited`, and `not deployed`. Any stronger claim would require a new reviewed release process and updated security documentation.
+There is no stable supported version number to rely on yet. This source file
+does not assert whether a beta is currently published or deployed. Check the
+[GitHub Releases](https://github.com/levi-cm/chat-nocontrol/releases) and the
+[Pages site](https://levi-cm.github.io/chat-nocontrol/) for operational status,
+then verify the release's committed review and provenance evidence. Any stable
+claim requires a new reviewed release process and updated security documentation.

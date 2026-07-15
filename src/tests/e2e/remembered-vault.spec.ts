@@ -41,10 +41,22 @@ test("remembered vault survives reload but requires passphrase", async ({
     page.getByText("Remembered Alice", { exact: true }),
   ).toBeVisible();
   await expect(
+    page.getByRole("img", { name: "Public contact QR code" }),
+  ).toBeVisible();
+  await expect(
     page.getByRole("img", {
       name: "Encrypted private identity vault QR code",
     }),
-  ).toBeVisible();
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Re-enter vault passphrase")
+    .fill("correct horse battery staple");
+  await page.getByRole("button", { name: "Reveal private exports" }).click();
+  await expect(
+    page.getByRole("img", {
+      name: "Encrypted private identity vault QR code",
+    }),
+  ).toBeVisible({ timeout: 15_000 });
   const contactQrDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save contact QR as PNG" }).click();
   expect((await contactQrDownload).suggestedFilename()).toBe(
@@ -86,7 +98,36 @@ test("remembered vault survives reload but requires passphrase", async ({
   ).toBeVisible();
 });
 
-test("pasting a remembered-vault passphrase on mobile stays on Identity", async ({
+test("deleting the remembered vault clears the last unlocked route", async ({
+  page,
+}) => {
+  test.slow();
+  await page.goto("/");
+  await page.getByRole("button", { name: "Create new identity" }).click();
+  await page.getByLabel("Username").fill("Deleted Route Alice");
+  await page.getByRole("button", { name: "Generate identity" }).click();
+  await completeRecoveryConfirmation(page);
+  await page.getByRole("button", { name: "Finish identity setup" }).click();
+  await expect(page).toHaveURL(/#\/encrypt$/u, { timeout: 15_000 });
+
+  await page.getByRole("link", { name: "Decrypt" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("ppx-last-unlocked-route")),
+    )
+    .toBe("decrypt");
+  await page.getByRole("link", { name: "Identity" }).click();
+  await page.getByRole("button", { name: "Delete vault" }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("ppx-last-unlocked-route")),
+    )
+    .toBeNull();
+});
+
+test("pasting a remembered-vault passphrase on mobile restores the last page", async ({
   page,
 }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith("mobile"));
@@ -99,8 +140,15 @@ test("pasting a remembered-vault passphrase on mobile stays on Identity", async 
   await completeRecoveryConfirmation(page, "en", passphrase);
   await page.getByRole("button", { name: "Finish identity setup" }).click();
   await expect(page).toHaveURL(/#\/encrypt$/u, { timeout: 15_000 });
-  await page.getByRole("link", { name: "Identity" }).click();
+  const routeStoredDuringNavigation = await page
+    .getByRole("link", { name: "Decrypt" })
+    .evaluate((element) => {
+      (element as HTMLElement).click();
+      return localStorage.getItem("ppx-last-unlocked-route");
+    });
+  expect(routeStoredDuringNavigation).toBe("decrypt");
   await page.reload();
+  await page.getByRole("link", { name: "Identity" }).click();
   const input = page.getByLabel("Vault passphrase");
   await expect(input).toBeVisible();
   await input.evaluate((element, value) => {
@@ -110,7 +158,7 @@ test("pasting a remembered-vault passphrase on mobile stays on Identity", async 
       new ClipboardEvent("paste", { bubbles: true, clipboardData }),
     );
   }, passphrase);
-  await expect(page).toHaveURL(/#\/identity$/u, { timeout: 15_000 });
+  await expect(page).toHaveURL(/#\/decrypt$/u, { timeout: 15_000 });
 });
 
 test("a weak four-digit passphrase remains saveable and visibly weak", async ({

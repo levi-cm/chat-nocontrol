@@ -2,18 +2,32 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { displayIdentityId } from "../../components/cards/contact-management-card";
 import { downloadBlob } from "../../components/media/blob-url";
+import {
+  generateMessageQrPng,
+  prepareMessageQr,
+  type MessageQrCapacity,
+  type MessageQrTransport,
+} from "../../components/qr/message";
+import { QrActionIcon } from "../../components/navigation/qr-icon";
 import { PasteButton } from "../../components/forms/paste-button";
 import { copyWithBestEffortClear } from "../identity/clipboard";
 import { createSenderSigningCapability } from "../../crypto/identity";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
 import { encodeTextArmor } from "../../protocol/ppxt-armor";
-import type { DerivedIdentity, PublicContact } from "../../protocol/types";
+import { encodeEncryptedQrText } from "../../protocol/ppxq-outer";
+import type {
+  DerivedIdentity,
+  EncryptedQrTextObject,
+  PublicContact,
+} from "../../protocol/types";
 import {
   type CryptoWorkerJob,
   startEncryptTextJob,
+  startEncryptQrTextJob,
 } from "../../workers/crypto-client";
 import type { EncryptedTextObject } from "../../protocol/types";
+import type { QrExportMode } from "../../storage/settings";
 import { EncryptFileFlow } from "./file";
 
 function fingerprintId(value: Uint8Array): string {
@@ -26,17 +40,22 @@ export function EncryptTextFlow({
   sender,
   contacts,
   locale,
+  messageQrCreationEnabled,
+  qrExportMode,
 }: {
   t: (key: MessageKey) => string;
   identity: DerivedIdentity | null;
   sender: PublicContact | null;
   contacts: ManagedContact[];
   locale: Locale;
+  messageQrCreationEnabled: boolean;
+  qrExportMode: QrExportMode;
 }) {
   const [recipientId, setRecipientId] = useState("");
   const [recipientSearch, setRecipientSearch] = useState("");
   const [plaintext, setPlaintext] = useState("");
   const [output, setOutput] = useState("");
+  const [qrOutput, setQrOutput] = useState<EncryptedQrTextObject | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
@@ -44,12 +63,15 @@ export function EncryptTextFlow({
   const [mode, setMode] = useState<"text" | "file">("text");
   const [fileBusy, setFileBusy] = useState(false);
   const job = useRef<CryptoWorkerJob<EncryptedTextObject> | null>(null);
+  const qrJob = useRef<CryptoWorkerJob<EncryptedQrTextObject> | null>(null);
   const outputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(
     () => () => {
       job.current?.cancel();
       job.current = null;
+      qrJob.current?.cancel();
+      qrJob.current = null;
     },
     [],
   );
@@ -69,6 +91,18 @@ export function EncryptTextFlow({
   const recipient = contacts.find(
     (item) => fingerprintId(item.contact.fingerprint) === recipientId,
   )?.contact;
+  const qrCapacities = useMemo(() => {
+    if (!qrOutput) return null;
+    const bytes = encodeEncryptedQrText(qrOutput);
+    const appBase =
+      window.location.protocol === "https:"
+        ? `${window.location.origin}${import.meta.env.BASE_URL}`
+        : "https://levi-cm.github.io/chat-nocontrol/";
+    return {
+      app: prepareMessageQr(bytes, "app", appBase),
+      link: prepareMessageQr(bytes, "link", appBase),
+    };
+  }, [qrOutput]);
 
   if (!identity || !sender) {
     return (
@@ -90,18 +124,21 @@ export function EncryptTextFlow({
   const encrypt = async () => {
     if (!recipient) return;
     let operation: CryptoWorkerJob<EncryptedTextObject> | null = null;
+    let compactOperation: CryptoWorkerJob<EncryptedQrTextObject> | null = null;
     setBusy(true);
     setError("");
     setStatus("");
     setOutput("");
+    setQrOutput(null);
     try {
       const now = BigInt(Math.floor(Date.now() / 1000));
+      const messageId = crypto.getRandomValues(new Uint8Array(16));
       operation = startEncryptTextJob({
         sender,
         senderSigningCapability: createSenderSigningCapability(identity),
         recipient,
         plaintext,
-        messageId: crypto.getRandomValues(new Uint8Array(16)),
+        messageId,
         sentAt: now,
         createdAt: now,
       });
@@ -109,6 +146,29 @@ export function EncryptTextFlow({
       const object = await operation.promise;
       if (job.current !== operation) return;
       setOutput(encodeTextArmor(object));
+      if (messageQrCreationEnabled)
+        try {
+          compactOperation = startEncryptQrTextJob({
+            sender,
+            senderSigningCapability: createSenderSigningCapability(identity),
+            recipient,
+            plaintext,
+            messageId: Uint8Array.from(messageId),
+            sentAt: now,
+            createdAt: now,
+          });
+          qrJob.current = compactOperation;
+          void compactOperation.promise
+            .then((compact) => {
+              if (qrJob.current === compactOperation) setQrOutput(compact);
+            })
+            .catch(() => undefined)
+            .finally(() => {
+              if (qrJob.current === compactOperation) qrJob.current = null;
+            });
+        } catch {
+          // PPXT remains successful when optional compact QR generation is unavailable.
+        }
     } catch {
       if (!operation || job.current === operation)
         setError(t("couldNotEncrypt"));
@@ -124,8 +184,19 @@ export function EncryptTextFlow({
     const operation = job.current;
     job.current = null;
     operation?.cancel();
+    qrJob.current?.cancel();
+    qrJob.current = null;
     setBusy(false);
     setStatus(t("operationCancelled"));
+  };
+
+  const downloadQr = async (
+    transport: MessageQrTransport,
+    capacity: Extract<MessageQrCapacity, { fits: true }>,
+  ) => {
+    const blob = await generateMessageQrPng(capacity);
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
+    downloadBlob(blob, `encrypted-message-${transport}-${stamp}.png`);
   };
 
   const save = () => {
@@ -173,6 +244,7 @@ export function EncryptTextFlow({
             setRecipientSearch(event.currentTarget.value);
             setRecipientId("");
             setOutput("");
+            setQrOutput(null);
             setCopyStatus("");
             setError("");
           }}
@@ -211,6 +283,7 @@ export function EncryptTextFlow({
           onChange={(event) => {
             setRecipientId(event.currentTarget.value);
             setOutput("");
+            setQrOutput(null);
             setCopyStatus("");
             setError("");
           }}
@@ -250,6 +323,7 @@ export function EncryptTextFlow({
                 onPaste={(value) => {
                   setPlaintext(value);
                   setOutput("");
+                  setQrOutput(null);
                   setCopyStatus("");
                   setError("");
                 }}
@@ -265,6 +339,7 @@ export function EncryptTextFlow({
               onInput={(event) => {
                 setPlaintext(event.currentTarget.value);
                 setOutput("");
+                setQrOutput(null);
                 setCopyStatus("");
                 setError("");
               }}
@@ -352,6 +427,37 @@ export function EncryptTextFlow({
                 <p class="input-meta" role="status">
                   {copyStatus}
                 </p>
+              )}
+              {qrCapacities && (
+                <div class="qr-message-actions">
+                  <p class="input-meta">{t("qrKnownSenderGuidance")}</p>
+                  <div class="action-row">
+                    {(["app", "link"] as const).map((transport) => {
+                      if (qrExportMode !== "both" && qrExportMode !== transport)
+                        return null;
+                      const capacity = qrCapacities[transport];
+                      return capacity.fits ? (
+                        <button
+                          class="button secondary"
+                          type="button"
+                          onClick={() => void downloadQr(transport, capacity)}
+                        >
+                          <QrActionIcon />
+                          {t(
+                            transport === "app"
+                              ? "downloadAppMessageQr"
+                              : "downloadLinkMessageQr",
+                          )}
+                        </button>
+                      ) : (
+                        <p class="field-error" role="status">
+                          {t("messageQrTooLarge")} {capacity.encodedBytesOver}{" "}
+                          {t("messageQrTooLargeSuffix")}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
             </div>
           )}

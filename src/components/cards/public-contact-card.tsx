@@ -1,5 +1,6 @@
 import { QrView } from "../qr/qr-view";
-import { downloadBlob } from "../media/blob-url";
+import { downloadBlob, downloadDataUrl } from "../media/blob-url";
+import { generateQrDataUrl } from "../qr/generate";
 
 interface PublicContactCardProps {
   pseudonym: string;
@@ -7,6 +8,9 @@ interface PublicContactCardProps {
   authorityLabel: string;
   title: string;
   qrLabel: string;
+  qrDownloadLabel: string;
+  enlargeQrLabel?: string;
+  closeQrLabel?: string;
   helper?: string;
   formatHint?: string;
   fileBytes?: Uint8Array;
@@ -43,6 +47,9 @@ export function PublicContactCard({
   authorityLabel,
   title,
   qrLabel,
+  qrDownloadLabel,
+  enlargeQrLabel,
+  closeQrLabel,
   helper,
   formatHint,
   fileBytes,
@@ -61,6 +68,13 @@ export function PublicContactCard({
         type: "application/x-ppx-contact",
       }),
       `chat-nocontrol-${safeName}.ppxcontact`,
+    );
+  };
+  const downloadQr = async () => {
+    const safeName = pseudonym.replace(/[^\p{L}\p{N}._-]+/gu, "-");
+    downloadDataUrl(
+      await generateQrDataUrl(qrText),
+      `chat-nocontrol-${safeName}-contact-qr.png`,
     );
   };
 
@@ -83,7 +97,19 @@ export function PublicContactCard({
         </code>
       </details>
       {formatHint && <p class="card-format">{formatHint}</p>}
-      <QrView text={qrText} label={qrLabel} />
+      <QrView
+        text={qrText}
+        label={qrLabel}
+        enlargeLabel={enlargeQrLabel}
+        closeLabel={closeQrLabel}
+      />
+      <button
+        class="button secondary qr-download"
+        type="button"
+        onClick={() => void downloadQr()}
+      >
+        {qrDownloadLabel}
+      </button>
       <code class="qr-fallback">{qrText}</code>
       {fileBytes && downloadLabel && (
         <button class="button secondary" type="button" onClick={download}>

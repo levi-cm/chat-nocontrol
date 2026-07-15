@@ -14,28 +14,30 @@ test("English and German preserve navigation and warning severity", async ({
   await expect(
     page.getByText("Keep secret. Anyone who has it can recover your identity."),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Chat NoControl" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
   await expect(page.getByText(/Geheim halten/u)).toBeVisible();
   await page.getByRole("link", { name: "Hilfe" }).click();
   await expect(page.getByRole("heading", { name: "Hilfe" })).toBeVisible();
-  await expect(page.getByText(/unabhängige Sicherheitsprüfung/u)).toBeVisible();
+  await expect(page.getByText(/Stabile Sicherheit/u)).toHaveCount(0);
 });
 
 test("German identity recovery guard is complete", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Chat NoControl" }).click();
   await page.getByRole("button", { name: "Neue Identität erstellen" }).click();
-  await page.getByLabel("Pseudonym").fill("Waldkauz");
+  await page.getByLabel("Benutzername").fill("Waldkauz");
   await page.getByRole("button", { name: "Identität erzeugen" }).click();
-  await expect(
-    page.getByText(
-      "Diese Karte ist gefährlich. Wer sie bekommt, kann deine private Identität wiederherstellen. Teile sie nicht.",
-    ),
-  ).toBeVisible();
   await completeRecoveryConfirmation(page, "de");
   await page
-    .getByRole("button", { name: "Nein, nur für diese Sitzung verwenden" })
+    .getByRole("radio", { name: /Nein, nur für diese Sitzung verwenden/u })
+    .check();
+  await page
+    .getByRole("button", { name: "Identitätseinrichtung abschließen" })
     .click();
   await expect(
     page.getByRole("button", { name: "Jetzt sperren" }),
@@ -56,7 +58,9 @@ test("German contacts encrypt and decrypt path is complete", async ({
     .join(" ");
 
   await page.goto("/");
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Chat NoControl" }).click();
   await page.getByRole("button", { name: "Identität importieren" }).click();
   await page.getByLabel("Pseudonym").fill("Biber");
   await page.getByLabel("24 Wiederherstellungswörter").fill(words);
@@ -102,7 +106,7 @@ test("German contacts encrypt and decrypt path is complete", async ({
   await page
     .getByRole("button", { name: "Lokal entschlüsseln", exact: true })
     .click();
-  await expect(
-    page.getByText("Geheime Nachricht", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Entschlüsselter Text")).toHaveValue(
+    "Geheime Nachricht",
+  );
 });

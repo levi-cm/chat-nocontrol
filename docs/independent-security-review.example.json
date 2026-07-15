@@ -12,7 +12,7 @@
   "reportPath": "docs/reviews/independent-cryptographic-review.pdf",
   "reportSha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "signaturePath": "docs/reviews/independent-cryptographic-review.pdf.sig",
-  "allowedSignersPath": "docs/reviews/independent-review.allowed_signers",
+  "allowedSignersPath": "docs/reviews/independent-cryptographic-review.pdf.allowed_signers",
   "signingIdentity": "reviewer@example.com",
   "signatureNamespace": "chat-nocontrol-security-review-v1"
 }

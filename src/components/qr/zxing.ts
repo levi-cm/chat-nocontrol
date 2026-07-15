@@ -12,6 +12,15 @@ export interface QrReader {
   decodeFromImageUrl(source: string): Promise<QrResult>;
   decodeFromImageElement(source: HTMLImageElement): Promise<QrResult>;
   decodeFromCanvas(source: HTMLCanvasElement): QrResult;
+  decodeFromConstraints(
+    constraints: MediaStreamConstraints,
+    preview: HTMLVideoElement | undefined,
+    callback: (
+      result: QrResult | undefined,
+      error: unknown,
+      controls: ScannerControls,
+    ) => void,
+  ): Promise<ScannerControls>;
   decodeFromVideoDevice(
     deviceId: string | undefined,
     preview: HTMLVideoElement | undefined,

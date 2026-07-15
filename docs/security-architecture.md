@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the security architecture for PPX Protocol v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [protocol-v1.md](protocol-v1.md), [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
@@ -259,7 +259,22 @@ Required vault AEAD:
 
 Vault unlock failures must not disclose whether the passphrase was wrong or the data was corrupted.
 
+Post-login PPXV export is a separate re-authentication boundary. Before
+verification, the DOM must contain only a non-secret placeholder, never a real
+QR hidden with CSS. The existing vault-unlock worker verifies the entered
+password, the derived fingerprint must match the active identity, and temporary
+identity secrets are zeroized. One successful check enables the PPXV QR, QR PNG,
+and `.ppxvault` download together; route leave, identity lock, or app background
+resets the boundary. Onboarding recovery artifacts and public-contact exports
+remain outside this gate.
+
 See [Section 16.1](#161-vault-contracts) for the exact `LockedVaultObject` and `RecoveryObject` contracts.
+
+Identity creation requires a matching browser-vault password before recovery artifacts are shown. The UI accepts only printable ASCII, allows internal spaces, rejects leading or trailing spaces, and limits the value to `256` bytes. The prepared `LockedVaultObject` remains transient until the user explicitly confirms the recommended, preselected IndexedDB option on the final wizard screen. Session-only completion discards that prepared vault.
+
+The plaintext password may exist only in wizard-local transient memory through recovery-document generation. It may be rendered only in the private A4 print/PDF and must be cleared when the user leaves that screen. It must never enter IndexedDB, settings, URLs, logs, diagnostics, service-worker caches, application-wide state, the standalone private QR PNG, or the serialized `PPXR` recovery file.
+
+The QR, serialized `PPXR`, recovery armor, and 24 English words are representations of the same master-entropy recovery authority. The A4 document may package those representations together with the separate plaintext vault password, but doing so does not alter `LockedVaultObject`, `RecoveryObject`, or any PPX wire bytes.
 
 ## 10. Text encryption workflow
 
@@ -276,7 +291,24 @@ Text encryption steps:
 
 Decryption reverses the process and must fail closed on any invalid parse, checksum mismatch, AEAD failure, or signature failure.
 
+For eligible text, adaptive PPXT v2 may gzip the complete already-signed inner
+before AES-GCM. Version and flags are authenticated as AAD, decompression is
+bounded to 264,000 bytes, and every decompression error fails closed before
+plaintext release. Ciphertext length can reveal coarse information about input
+length and repetition. The current manual local message workflow has no remote
+request/response compression oracle. This compressor must never be reused for
+attacker-chosen text combined with hidden secrets where repeated observable
+ciphertext lengths could become an oracle.
+
 ## 11. File encryption workflow
+
+Compact PPXQ messages reuse the hybrid encapsulation and AES-GCM primitives but
+replace the embedded sender contact with its fingerprint. Decryption releases
+plaintext only after canonical parsing, hybrid decapsulation, AEAD, exact saved
+sender lookup, Ed25519 verification, recipient binding, bounded optional gzip,
+length equality, and fatal UTF-8. Unknown sender, wrong identity, tampering, and
+decompression failure fail closed. QR links carry ciphertext only after `#` and
+are scrubbed immediately; settings persist, pending ciphertext does not.
 
 File encryption steps:
 
@@ -318,6 +350,7 @@ export type PPXCryptoError =
   | 'invalid-aead'
   | 'invalid-signature'
   | 'invalid-hybrid-encapsulation'
+  | 'unsupported-compression'
   | 'invalid-passphrase'
   | 'corrupted-vault';
 ```
@@ -354,9 +387,11 @@ Zeroization must be best effort only.
 Required policy:
 
 - Wipe byte arrays after use when the runtime allows it.
+- Clear the wizard's plaintext password, recovery-word presentation, recovery code, QR presentation, and recovery-document model when ownership leaves the secret screen; Back navigation must not recreate them.
+- Wipe temporary identities and recovery payloads produced by QR/file practice on success, failure, cancellation, and component exit.
 - Never assume JavaScript memory is fully scrubbed.
 - Never claim constant-time behavior from a high-level runtime unless the primitive library explicitly provides it and the code path can preserve it.
-- Treat side-channel resistance as limited and unaudited.
+- Treat side-channel resistance as limited and outside the security claim unless a release-specific review explicitly covers it.
 
 ## 14. Verification requirements
 
@@ -373,9 +408,11 @@ The implementation must include verification for:
 - Truncation tests on every object family.
 - Property tests for round-trip parse/serialize behavior.
 - Best-effort zeroization checks where feasible.
+- Identity-creation checks proving QR and `.ppxrecovery` restore to the pending identity, four-word practice uses unique stable positions, and the plaintext password appears only in private print/PDF output.
+- Storage checks proving no vault write occurs before the final explicit confirmation and session-only completion discards the prepared vault.
 - Negative tests for duplicate fields and trailing bytes.
 
-These tests are required because the implementation is unaudited and the format is intentionally strict.
+These tests are required because the implementation is custom and the format is intentionally strict; review evidence does not replace regression coverage.
 
 ## 15. Cross references
 

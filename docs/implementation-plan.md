@@ -2,7 +2,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task.
 > **Authority:** Highest implementation planning authority for Chat NoControl v1. This plan is subordinate to `Chat_NoControl_full_plan.md`, `docs/protocol-v1.md`, `docs/security-architecture.md`, and the other normative topic docs.
 > **Version:** 1.0-draft
-> **Status:** Implementation substantially complete; verification and release blocked by independent review
+> **Status:** Public-beta execution contract / stable release unavailable / operational status is external
 > **Last verified:** 2026-07-13
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [testing-and-release.md](testing-and-release.md), [github-pages-deployment.md](github-pages-deployment.md), [implementation-substitutions.md](implementation-substitutions.md), [references.md](references.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [chat-control-explainer.en.md](chat-control-explainer.en.md), [chat-control-explainer.de.md](chat-control-explainer.de.md)
 > **Supersedes:** The original WebLibre plan is historical only. This implementation plan is the working v1 execution and verification guide.
@@ -1559,6 +1559,16 @@ Key release contract:
 
 - Public beta is the target.
 - Stable is not available yet.
+- Freeze one candidate commit for a genuinely independent human review.
+- Permit exactly one immediate child commit that adds only the schema-v2 review
+  record, its named Markdown/PDF report, `<report>.sig`, and
+  `<report>.allowed_signers`.
+- Require `reviewedCommit` to be the evidence commit's immediate parent and an
+  ancestor of release `HEAD`; reject extra commits, non-add diffs, renames,
+  symlinks, path traversal, executable files, and every other changed path.
+- Any application, protocol, dependency, workflow, configuration, UI, or
+  script change after candidate freeze invalidates the review and starts a new
+  candidate/review cycle.
 - A stable promotion requires independent review and explicit approval.
 - Any change to pinned dependency versions requires security review.
 - Reproducibility evidence must include commit SHA, build log, artifact hash, SBOM, and rollback pointer.
@@ -1576,6 +1586,9 @@ Exact commands and expected outcomes:
 - `npm run test:sbom` -> SBOM is generated and stored with the release record.
 - `npm run test:reproducibility` -> rebuild hash matches recorded source state where supported.
 - `npm run test:dependency-review` -> dependency set is reviewed before shipping.
+- `npm run test:release-prerequisites` -> genuine independent-review evidence
+  satisfies the two-commit contract and private vulnerability reporting is
+  enabled.
 
 Acceptance checklist:
 

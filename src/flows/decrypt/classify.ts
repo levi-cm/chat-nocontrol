@@ -11,6 +11,7 @@ import {
 } from "../../protocol/ppxv";
 import { PPXError } from "../../protocol/types";
 import { zeroize } from "../../crypto/zeroize";
+import { extractQrMessageBytes } from "../../protocol/ppxq";
 
 export type ClassifiedQrPayload =
   | {
@@ -27,9 +28,22 @@ export type ClassifiedQrPayload =
       kind: "recovery";
       prefix: "PPX1:RECOVERY:";
       payload: Uint8Array;
+    }
+  | {
+      kind: "encrypted-message";
+      prefix: "PPX1:MESSAGE:" | "https:";
+      payload: Uint8Array;
     };
 
 export function classifyQrPayload(raw: string): ClassifiedQrPayload {
+  if (raw.startsWith("PPX1:MESSAGE:") || raw.startsWith("https://")) {
+    const payload = extractQrMessageBytes(raw);
+    return {
+      kind: "encrypted-message",
+      prefix: raw.startsWith("PPX1:MESSAGE:") ? "PPX1:MESSAGE:" : "https:",
+      payload,
+    };
+  }
   if (raw.startsWith("PPX1:CONTACT:")) {
     if (raw.length > "PPX1:CONTACT:".length + PPXC_MAXIMUM_BASE45_CHARS) {
       throw new PPXError("oversize-before-allocation");

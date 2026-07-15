@@ -70,10 +70,39 @@ afterEach(() => {
 });
 
 describe("QR camera import", () => {
+  it("respects separate browser-local camera and image controls", () => {
+    const { unmount } = render(
+      <QrImport
+        idPrefix="camera-only"
+        t={(key) => labels[key] ?? key}
+        controlsMode="camera"
+        onDecoded={vi.fn()}
+      />,
+    );
+    expect(screen.queryByLabelText("QR image")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Scan with camera" }),
+    ).not.toBeNull();
+    unmount();
+    render(
+      <QrImport
+        idPrefix="image-only"
+        t={(key) => labels[key] ?? key}
+        controlsMode="image"
+        onDecoded={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("QR image")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Scan with camera" }),
+    ).toBeNull();
+  });
   it("starts only after explicit activation and stops its scanner control", async () => {
     const stop = vi.fn();
+    const decodeFromConstraints = vi.fn(() => Promise.resolve({ stop }));
     const createScanner = vi.fn(() =>
       Promise.resolve({
+        decodeFromConstraints,
         decodeFromVideoDevice: vi.fn(() => Promise.resolve({ stop })),
       }),
     );
@@ -91,8 +120,53 @@ describe("QR camera import", () => {
       screen.getByRole("button", { name: "Scan with camera" }),
     );
     await waitFor(() => expect(createScanner).toHaveBeenCalledTimes(1));
+    expect(decodeFromConstraints).toHaveBeenCalledWith(
+      {
+        audio: false,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+      },
+      expect.any(HTMLVideoElement),
+      expect.any(Function),
+    );
     await userEvent.click(screen.getByRole("button", { name: "Stop camera" }));
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back when preferred camera constraints fail", async () => {
+    const stop = vi.fn();
+    const decodeFromVideoDevice = vi.fn(() => Promise.resolve({ stop }));
+    render(
+      <QrImport
+        idPrefix="fallback"
+        t={(key) => labels[key] ?? key}
+        onDecoded={vi.fn()}
+        createScanner={() =>
+          Promise.resolve({
+            decodeFromConstraints: vi.fn(() =>
+              Promise.reject(
+                new DOMException("constraints", "OverconstrainedError"),
+              ),
+            ),
+            decodeFromVideoDevice,
+          })
+        }
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Scan with camera" }),
+    );
+    await waitFor(() =>
+      expect(decodeFromVideoDevice).toHaveBeenCalledWith(
+        undefined,
+        expect.any(HTMLVideoElement),
+        expect.any(Function),
+      ),
+    );
   });
 
   it("stops a scanner that resolves after the user cancels startup", async () => {

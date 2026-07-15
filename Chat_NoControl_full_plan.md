@@ -1,6 +1,6 @@
 > **Authority:** Highest normative authority for Chat NoControl v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta release candidate / unaudited / final verification required
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Last verified:** 2026-07-13
 > **Depends on:** [README.md](README.md), [SECURITY.md](SECURITY.md), [CONTRIBUTING.md](CONTRIBUTING.md), [docs/product-spec.md](docs/product-spec.md), [docs/protocol-v1.md](docs/protocol-v1.md), [docs/security-architecture.md](docs/security-architecture.md), [docs/threat-model.md](docs/threat-model.md), [docs/design-spec.md](docs/design-spec.md), [docs/apple-visual-spec.md](docs/apple-visual-spec.md), [docs/ux-content-spec.md](docs/ux-content-spec.md), [docs/accessibility-i18n.md](docs/accessibility-i18n.md), [docs/user-guide.en.md](docs/user-guide.en.md), [docs/user-guide.de.md](docs/user-guide.de.md), [docs/testing-and-release.md](docs/testing-and-release.md), [docs/github-pages-deployment.md](docs/github-pages-deployment.md), [docs/references.md](docs/references.md)
 > **Supersedes:** The original WebLibre plan is historical only. This document is the active v1 master; the historical plan remains archive context, not an operating specification.
@@ -400,8 +400,9 @@ The public contact QR does not need a stable recipient hint beyond the identity 
 - The vault is the only representation suitable for long-term local storage.
 - The vault parameters are encoded in the object.
 - The vault requires a user passphrase.
-- Passphrases accept 12 to 256 UTF-8 bytes.
-- The recommended passphrase guidance is 16 or more characters, or 5 or more random words.
+- Passphrases accept 1 to 256 UTF-8 bytes. The UI must not block a weak but non-empty passphrase.
+- A local, deterministic strength estimate updates while the user types. It is red below 50 estimated bits, orange from 50 to 99 bits, and green from 100 bits. Text labels accompany color.
+- The recommended guidance remains a longer, uncommon passphrase or multiple random words.
 - The vault unlock failure must collapse wrong passphrase and corruption into one generic error.
 
 QR transport for vault export uses uppercase Base45 with the exact prefix:
@@ -792,7 +793,7 @@ Required policy:
 - Wipe byte arrays after use when the runtime allows it.
 - Never assume JavaScript memory is fully scrubbed.
 - Never claim constant-time behavior from a high-level runtime unless the primitive library explicitly provides it and the code path can preserve it.
-- Treat side-channel resistance as limited and unaudited.
+- Treat side-channel resistance as limited and outside the security claim unless a release-specific review explicitly covers it.
 
 ## 14. Interfaces and worker contracts
 
@@ -833,9 +834,10 @@ No completed decrypt event, output `Blob`, preview URL, filename, caption, MIME 
 ### 15.1 Persistent storage
 
 - Public contacts persist by default.
-- Optional encrypted vault persists only if the user chooses to remember the identity.
+- Encrypted vault persistence is recommended and preselected during creation, but occurs only after explicit final confirmation.
 - Local settings may persist if the browser allows it.
 - No plaintext identity, message history, or decrypted file cache may be stored persistently.
+- The plaintext browser-vault password must never be persisted, logged, placed in URLs, cached by the service worker, or included in the standalone QR PNG or `.ppxrecovery`.
 
 ### 15.2 Session-only mode
 
@@ -883,23 +885,27 @@ No completed decrypt event, output `Blob`, preview URL, filename, caption, MIME 
 
 ### 16.2 Identity setup
 
-Flow:
+Creation uses a seven-screen state-machine wizard, not one vertically scrollable secret page:
 
-1. Explain that the app is local and accountless.
-2. Require a pseudonym and warn that it is public and nonunique.
-3. Generate identity only on explicit action.
-4. Produce the public contact.
-5. Show the private recovery export as dangerous.
-6. Offer the encrypted local vault as an optional remember-this-identity action.
-7. Require recovery export before the flow can finish.
+1. **Username — `30%`:** collect the public, nonunique username, map it to the protocol `pseudonym`, and generate only after validation and explicit action.
+2. **Create password — `42%`:** require matching printable-ASCII browser-vault password fields. Internal spaces are allowed, leading/trailing spaces are rejected, and the maximum is `256` bytes. Prepare the encrypted `LockedVaultObject` without persisting it.
+3. **Digital backups — `54%`:** require ordinary-click downloads of the branded private QR PNG and `.ppxrecovery`, with separate safe-storage attestations.
+4. **Words and recovery document — `66%`:** show the 24 English words and offer a transient browser print preview plus direct one-page A4 PDF. Require confirmation of handwritten words, a physical printout, or a safely stored PDF. The document includes the username, localized and ISO creation dates, private recovery QR, full wrapped `PPX1:RECOVERY:...` code, all 24 numbered words, and the exact plaintext browser-vault password.
+5. **QR restore practice — `78%`:** teach the cleared-browser import path and verify a saved QR image, camera scan, or pasted recovery code by deriving and comparing the pending identity ID.
+6. **File and word restore practice — `90%`:** verify the saved `.ppxrecovery`, then request four stable unique random word positions together. Allow unlimited retries, identify incorrect fields, and offer confirmed restart after ten failures.
+7. **Local storage and finish — `100%`:** recommend and preselect encrypted IndexedDB persistence, but write only after explicit confirmation. Session-only is the secondary opt-out and the fallback when persistence is unavailable.
 
 Identity setup and import must support these exact content behaviors:
 
 - First screen: `Create identity or import identity` / `Identität erstellen oder importieren`
-- Public label warning: the pseudonym is public and does not protect the identity.
-- Recovery export action must have a deliberate non-time-based alternative for keyboard and switch users.
-- The confirmation phrase must be `EXPORT PRIVATE` in English and `PRIVAT EXPORTIEREN` in German.
-- Recovery export confirmation must require explicit re-entry of randomly selected word positions.
+- The creation UI uses `Username` / `Benutzername`; protocol data continues to use the `pseudonym` field with no PPX wire-format change.
+- Public label warning: the username/pseudonym is public and does not protect the identity.
+- The QR, `.ppxrecovery`, recovery code, 24 words, and recovery document are equivalent means of regaining the identity. Losing all recovery copies and browser-vault access permanently prevents identity recovery and message decryption.
+- Recovery export uses ordinary click actions and no press-and-hold gesture or typed `EXPORT PRIVATE` / `PRIVAT EXPORTIEREN` phrase.
+- The quiet expert skip may skip only restore practice, never downloads or backup attestations.
+- After leaving the recovery-document screen, clear its plaintext password, words, recovery code, QR presentation, and print/PDF model; Back must not recreate them.
+- The plaintext password appears only in the private A4 recovery print/PDF. It must never be persisted, logged, placed in URLs, included in the standalone QR PNG or `.ppxrecovery`, or exposed to application-wide state.
+- The standalone recovery PNG is `1024 x 1280`, places the username and localized `PRIVATE KEY — NEVER SHARE` warning above a dark-red `#7f1d1d` QR, and preserves a four-module quiet zone and high error correction.
 - The export surfaces must never resemble the public contact card.
 
 ### 16.3 Identity import
@@ -1045,10 +1051,11 @@ Required capabilities:
 - They must be announced to screen readers.
 - They must not depend on color alone.
 - They must be visible without hover.
-- The recovery export confirmation must be explicit and deliberate.
-- Press-and-hold controls must have keyboard and pointer alternatives that are equally deliberate.
-- Keyboard and switch users must be able to focus the export action, activate it, type the displayed confirmation phrase, and confirm.
-- The confirmation path must not depend on time-based gesture matching.
+- Required recovery downloads and separate safe-storage attestations must be keyboard, pointer, touch, and switch accessible through ordinary activation.
+- Every wizard screen must expose `Step {n} of 7` and its progress value as text, not through color or bar width alone.
+- Focus moves to each new screen heading; field errors and the four requested word positions are programmatically associated and announced.
+- Print/PDF controls, the expert-skip confirmation, and all practice alternatives must be keyboard complete.
+- The identity flow must not depend on a time-based hold gesture or typed export phrase.
 
 ### 17.3 Localization rules
 
@@ -1201,6 +1208,12 @@ Rules:
 
 ### 19.4 Release provenance
 
+The source tree must not hardcode whether the application is currently
+published or deployed. Current operational status comes from the
+[GitHub Releases](https://github.com/levi-cm/chat-nocontrol/releases), the
+[Pages site](https://levi-cm.github.io/chat-nocontrol/), and their GitHub
+workflow, attestation, and deployment records.
+
 Release records must include:
 
 - the release tag;
@@ -1212,7 +1225,33 @@ Release records must include:
 - the rollback pointer for the previous deployed artifact;
 - any review notes that changed the release decision.
 
-If signed tags are available in the release process, they should be recorded. If they are not, the absence must be stated rather than implied away.
+Independent review uses a two-commit contract:
+
+1. Freeze a candidate commit and give that exact commit to a genuinely
+   independent human reviewer.
+2. The reviewer returns a real Markdown or PDF report, a signature using SSH
+   namespace `chat-nocontrol-security-review-v1`, and their public
+   allowed-signers entry. The reviewer never shares a private key.
+3. A single immediate child commit adds only
+   `docs/independent-security-review.json`, the named report under
+   `docs/reviews/`, `<report>.sig`, and `<report>.allowed_signers`.
+4. `reviewedCommit` is the immediate parent of that evidence commit and an
+   ancestor of release `HEAD`. The complete `reviewedCommit..HEAD` diff must be
+   exactly those four newly added, non-symlink, non-executable regular files.
+5. Any extra commit or any source, dependency, workflow, configuration,
+   protocol, UI, or executable-script change invalidates the review. Freeze a
+   new candidate and obtain a new independent review; do not reuse evidence.
+
+The gate must also verify schema version 2, the report SHA-256, SSH signature,
+signing identity, namespace, ISO-8601 UTC completion time, outcome
+`cleared-for-public-beta`, the independence statement, and zero open critical
+or high findings. It must reject invalid ancestry, renames, path traversal,
+symlinks, unexpected files, and companion filenames that are not derived from
+the report path.
+
+The public-beta package-version tag must be annotated and signed. Its target,
+local signature verification result, and exact remote tag object ID must be
+recorded.
 
 ### 19.5 Reproducible builds
 
@@ -1232,6 +1271,7 @@ Requirements:
 - may fail non-blocking tests;
 - must still follow the protocol and safety rules;
 - must not claim public beta readiness.
+- repository visibility remains private throughout implementation, review, and beta preparation.
 
 #### Public beta
 
@@ -1239,6 +1279,7 @@ Public beta is the current target.
 
 Requirements:
 
+- repository visibility changes to public only after every beta gate and explicit sign-off pass, as part of the approved publication checklist;
 - static GitHub Pages deployment only;
 - no backend;
 - no telemetry;
@@ -1294,6 +1335,8 @@ Product flows:
 - `test:en-de` for English and German semantic parity.
 - `test:e2e` for identity creation, exchange, encrypt, decrypt, and delete flows.
 - `test:unknown-sender` for valid but unsaved sender warnings.
+- unit and `test:e2e` coverage for all seven onboarding transitions, progress values, safe Back behavior, secret cleanup, required artifact downloads/attestations, A4 print/PDF, QR/file/four-word restore practice, unlimited retries, ten-failure restart, expert-skip boundaries, preselected local storage, explicit persistence confirmation, session-only opt-out, and storage-unavailable fallback.
+- password tests for empty/mismatched values, printable ASCII, internal spaces, leading/trailing-space rejection, case sensitivity, the `256`-byte maximum, exact print/PDF rendering, and absence from persistent storage, URLs, logs, QR PNG, `.ppxrecovery`, and post-secret DOM state.
 
 Accessibility and offline behavior:
 
@@ -1321,6 +1364,7 @@ Do not mark a release ready if any of the following remain true:
 - The German and English user-visible warnings diverge in meaning.
 - The deployment contract is not compatible with GitHub Pages.
 - The release artifact cannot be traced back to a specific commit and build.
+- The repository was made public before every beta gate and explicit sign-off completed.
 
 ### 20.4 Evidence to keep with each release
 

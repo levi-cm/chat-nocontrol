@@ -5,6 +5,7 @@ import {
   type ManagedContact,
 } from "../../components/cards/contact-management-card";
 import { TextField } from "../../components/forms/text-field";
+import { PasteButton } from "../../components/forms/paste-button";
 import { ConfirmationDialog } from "../../components/dialogs/confirmation";
 import { QrImport } from "../../components/qr/import";
 import { defaultCryptoProvider } from "../../crypto/default-provider";
@@ -175,7 +176,17 @@ export function ContactsManage({
       <div class="flow-panel contact-import-panel">
         <h1>{t("contactsTitle")}</h1>
         <div class="field">
-          <label for="contact-payload">{t("contactPayload")}</label>
+          <div class="field-heading">
+            <label for="contact-payload">{t("contactPayload")}</label>
+            <PasteButton
+              label={t("paste")}
+              unavailableLabel={t("pasteUnavailable")}
+              failureLabel={t("pasteFailed")}
+              disabled={busy || readingFile}
+              onPaste={acceptPayload}
+              onError={setError}
+            />
+          </div>
           <textarea
             class="field-control"
             id="contact-payload"

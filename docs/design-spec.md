@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the system design boundaries for Chat NoControl v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [apple-visual-spec.md](apple-visual-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
@@ -54,13 +54,23 @@ The crypto/provider boundary must stay explicit so the implementation can be swa
 
 ### 5.1 Identity setup
 
-1. Explain that the app is local and accountless.
-2. Require a pseudonym and warn that it is public and nonunique.
-3. Generate identity only on explicit action.
-4. Produce the public contact.
-5. Show the private recovery export as dangerous.
-6. Offer the encrypted local vault as an optional remember-this-identity action.
-7. Require recovery export before the flow can finish.
+Identity creation is a state-machine wizard, not one vertically scrollable secret page:
+
+1. **Username (`30%`)** — collect the public, nonunique username, map it to the protocol `pseudonym`, and generate the identity only on explicit action.
+2. **Create password (`42%`)** — require matching printable-ASCII browser-vault password fields; internal spaces are allowed, leading/trailing spaces are rejected, and the maximum is `256` bytes. Strength remains advisory, but a password below the `50`-bit medium threshold requires a confirmation dialog before the encrypted vault is prepared without persistence. Cancelling or pressing Escape returns focus to the password field. A vault-operation failure preserves both fields and the pending identity, focuses a contextual error summary, and permits retry.
+3. **Digital backups (`54%`)** — require ordinary-click downloads of the private QR PNG and `.ppxrecovery`, plus separate safe-storage attestations.
+4. **Words and recovery document (`66%`)** — show the 24 English words and offer a transient print preview plus direct A4 PDF. Require three independent confirmations: all words written down, printout safely stored, and downloaded PDF safely stored. The document includes the exact plaintext vault password; the standalone QR and `.ppxrecovery` do not.
+5. **QR restore practice (`78%`)** — teach the cleared-browser import path and verify the saved QR, camera scan, or pasted recovery code against the pending identity.
+6. **File and word restore practice (`90%`)** — verify the `.ppxrecovery` file, then four stable unique random word positions. Allow unlimited retries and offer confirmed restart after ten failures.
+7. **Local storage and finish (`100%`)** — recommend and preselect encrypted IndexedDB persistence, but write only after explicit confirmation. Session-only is the secondary choice and the automatic fallback when storage is unavailable.
+
+After step 4, plaintext password, recovery words, recovery code, QR presentation, and print/PDF model are cleared and cannot be recreated through Back navigation. A confirmed expert action may skip only steps 5 and 6. The flow uses no press-and-hold control or typed export phrase.
+
+The recovery PNG is `1024 x 1280`, adds the username and localized `PRIVATE KEY — NEVER SHARE` warning above a dark-red `#7f1d1d` QR, and retains the required quiet zone and error correction. The password, date, words, and long recovery code are excluded from this PNG.
+
+The transient print preview and direct PDF download share one recovery-document content model so their contents cannot drift. Desktop shows those exact bytes in an A4-ratio PDF iframe; screens at or below `640px` omit the iframe while keeping words, print, and download actions. Direct offline PDF generation uses the pinned local `pdf-lib` `1.17.1` dependency and standard PDF fonts; it must not introduce a reloadable secret-bearing URL.
+
+The wizard must explain that the QR, `.ppxrecovery`, recovery code, 24 words, and recovery document represent the same recovery authority. Losing every recovery copy and browser-vault access permanently prevents identity recovery and message decryption.
 
 ### 5.2 Encrypt
 
@@ -95,6 +105,7 @@ The crypto/provider boundary must stay explicit so the implementation can be swa
 3. Support delete vault.
 4. Support delete contacts.
 5. Support confirmed erase-all.
+6. Unlocking an existing remembered vault while on Identity stays on Identity; only completed creation or import routes to Encrypt.
 
 ### 5.6 Help and diagnostics
 
@@ -109,9 +120,10 @@ The crypto/provider boundary must stay explicit so the implementation can be swa
 ### 6.1 Persistent storage
 
 - Public contacts persist by default.
-- Optional encrypted vault persists only if the user chooses to remember the identity.
+- Encrypted vault persistence is recommended and preselected during identity creation, but occurs only after the user's explicit final confirmation.
 - Local settings may persist if the browser allows it.
 - No plaintext identity, message history, or decrypted file cache may be stored persistently.
+- The transient plaintext vault password must never be written to IndexedDB, settings, URLs, logs, service-worker caches, the standalone QR PNG, or `.ppxrecovery`.
 
 ### 6.2 Session-only mode
 
@@ -163,7 +175,9 @@ The user-facing copy should be short and safe first, with technical details hidd
 
 - Camera access is requested only after explicit user action.
 - The camera must stop on exit from scanning.
+- Camera scanning requires HTTPS. Insecure context, denied permission, missing hardware, busy hardware, and generic startup failure have distinct guidance while image upload remains available.
 - Clipboard writes may be used for armor and short outputs where the user requests copy.
+- If automatic and legacy copy both fail, select the complete text and give honest manual-copy instructions instead of claiming success.
 - Clipboard clearing is best effort and must not be presented as guaranteed deletion.
 
 ## 11. Visual implementation boundary

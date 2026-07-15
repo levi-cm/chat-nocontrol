@@ -12,6 +12,14 @@ export interface StoredContact {
 
 export interface StoredSettings {
   locale: "en" | "de";
+  theme?: "system" | "light" | "dark";
+  accent?:
+    "blue" | "indigo" | "purple" | "teal" | "pink" | "orange" | "graphite";
+  translucent?: boolean;
+  messageQrCreationEnabled?: boolean;
+  qrExportMode?: "app" | "link" | "both";
+  qrImportControls?: "camera" | "image" | "both";
+  qrAutoDecrypt?: boolean;
 }
 
 export interface PpxDatabaseSchema extends DBSchema {

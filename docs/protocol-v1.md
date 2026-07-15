@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the brand-neutral PPX Protocol v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
@@ -237,8 +237,9 @@ The first 20 bytes of the fingerprint are the short identity ID displayed in the
 
 Passphrase rules:
 
-- Accept 12 to 256 UTF-8 bytes.
-- Recommend 16 or more characters, or 5 or more random words.
+- Accept 1 to 256 UTF-8 bytes. Strength guidance must never become a minimum-length gate.
+- Show a local estimated-bit counter in the UI: red below 50, orange from 50 to 99, and green from 100 bits, with a text label in every band.
+- Recommend a longer, uncommon passphrase or multiple random words.
 - Treat the passphrase as the only vault unlock secret.
 
 QR transport for vault export uses uppercase Base45 with the exact prefix:
@@ -326,6 +327,10 @@ QR transport for recovery export uses uppercase Base45 with the exact prefix:
 ## 8. Encrypted text object `PPXT`
 
 `PPXT` carries encrypted text messages up to `262144` UTF-8 bytes of plaintext.
+
+This section specifies canonical uncompressed PPXT v1. Updated readers also
+support the separately specified [adaptive PPXT v2 transport](protocol-v2.md);
+v1 bytes and the signed-inner representation remain unchanged.
 
 ### 8.1 Outer structure
 
@@ -516,6 +521,11 @@ Validation order is strict:
 Checksums are only transfer-damage detectors. They never replace AEAD, signatures, or format validation.
 
 ## 11. Cross references
+
+Compact single-QR encrypted messages use the separately specified
+[PPXQ v1 protocol](protocol-qr-message-v1.md). PPXT remains unchanged and is
+required for long messages or recipients who do not already have the sender's
+public contact.
 
 - [security-architecture.md](security-architecture.md)
 - [threat-model.md](threat-model.md)

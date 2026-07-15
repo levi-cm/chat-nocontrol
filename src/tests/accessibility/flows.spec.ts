@@ -7,7 +7,13 @@ import {
 } from "../../protocol/ppxc";
 import { importSessionIdentity } from "../e2e/helpers";
 
-for (const route of ["contacts", "encrypt", "decrypt", "help"] as const) {
+for (const route of [
+  "contacts",
+  "encrypt",
+  "decrypt",
+  "help",
+  "settings",
+] as const) {
   test(`${route} route has no detectable WCAG A/AA violations`, async ({
     page,
   }) => {

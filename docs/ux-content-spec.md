@@ -1,6 +1,6 @@
 > **Authority:** Chat NoControl documentation authority; this file normatively defines the screen, flow, state, and copy contract for Chat NoControl v1.
 > **Version:** 1.0-draft
-> **Status:** Public beta candidate / unaudited / not deployed
+> **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
@@ -14,6 +14,19 @@
 - User-facing copy uses the product terms `identity`, `public contact`, `private recovery card`, `encrypted text`, and `encrypted file`.
 - Never use `account` or `seed card` in user copy for these concepts.
 - Visual style is not specified here beyond semantic distinctness, state visibility, and responsive behavior.
+
+### 1.1 Optional message-QR controls
+
+Ordinary PPXT remains the primary text output. Settings expose an EN/DE native
+toggle for `Offer message QR after text encryption`; it defaults off. The
+app/link/both export selector is hidden while creation is disabled. When
+enabled, output uses translated text buttons with a decorative QR icon and no
+QR preview; oversize guidance appears only in that enabled flow.
+
+Camera/image import and local authenticated auto-decrypt remain separate
+controls and stay available regardless of the creation setting. Unknown-sender
+copy directs the user to import that sender's public contact; it never implies
+plaintext was partially recovered.
 
 ## 2. Global navigation
 
@@ -40,71 +53,97 @@ German:
 - Primary action: `Neue Identität erstellen`
 - Secondary action: `Identität importieren`
 
-### 3.2 Pseudonym step
+### 3.2 Seven-screen creation wizard
+
+The creation flow uses separate screens rather than a vertically scrollable secret page. Every screen shows `Step {n} of 7` / `Schritt {n} von 7` and uses these exact progress values:
+
+| Step | Screen | Progress |
+|---:|---|---:|
+| 1 | Username | `30%` |
+| 2 | Create password | `42%` |
+| 3 | Digital backups | `54%` |
+| 4 | Words and recovery document | `66%` |
+| 5 | QR restore practice | `78%` |
+| 6 | File and word restore practice | `90%` |
+| 7 | Local storage and finish | `100%` |
+
+Back navigation is available only where it cannot redisplay cleared secrets. After leaving step 4, browser Back and wizard Back must not recreate its password, words, recovery code, QR, or printable document model. Necessary within-screen scrolling remains available at small viewport sizes and high zoom.
+
+### 3.3 Username and password
 
 English:
 
-- Label: `Pseudonym`
+- Label: `Username`
 - Helper: `This name is public and not unique. Use a fictional, recognizable name if you want one.`
-- Error: `Enter a pseudonym between 1 and 48 UTF-8 bytes after normalization.`
+- Error: `Enter a username between 1 and 48 UTF-8 bytes after normalization.`
+- Protocol note: `Username is the public pseudonym stored in PPX objects.`
+- Password title: `Create a browser-vault password`
+- Password helper: `This password protects the encrypted copy remembered by this browser. Your QR, recovery file, and recovery words do not require it.`
+- Confirmation label: `Confirm password`
+- Validation: both fields must match; the value must contain only printable ASCII, may contain internal spaces, must not start or end with a space, and must not exceed `256` bytes.
+- Strength presentation: show the existing text-and-color strength estimate as guidance. Values below the `50`-bit medium threshold remain permitted only after `Use a weak browser-vault password?` with safe action `Change password` and confirm action `Use weak password`.
+- Vault failure: show `Browser vault could not be created` with `Nothing was saved. Your identity setup is still open. Try again or restart identity creation.` Preserve both password fields and allow retry.
 
 German:
 
-- Label: `Pseudonym`
+- Label: `Benutzername`
 - Helper: `Dieser Name ist öffentlich und nicht eindeutig. Nimm einen erfundenen, gut wiedererkennbaren Namen, wenn du einen verwenden willst.`
-- Error: `Gib ein Pseudonym mit 1 bis 48 UTF-8-Bytes nach Normalisierung ein.`
+- Error: `Gib einen Benutzernamen mit 1 bis 48 UTF-8-Bytes nach Normalisierung ein.`
+- Protokollhinweis: `Der Benutzername ist das öffentliche Pseudonym in PPX-Objekten.`
+- Passworttitel: `Passwort für den Browser-Tresor erstellen`
+- Passworthilfe: `Dieses Passwort schützt die verschlüsselte Kopie, die sich dieser Browser merkt. Dein QR-Code, deine Wiederherstellungsdatei und deine Wiederherstellungswörter benötigen es nicht.`
+- Bestätigungslabel: `Passwort bestätigen`
+- Prüfung: Beide Felder müssen übereinstimmen. Der Wert darf nur druckbares ASCII enthalten, innere Leerzeichen enthalten, nicht mit einem Leerzeichen beginnen oder enden und höchstens `256` Bytes lang sein.
+- Stärkenanzeige: Werte unter der mittleren Schwelle von `50` Bit bleiben nur nach `Schwaches Browser-Tresor-Passwort verwenden?` mit `Passwort ändern` oder `Schwaches Passwort verwenden` zulässig.
+- Tresorfehler: Zeige `Browser-Tresor konnte nicht erstellt werden` und erkläre, dass nichts gespeichert wurde, die Einrichtung geöffnet bleibt und ein neuer Versuch oder Neustart möglich ist. Beide Passwortfelder bleiben erhalten.
+- Stärkedarstellung: Die vorhandene Schätzung mit Text und Farbe bleibt ein Hinweis und ist keine zusätzliche Annahmeschwelle.
 
-### 3.3 Identity creation warnings
+`Username` is UI terminology only. Implementations continue to read and write the protocol `pseudonym` field without changing PPX bytes.
+
+### 3.4 Backup and recovery-document screens
 
 English:
 
 - Warning title: `Public label, not a secret`
-- Warning text: `Your pseudonym is visible to other people. It does not protect your identity.`
+- Warning text: `Your username is visible to other people. It does not protect your identity.`
 - Action: `Generate identity`
+- Equivalence text: `Your private QR image, .ppxrecovery file, private recovery code, and 24 English words are different forms of the same identity recovery secret. Any one can restore the identity.`
+- Loss warning: `If you lose every recovery copy and access to the remembered browser vault, this identity and its messages can never be decrypted again.`
+- Digital-backup gate: ordinary click actions must download both the branded private QR PNG and `.ppxrecovery` file; each has a separate safe-storage attestation.
+- Recovery-document gate: activate `Print / Save as PDF`, download the PDF, write all 24 words, then confirm all three independently: written words, safely stored printout, and safely stored PDF. One or two confirmations cannot continue.
+- Desktop shows the exact generated PDF in a titled iframe. At `640px` and below, omit the iframe while keeping words, print, and download actions.
+- A4 document content: product name, private warning, username, localized and ISO creation dates, private recovery QR, complete wrapped `PPX1:RECOVERY:...` value, all 24 numbered English words, and the exact plaintext browser-vault password with length and case-sensitivity guidance.
+- Standalone QR PNG: `1024 x 1280`, username above the QR, English header `PRIVATE KEY — NEVER SHARE`, dark-red `#7f1d1d` modules on white, four-module quiet zone, and high error correction. It excludes password, dates, words, and long recovery code.
+- Password warning: `This private document contains your browser-vault password. Never share it and do not reuse this password elsewhere.`
+- The password must never appear in the standalone QR PNG, `.ppxrecovery`, URL, logs, browser storage, or application-wide state.
 
 German:
 
 - Warning title: `Öffentliches Label, kein Geheimnis`
-- Warning text: `Dein Pseudonym ist für andere sichtbar. Es schützt deine Identität nicht.`
+- Warning text: `Dein Benutzername ist für andere sichtbar. Er schützt deine Identität nicht.`
 - Action: `Identität erzeugen`
+- Gleichwertigkeit: `Dein privates QR-Bild, die .ppxrecovery-Datei, der private Wiederherstellungscode und die 24 englischen Wörter sind verschiedene Formen desselben Wiederherstellungsgeheimnisses. Jede davon kann die Identität wiederherstellen.`
+- Verlustwarnung: `Wenn du alle Wiederherstellungskopien und den Zugriff auf den gemerkten Browser-Tresor verlierst, können diese Identität und ihre Nachrichten nie wieder entschlüsselt werden.`
+- Sicherungssperre: Normale Klickaktionen laden sowohl das markierte private QR-PNG als auch die `.ppxrecovery`-Datei herunter; für beide gibt es eine eigene Bestätigung der sicheren Aufbewahrung.
+- Dokument-Sperre: `Drucken / Als PDF speichern` aktivieren, die PDF herunterladen, alle 24 Wörter aufschreiben und danach alle drei Punkte einzeln bestätigen: Wörter, sicher verwahrter Ausdruck und sicher verwahrte PDF. Eine oder zwei Bestätigungen reichen nicht.
+- Auf dem Desktop erscheint die exakt erzeugte PDF in einem betitelten Iframe. Bei `640px` und weniger bleibt der Iframe weg; Wörter, Druck- und Download-Aktionen bleiben verfügbar.
+- A4-Inhalt: Produktname, private Warnung, Benutzername, lokales und ISO-Erstellungsdatum, privater Wiederherstellungs-QR-Code, vollständiger umbrochener `PPX1:RECOVERY:...`-Wert, alle 24 nummerierten englischen Wörter und das exakte Klartext-Passwort für den Browser-Tresor samt Längen- und Groß-/Kleinschreibungshinweis.
+- Separates QR-PNG: `1024 x 1280`, Benutzername über dem QR-Code, deutsche Überschrift `PRIVATER SCHLÜSSEL — NIEMALS TEILEN`, dunkelrote `#7f1d1d`-Module auf Weiß, vier Module Ruhezone und hohe Fehlerkorrektur. Passwort, Daten, Wörter und langer Wiederherstellungscode bleiben ausgeschlossen.
+- Passwortwarnung: `Dieses private Dokument enthält dein Passwort für den Browser-Tresor. Teile es nie und verwende dieses Passwort nirgendwo sonst.`
+- Das Passwort darf niemals im separaten QR-PNG, in `.ppxrecovery`, URLs, Protokollen, Browser-Speicher oder globalem App-Zustand stehen.
 
-### 3.4 Recovery and vault choice
+No press-and-hold control or typed `EXPORT PRIVATE` / `PRIVAT EXPORTIEREN` phrase belongs in this flow. Private export surfaces remain danger-first and must never resemble the public contact card.
 
-English:
+### 3.5 Restore practice and storage choice
 
-- Prompt: `Do you want to remember this identity on this device?`
-- Option 1: `Yes, create an encrypted local vault`
-- Option 2: `No, use session only`
-- Warning title: `Private recovery card`
-- Warning text: `This card is dangerous. Anyone who gets it can recover your private identity. Do not share it.`
-- Warning action: `Press and hold to export private recovery card`
-- Keyboard or switch alternative: `Focus the export action, activate it, type the confirmation phrase, then confirm. This path is not time-dependent.`
-- Confirmation phrase: `EXPORT PRIVATE`
-- Recovery confirmation title: `Confirm recovery words`
-- Recovery confirmation helper: `The app will ask you to re-enter a few randomly selected word positions.`
-- Recovery confirmation prompt: `Enter the word in position {n} of 24`
-- Recovery confirmation note: `This does not reveal your words to anyone else.`
-- Finish blocker: `Export the private recovery card before you finish.`
-- Presentation rule: `Private export surfaces are danger-first and must never resemble the public contact card.`
+- Step 5 teaches the cleared-browser import path and requires successful restore of the pending identity from the saved QR image, camera scan, or pasted private recovery code.
+- Step 6 first requires the saved `.ppxrecovery` file, then asks for four unique random word positions together. The positions remain stable across retries, errors identify incorrect fields, retries are unlimited, and a confirmed restart action appears after ten failed submissions.
+- Both artifact practices derive the identity locally and compare its identity ID with the pending identity; temporary recovered secrets are cleared on success, error, cancellation, and exit.
+- `I know what I'm doing` / `Ich weiß, was ich tue` is a quiet accessible action. Its warning dialog may skip only steps 5 and 6, never downloads, storage attestations, or the recovery-document attestation.
+- Step 7 preselects and recommends `Remember on this device` / `Auf diesem Gerät merken`. Only its explicit Continue action writes the already encrypted vault to IndexedDB.
+- `Session only` / `Nur für diese Sitzung` is the secondary opt-out and discards the prepared encrypted vault. If persistence is unavailable, the flow explains the fallback and continues session-only.
 
-German:
-
-- Prompt: `Willst du dir diese Identität auf diesem Gerät merken?`
-- Option 1: `Ja, verschlüsselten lokalen Tresor erstellen`
-- Option 2: `Nein, nur für diese Sitzung verwenden`
-- Warning title: `Private Wiederherstellungskarte`
-- Warning text: `Diese Karte ist gefährlich. Wer sie bekommt, kann deine private Identität wiederherstellen. Teile sie nicht.`
-- Warning action: `Zum Export der privaten Wiederherstellungskarte gedrückt halten`
-- Keyboard- oder Schalter-Alternative: `Fokussiere die Exportaktion, aktiviere sie, gib PRIVAT EXPORTIEREN ein und bestätige.`
-- Bestätigungsphrase: `PRIVAT EXPORTIEREN`
-- Recovery confirmation title: `Wiederherstellungswörter bestätigen`
-- Recovery confirmation helper: `Die App fordert dich auf, einige zufällig ausgewählte Wortpositionen erneut einzugeben.`
-- Recovery confirmation prompt: `Gib das Wort an Position {n} von 24 ein`
-- Recovery confirmation note: `Das zeigt deine Wörter niemand anderem.`
-- Finish blocker: `Exportiere die private Wiederherstellungskarte, bevor du fertig bist.`
-- Presentation rule: `Private Exportflächen sind auf Gefahr ausgelegt und dürfen nie wie die Karte des öffentlichen Kontakts wirken.` 
-
-### 3.5 Identity import
+### 3.6 Identity import
 
 English:
 
@@ -138,7 +177,14 @@ German:
 - Anschlussfrage: `Willst du dir diese Identität auf diesem Gerät merken?`
 - Umfangshinweis: `Öffentliche Kontakte importierst du weiterhin im Bereich Kontakte.`
 
-### 3.6 Private export variants
+### 3.7 Private export variants
+
+The logged-in PPXV export card must render no real QR, QR fallback text, or
+download action until the browser-vault password has been verified again in the
+existing unlock worker. One successful check enables the PPXV QR, its PNG, and
+the `.ppxvault` download together. Wrong passwords use one generic failure.
+Leaving Identity, locking, or backgrounding the app resets the gate. This gate
+does not apply to onboarding recovery artifacts or the public-contact export.
 
 English:
 
@@ -149,7 +195,7 @@ English:
 - Public contact QR label: `Public contact`
 - Public contact QR hint: `Non-dangerous PPXC`
 - Export completion: `Recovery material exported`
-- Shared treatment rule: `Both private exports are equally serious; PPXR uses the strongest warning and the deliberate export guard.`
+- Shared treatment rule: `Both private exports are equally serious; PPXR uses the strongest warning and the required download and safe-storage attestation.`
 
 German:
 
@@ -160,9 +206,9 @@ German:
 - Public contact QR label: `Öffentlicher Kontakt`
 - Public contact QR hint: `Nicht gefährliches PPXC`
 - Export completion: `Wiederherstellungsmaterial exportiert`
-- Shared treatment rule: `Beide privaten Exporte sind gleich ernst; PPXR nutzt die stärkste Warnung und die bewusste Exportsicherung.`
+- Shared treatment rule: `Beide privaten Exporte sind gleich ernst; PPXR nutzt die stärkste Warnung sowie den verpflichtenden Download mit Aufbewahrungsbestätigung.`
 
-### 3.7 Public contact card
+### 3.8 Public contact card
 
 English:
 

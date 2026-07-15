@@ -12,7 +12,9 @@ test("English and German shell routes without console errors", async ({
   await expect(
     page.getByRole("heading", { name: "Create identity or import identity" }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Open settings" }).click();
   await page.getByLabel("Language").selectOption("de");
+  await page.getByRole("link", { name: "Chat NoControl" }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
   await expect(
     page.getByRole("heading", { name: "Identität erstellen oder importieren" }),

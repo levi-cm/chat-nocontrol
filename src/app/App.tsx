@@ -20,6 +20,7 @@ import type {
   PublicContact,
 } from "../protocol/types";
 import { encodeBase45Upper } from "../protocol/base45";
+import { equalBytes } from "../protocol/checksum";
 import { encodePublicContact } from "../protocol/ppxc";
 import { encodeLockedVault } from "../protocol/ppxv";
 import { listContacts, replaceContacts } from "../storage/contacts";
@@ -38,6 +39,8 @@ import {
   putSettings,
   type AccentPreference,
   type AppSettings,
+  type QrExportMode,
+  type QrImportControls,
   type ThemePreference,
 } from "../storage/settings";
 import { SessionStorage } from "../storage/session";
@@ -50,9 +53,19 @@ import {
   dismissUpdateAvailable,
   isUpdateAvailable,
   readStoredLocale,
+  syncThemeColor,
 } from "./bootstrap";
 import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
-import { ROUTES, routeFromHash, type RouteName } from "./routes";
+import {
+  captureQrMessageLink,
+  clearLastUnlockedRoute,
+  readLastUnlockedRoute,
+  ROUTES,
+  routeAfterUnlock,
+  routeFromHash,
+  writeLastUnlockedRoute,
+  type RouteName,
+} from "./routes";
 
 const navItems: { route: RouteName; key: MessageKey }[] = [
   { route: "encrypt", key: "navEncrypt" },
@@ -88,9 +101,26 @@ export function App() {
     DEFAULT_SETTINGS.accent,
   );
   const [translucent, setTranslucent] = useState(DEFAULT_SETTINGS.translucent);
+  const [messageQrCreationEnabled, setMessageQrCreationEnabled] = useState(
+    DEFAULT_SETTINGS.messageQrCreationEnabled,
+  );
+  const [qrExportMode, setQrExportMode] = useState<QrExportMode>(
+    DEFAULT_SETTINGS.qrExportMode,
+  );
+  const [qrImportControls, setQrImportControls] = useState<QrImportControls>(
+    DEFAULT_SETTINGS.qrImportControls,
+  );
+  const [qrAutoDecrypt, setQrAutoDecrypt] = useState(
+    DEFAULT_SETTINGS.qrAutoDecrypt,
+  );
   const [route, setRoute] = useState<RouteName>(() =>
     routeFromHash(window.location.hash),
   );
+  const [pendingQrLink, setPendingQrLink] = useState<string | null>(() => {
+    const captured = captureQrMessageLink(window.location);
+    if (captured) history.replaceState(null, "", "#/decrypt");
+    return captured;
+  });
   const [activeIdentity, setActiveIdentity] = useState<DerivedIdentity | null>(
     null,
   );
@@ -107,6 +137,7 @@ export function App() {
   const sessionMemory = useRef(new SessionStorage());
   const degradedPersistentDb = useRef<PpxDatabase | null>(null);
   const suppressNextLocalePersistence = useRef(false);
+  const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve());
   const [updateAvailable, setUpdateAvailable] = useState(isUpdateAvailable);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [storageFailure, setStorageFailure] = useState<
@@ -115,6 +146,7 @@ export function App() {
   const t = (key: MessageKey) => messages[locale][key];
 
   const lockActiveIdentity = () => {
+    if (activeIdentity) writeLastUnlockedRoute(route);
     if (activeIdentity) zeroizeIdentitySecrets(activeIdentity);
     setActiveIdentity(null);
     setPublicContact(null);
@@ -205,6 +237,12 @@ export function App() {
             setTheme(loadedSettings.theme);
             setAccent(loadedSettings.accent);
             setTranslucent(loadedSettings.translucent);
+            setMessageQrCreationEnabled(
+              loadedSettings.messageQrCreationEnabled,
+            );
+            setQrExportMode(loadedSettings.qrExportMode);
+            setQrImportControls(loadedSettings.qrImportControls);
+            setQrAutoDecrypt(loadedSettings.qrAutoDecrypt);
             setSessionOnly(true);
             setStorageFailure("fallback");
             clearStoredLocale();
@@ -216,9 +254,22 @@ export function App() {
           setTheme(loadedSettings.theme);
           setAccent(loadedSettings.accent);
           setTranslucent(loadedSettings.translucent);
+          setMessageQrCreationEnabled(loadedSettings.messageQrCreationEnabled);
+          setQrExportMode(loadedSettings.qrExportMode);
+          setQrImportControls(loadedSettings.qrImportControls);
+          setQrAutoDecrypt(loadedSettings.qrAutoDecrypt);
         }
       } else {
-        context.session.setSettings({ locale, theme, accent, translucent });
+        context.session.setSettings({
+          locale,
+          theme,
+          accent,
+          translucent,
+          messageQrCreationEnabled,
+          qrExportMode,
+          qrImportControls,
+          qrAutoDecrypt,
+        });
         setContacts(
           canonicalContacts(
             context.session
@@ -236,6 +287,10 @@ export function App() {
       if (opened?.mode === "persistent") opened.db.close();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeIdentity) writeLastUnlockedRoute(route);
+  }, [activeIdentity, route]);
 
   useEffect(() => {
     const wentOffline = () => setOffline(true);
@@ -295,7 +350,25 @@ export function App() {
   }, [accent, theme, translucent]);
 
   useEffect(() => {
-    const updateRoute = () => setRoute(routeFromHash(window.location.hash));
+    const darkPreference = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => syncThemeColor(theme, document, darkPreference.matches);
+    sync();
+    if (theme !== "system") return;
+    darkPreference.addEventListener("change", sync);
+    return () => darkPreference.removeEventListener("change", sync);
+  }, [theme]);
+
+  useEffect(() => {
+    const updateRoute = () => {
+      const captured = captureQrMessageLink(window.location);
+      if (captured) {
+        setPendingQrLink(captured);
+        history.replaceState(null, "", "#/decrypt");
+        setRoute("decrypt");
+        return;
+      }
+      setRoute(routeFromHash(window.location.hash));
+    };
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
@@ -308,6 +381,10 @@ export function App() {
   }, []);
 
   const navigate = (next: RouteName) => {
+    if (next !== "decrypt" && (activeIdentity || next !== "identity")) {
+      setPendingQrLink(null);
+    }
+    if (activeIdentity) writeLastUnlockedRoute(next);
     setRoute(next);
     if (window.location.hash !== ROUTES[next]) {
       window.location.hash = ROUTES[next];
@@ -320,7 +397,16 @@ export function App() {
   ) => {
     const session = sessionMemory.current;
     session.replaceContacts(nextContacts);
-    session.setSettings({ locale, theme, accent, translucent });
+    session.setSettings({
+      locale,
+      theme,
+      accent,
+      translucent,
+      messageQrCreationEnabled,
+      qrExportMode,
+      qrImportControls,
+      qrAutoDecrypt,
+    });
     if (vault) session.putVault(vault);
     else session.deleteVault();
     if (storage?.mode === "persistent") {
@@ -343,12 +429,37 @@ export function App() {
         storage.mode === "session-only"
           ? storage.session
           : sessionMemory.current;
-      session.setSettings({ locale, theme, accent, translucent });
+      session.setSettings({
+        locale,
+        theme,
+        accent,
+        translucent,
+        messageQrCreationEnabled,
+        qrExportMode,
+        qrImportControls,
+        qrAutoDecrypt,
+      });
       clearStoredLocale();
       return;
     }
     let cancelled = false;
-    void putSettings(storage.db, { locale, theme, accent, translucent })
+    const write = settingsWriteQueue.current.then(() =>
+      putSettings(storage.db, {
+        locale,
+        theme,
+        accent,
+        translucent,
+        messageQrCreationEnabled,
+        qrExportMode,
+        qrImportControls,
+        qrAutoDecrypt,
+      }),
+    );
+    settingsWriteQueue.current = write.then(
+      () => undefined,
+      () => undefined,
+    );
+    void write
       .then(() => {
         if (!cancelled && !clearStoredLocale()) {
           setStorageFailure("delete-failed");
@@ -360,7 +471,19 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [accent, locale, sessionOnly, storage, storageReady, theme, translucent]);
+  }, [
+    accent,
+    locale,
+    messageQrCreationEnabled,
+    qrAutoDecrypt,
+    qrExportMode,
+    qrImportControls,
+    sessionOnly,
+    storage,
+    storageReady,
+    theme,
+    translucent,
+  ]);
 
   const saveContacts = async (next: ManagedContact[]): Promise<boolean> => {
     if (!storageReady || !storage) return false;
@@ -465,7 +588,11 @@ export function App() {
     if (acceptOwnership && !acceptOwnership()) return;
     setActiveIdentity(identity);
     setPublicContact(contact);
-    if (!existingRememberedVault) navigate("encrypt");
+    navigate(
+      existingRememberedVault
+        ? routeAfterUnlock(pendingQrLink !== null, readLastUnlockedRoute())
+        : "encrypt",
+    );
   };
 
   const removeStoredVault = async (): Promise<boolean> => {
@@ -486,6 +613,7 @@ export function App() {
     }
     setStoredVault(null);
     lockActiveIdentity();
+    clearLastUnlockedRoute();
     return true;
   };
 
@@ -516,9 +644,15 @@ export function App() {
     setTheme(DEFAULT_SETTINGS.theme);
     setAccent(DEFAULT_SETTINGS.accent);
     setTranslucent(DEFAULT_SETTINGS.translucent);
+    setMessageQrCreationEnabled(DEFAULT_SETTINGS.messageQrCreationEnabled);
+    setQrExportMode(DEFAULT_SETTINGS.qrExportMode);
+    setQrImportControls(DEFAULT_SETTINGS.qrImportControls);
+    setQrAutoDecrypt(DEFAULT_SETTINGS.qrAutoDecrypt);
+    setPendingQrLink(null);
     setContacts([]);
     setStoredVault(null);
     lockActiveIdentity();
+    clearLastUnlockedRoute();
     if (!localeCleared) {
       setStorageFailure("delete-failed");
       return false;
@@ -621,10 +755,18 @@ export function App() {
             theme={theme}
             accent={accent}
             translucent={translucent}
+            messageQrCreationEnabled={messageQrCreationEnabled}
+            qrExportMode={qrExportMode}
+            qrImportControls={qrImportControls}
+            qrAutoDecrypt={qrAutoDecrypt}
             onLocaleChange={setLocale}
             onThemeChange={setTheme}
             onAccentChange={setAccent}
             onTranslucentChange={setTranslucent}
+            onMessageQrCreationEnabledChange={setMessageQrCreationEnabled}
+            onQrExportModeChange={setQrExportMode}
+            onQrImportControlsChange={setQrImportControls}
+            onQrAutoDecryptChange={setQrAutoDecrypt}
           />
         ) : route === "help" ? (
           <HelpFlow
@@ -640,6 +782,8 @@ export function App() {
             sender={publicContact}
             contacts={contacts}
             locale={locale}
+            messageQrCreationEnabled={messageQrCreationEnabled}
+            qrExportMode={qrExportMode}
           />
         ) : route === "decrypt" ? (
           <DecryptFlow
@@ -649,6 +793,10 @@ export function App() {
             contacts={contacts}
             onContactsChange={saveContacts}
             locale={locale}
+            qrImportControls={qrImportControls}
+            qrAutoDecrypt={qrAutoDecrypt}
+            pendingQrText={pendingQrLink}
+            onPendingQrConsumed={() => setPendingQrLink(null)}
           />
         ) : route === "contacts" ? (
           <ContactsManage t={t} contacts={contacts} onChange={saveContacts} />
@@ -712,6 +860,32 @@ function IdentityHome({
   const [busy, setBusy] = useState(false);
   const unlockJob = useRef<CryptoWorkerJob<DerivedIdentity> | null>(null);
   const [confirming, setConfirming] = useState<"vault" | "all" | null>(null);
+
+  const verifyPrivateExport = async (
+    candidatePassphrase: string,
+    signal: AbortSignal,
+  ): Promise<boolean> => {
+    if (!identity || !storedVault || signal.aborted) return false;
+    const operation = startUnlockVaultJob({
+      vault: storedVault,
+      passphrase: candidatePassphrase,
+    });
+    const cancel = () => operation.cancel();
+    signal.addEventListener("abort", cancel, { once: true });
+    let verifiedIdentity: DerivedIdentity | undefined;
+    try {
+      verifiedIdentity = await operation.promise;
+      return (
+        !signal.aborted &&
+        equalBytes(verifiedIdentity.fingerprint, identity.fingerprint)
+      );
+    } catch {
+      return false;
+    } finally {
+      signal.removeEventListener("abort", cancel);
+      if (verifiedIdentity) zeroizeIdentitySecrets(verifiedIdentity);
+    }
+  };
 
   const unlock = async (candidatePassphrase = passphrase) => {
     if (!storedVault) return;
@@ -875,6 +1049,14 @@ function IdentityHome({
               formatHint={t("vaultHint")}
               fileBytes={encodedVault}
               downloadLabel={t("downloadVault")}
+              verification={{
+                lockedLabel: t("privateExportsLocked"),
+                passphraseLabel: t("privateExportPassphrase"),
+                revealLabel: t("revealPrivateExports"),
+                busyLabel: t("checkingPrivateExportPassword"),
+                errorLabel: t("privateExportPasswordError"),
+                onVerify: verifyPrivateExport,
+              }}
             />
           )}
         </div>

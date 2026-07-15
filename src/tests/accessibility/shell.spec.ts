@@ -6,7 +6,11 @@ for (const locale of ["en", "de"] as const) {
     page,
   }) => {
     await page.goto("/");
-    if (locale === "de") await page.getByLabel("Language").selectOption("de");
+    if (locale === "de") {
+      await page.getByRole("link", { name: "Open settings" }).click();
+      await page.getByLabel("Language").selectOption("de");
+      await page.getByRole("link", { name: "Chat NoControl" }).click();
+    }
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
       .analyze();

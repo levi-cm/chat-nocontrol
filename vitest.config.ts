@@ -4,6 +4,7 @@ import manifest from "./package.json";
 
 export default defineConfig({
   define: {
+    __CHAT_NOCONTROL_PRODUCTION_BUILD__: JSON.stringify(false),
     __CHAT_NOCONTROL_VERSION__: JSON.stringify(manifest.version),
   },
   plugins: [preact()],

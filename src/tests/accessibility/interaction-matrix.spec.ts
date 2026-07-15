@@ -296,9 +296,9 @@ test("keyboard-only identity import, contact import, encrypt, decrypt, save, and
   await activateWithKeyboard(
     page.getByRole("button", { name: "Decrypt locally" }),
   );
-  await expect(
-    page.getByText("Keyboard-only local round trip", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByLabel("Decrypted text")).toHaveValue(
+    "Keyboard-only local round trip",
+  );
   await activateWithKeyboard(
     page.getByRole("button", { name: "Save contact" }),
   );

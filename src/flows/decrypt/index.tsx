@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { AuthenticatedSenderCard } from "../../components/cards/authenticated-sender-card";
 import { PasteButton } from "../../components/forms/paste-button";
+import { QrImport } from "../../components/qr/import";
 import { copyWithBestEffortClear } from "../identity/clipboard";
 import type { Locale, MessageKey } from "../../i18n";
 import { decodeTextArmor } from "../../protocol/ppxt-armor";
@@ -9,15 +10,20 @@ import { PPXT_ARMOR_MAXIMUM_CHARS } from "../../protocol/ppxt-armor";
 import { PPXF_ENCODED_MAX_BYTES } from "../../protocol/ppxf";
 import { PPXError } from "../../protocol/types";
 import type {
+  DecryptedQrTextOutput,
   DecryptedTextOutput,
   DerivedIdentity,
+  EncryptedQrTextObject,
 } from "../../protocol/types";
+import { parseQrMessageText } from "../../protocol/ppxq";
 import {
   type CryptoWorkerJob,
   startDecryptTextJob,
+  startDecryptQrTextJob,
 } from "../../workers/crypto-client";
 import { DecryptFileFlow } from "./file";
 import { isKnownSender } from "./sender";
+import type { QrImportControls } from "../../storage/settings";
 
 export { isKnownSender } from "./sender";
 
@@ -27,15 +33,24 @@ export function DecryptFlow({
   contacts,
   onContactsChange,
   locale,
+  qrImportControls,
+  qrAutoDecrypt,
+  pendingQrText,
+  onPendingQrConsumed,
 }: {
   t: (key: MessageKey) => string;
   identity: DerivedIdentity | null;
   contacts: ManagedContact[];
   onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
   locale: Locale;
+  qrImportControls: QrImportControls;
+  qrAutoDecrypt: boolean;
+  pendingQrText: string | null;
+  onPendingQrConsumed: () => void;
 }) {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<DecryptedTextOutput | null>(null);
+  const [qrInput, setQrInput] = useState<EncryptedQrTextObject | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
@@ -76,6 +91,50 @@ export function DecryptFlow({
     setFileBusy(false);
   }, [identity]);
 
+  useEffect(() => {
+    if (!identity || !pendingQrText) return;
+    let object: EncryptedQrTextObject;
+    try {
+      object = parseQrMessageText(pendingQrText);
+    } catch {
+      setSmartError(t("qrScanError"));
+      onPendingQrConsumed();
+      return;
+    }
+    setQrInput(object);
+    onPendingQrConsumed();
+    if (!qrAutoDecrypt) return;
+    const operation = startDecryptQrTextJob({
+      object,
+      activeIdentity: identity,
+      knownSenders: contacts.map(({ contact }) => contact),
+    });
+    textJob.current = operation;
+    setBusy(true);
+    void operation.promise
+      .then((output) => {
+        if (textJob.current !== operation) return;
+        setResult(output);
+        setQrInput(null);
+      })
+      .catch((caught) => {
+        if (textJob.current !== operation) return;
+        const detail =
+          caught instanceof PPXError && caught.code === "unknown-sender-contact"
+            ? t("qrUnknownSender")
+            : caught instanceof PPXError &&
+                caught.code === "unsupported-compression"
+              ? t("unsupportedCompression")
+              : t("wrongIdentityOrDamaged");
+        setError(`${t("couldNotDecrypt")}. ${detail}`);
+      })
+      .finally(() => {
+        if (textJob.current !== operation) return;
+        textJob.current = null;
+        setBusy(false);
+      });
+  }, [identity, pendingQrText]);
+
   if (!identity) {
     return (
       <section class="flow-panel">
@@ -106,7 +165,10 @@ export function DecryptFlow({
         const detail =
           caught instanceof PPXError && caught.code === "invalid-signature"
             ? t("badSignature")
-            : t("wrongIdentityOrDamaged");
+            : caught instanceof PPXError &&
+                caught.code === "unsupported-compression"
+              ? t("unsupportedCompression")
+              : t("wrongIdentityOrDamaged");
         setError(`${t("couldNotDecrypt")}. ${detail}`);
       }
     } finally {
@@ -114,6 +176,54 @@ export function DecryptFlow({
         textJob.current = null;
         setBusy(false);
       }
+    }
+  };
+
+  const decryptQr = async (object: EncryptedQrTextObject) => {
+    let operation: CryptoWorkerJob<DecryptedQrTextOutput> | null = null;
+    setBusy(true);
+    setResult(null);
+    setError("");
+    try {
+      operation = startDecryptQrTextJob({
+        object,
+        activeIdentity: identity,
+        knownSenders: contacts.map(({ contact }) => contact),
+      });
+      textJob.current = operation;
+      const output = await operation.promise;
+      if (textJob.current !== operation) return;
+      setResult(output);
+      setQrInput(null);
+    } catch (caught) {
+      if (!operation || textJob.current === operation) {
+        const detail =
+          caught instanceof PPXError && caught.code === "unknown-sender-contact"
+            ? t("qrUnknownSender")
+            : caught instanceof PPXError &&
+                caught.code === "unsupported-compression"
+              ? t("unsupportedCompression")
+              : t("wrongIdentityOrDamaged");
+        setError(`${t("couldNotDecrypt")}. ${detail}`);
+      }
+    } finally {
+      if (!operation || textJob.current === operation) {
+        textJob.current = null;
+        setBusy(false);
+      }
+    }
+  };
+
+  const decodedQr = (value: string) => {
+    try {
+      const object = parseQrMessageText(value);
+      setQrInput(object);
+      setInput("");
+      setFile(null);
+      setError("");
+      if (qrAutoDecrypt) void decryptQr(object);
+    } catch {
+      setSmartError(t("qrScanError"));
     }
   };
 
@@ -219,7 +329,9 @@ export function DecryptFlow({
   };
 
   const decryptSmartInput = () => {
-    if (file) {
+    if (qrInput) {
+      void decryptQr(qrInput);
+    } else if (file) {
       setFileStartToken((value) => value + 1);
     } else {
       void decrypt();
@@ -273,6 +385,12 @@ export function DecryptFlow({
   return (
     <section class="flow-panel">
       <h1>{t("decryptTitle")}</h1>
+      <QrImport
+        idPrefix="message"
+        t={t}
+        controlsMode={qrImportControls}
+        onDecoded={decodedQr}
+      />
       <div
         class="smart-decrypt-area"
         data-testid="smart-decrypt-input"
@@ -335,12 +453,20 @@ export function DecryptFlow({
         class="button primary"
         type="button"
         disabled={
-          busy || fileBusy || routingBusy || (!file && input.trim() === "")
+          busy ||
+          fileBusy ||
+          routingBusy ||
+          (!qrInput && !file && input.trim() === "")
         }
         onClick={decryptSmartInput}
       >
         {t("decryptLocally")}
       </button>
+      {qrInput && !qrAutoDecrypt && (
+        <p class="status-note" role="status">
+          {t("messageQrReady")}
+        </p>
+      )}
       {busy && (
         <div class="progress-group" role="status">
           <label for="text-decrypt-progress">{t("operationProgress")}</label>

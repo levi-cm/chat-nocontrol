@@ -1,11 +1,16 @@
 import type { LockedVaultObject, PublicContact } from "../protocol/types";
 import { contactStorageId } from "./contacts";
 import type { StoredContact } from "./db";
+import {
+  DEFAULT_SETTINGS,
+  type AppSettings,
+  normalizeSettings,
+} from "./settings";
 
 export class SessionStorage {
   readonly #contacts = new Map<string, StoredContact>();
   #vault: LockedVaultObject | undefined;
-  #locale: "en" | "de" = "en";
+  #settings: AppSettings = { ...DEFAULT_SETTINGS };
 
   putContact(contact: PublicContact, nickname?: string): StoredContact {
     const id = contactStorageId(contact.fingerprint);
@@ -43,16 +48,24 @@ export class SessionStorage {
   }
 
   setLocale(locale: "en" | "de"): void {
-    this.#locale = locale;
+    this.#settings = { ...this.#settings, locale };
   }
 
   getLocale(): "en" | "de" {
-    return this.#locale;
+    return this.#settings.locale;
+  }
+
+  setSettings(settings: AppSettings): void {
+    this.#settings = normalizeSettings(settings, settings.locale);
+  }
+
+  getSettings(): AppSettings {
+    return { ...this.#settings };
   }
 
   eraseAll(): void {
     this.#contacts.clear();
     this.#vault = undefined;
-    this.#locale = "en";
+    this.#settings = { ...DEFAULT_SETTINGS };
   }
 }

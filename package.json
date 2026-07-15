@@ -13,8 +13,12 @@
     "node": "^22.12.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "tsx scripts/dev-tailscale.ts",
+    "dev:tailscale": "npm run dev",
+    "dev:http:tailscale": "vite --host $(tailscale ip -4) --port 5173 --strictPort",
+    "dev:lan": "vite --host 0.0.0.0",
+    "build": "vite build && npm run test:production-artifacts",
+    "benchmark:text-compression": "tsx scripts/benchmark-text-compression.ts",
     "preview": "vite preview",
     "docs:check": "tsx scripts/check-doc-terminology.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -58,18 +62,22 @@
     "test:reproducibility": "tsx scripts/check-reproducibility.ts",
     "test:dependency-review": "tsx scripts/check-dependencies.ts",
     "test:release-prerequisites": "tsx scripts/check-release-prerequisites.ts",
+    "test:production-artifacts": "tsx scripts/production-artifacts.ts dist",
+    "release:record-pages-deployment": "tsx scripts/finalize-pages-deployment.ts",
     "test:evidence": "tsx scripts/write-test-report.ts",
     "verify:quality": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:provider-contract && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:update-banner && npm run test:network-denial && npm run test:dependency-review && npm run build && npm run test:evidence",
     "verify:ci": "npm run verify:quality",
     "verify": "npm run verify:quality && npm run test:release-prerequisites && npm run test:release && npm run test:sbom && npm run test:reproducibility"
   },
   "dependencies": {
+    "@noble/ciphers": "2.2.0",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.2.0",
     "@noble/post-quantum": "0.6.1",
     "@scure/bip39": "2.2.0",
     "@zxing/browser": "0.2.1",
     "idb": "8.0.3",
+    "pdf-lib": "1.17.1",
     "preact": "10.29.7",
     "qrcode": "1.5.4",
     "vite-plugin-pwa": "1.3.0"

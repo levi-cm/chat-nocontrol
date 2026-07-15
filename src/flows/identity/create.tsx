@@ -887,6 +887,8 @@ export function IdentityCreate({
         title={t("publicLabel")}
         qrLabel={t("publicQrAlt")}
         qrDownloadLabel={t("saveContactQr")}
+        enlargeQrLabel={t("showLargerQr")}
+        closeQrLabel={t("closeLargerQr")}
         helper={t("publicContactHelper")}
         formatHint={t("publicContactHint")}
         fileBytes={encodePublicContact(contact)}

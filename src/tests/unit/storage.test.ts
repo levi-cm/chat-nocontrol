@@ -11,7 +11,13 @@ import {
 } from "../../storage/db";
 import { listContacts, putContact } from "../../storage/contacts";
 import { getVault, putVault } from "../../storage/vault";
-import { getSettings, putSettings } from "../../storage/settings";
+import { SessionStorage } from "../../storage/session";
+import {
+  DEFAULT_SETTINGS,
+  getSettings,
+  normalizeSettings,
+  putSettings,
+} from "../../storage/settings";
 
 describe("minimal PPX storage", () => {
   afterEach(async () => {
@@ -50,9 +56,15 @@ describe("minimal PPX storage", () => {
       passphrase: "five random words make safer vaults",
     });
     await putVault(db, vault);
-    await putSettings(db, { locale: "de" });
+    await putSettings(db, {
+      locale: "de",
+      messageQrCreationEnabled: true,
+    });
     expect((await getVault(db))?.magic).toBe("PPXV");
-    expect(await getSettings(db)).toEqual({ locale: "de" });
+    expect(await getSettings(db)).toEqual({
+      locale: "de",
+      messageQrCreationEnabled: true,
+    });
     await deleteAllLocalData(db);
     expect(await getVault(db)).toBeUndefined();
     expect(await listContacts(db)).toEqual([]);
@@ -73,5 +85,49 @@ describe("minimal PPX storage", () => {
       5,
     );
     expect(context.mode).toBe("session-only");
+  });
+
+  it("normalizes browser-local message QR preferences without migration", () => {
+    expect(normalizeSettings(undefined)).toMatchObject({
+      messageQrCreationEnabled: false,
+      qrExportMode: "both",
+      qrImportControls: "both",
+      qrAutoDecrypt: true,
+    });
+    expect(
+      normalizeSettings({
+        locale: "en",
+        messageQrCreationEnabled: "invalid" as never,
+        qrExportMode: "invalid" as never,
+        qrImportControls: "invalid" as never,
+        qrAutoDecrypt: false,
+      }),
+    ).toMatchObject({
+      messageQrCreationEnabled: false,
+      qrExportMode: DEFAULT_SETTINGS.qrExportMode,
+      qrImportControls: DEFAULT_SETTINGS.qrImportControls,
+      qrAutoDecrypt: false,
+    });
+  });
+
+  it("persists an explicit message QR creation opt-in in both storage modes", async () => {
+    const db = await openPpxDatabase();
+    await putSettings(db, {
+      locale: "en",
+      messageQrCreationEnabled: true,
+    });
+    expect(normalizeSettings(await getSettings(db))).toMatchObject({
+      messageQrCreationEnabled: true,
+    });
+    db.close();
+
+    const session = new SessionStorage();
+    session.setSettings({
+      ...DEFAULT_SETTINGS,
+      messageQrCreationEnabled: true,
+    });
+    expect(session.getSettings().messageQrCreationEnabled).toBe(true);
+    session.eraseAll();
+    expect(session.getSettings().messageQrCreationEnabled).toBe(false);
   });
 });

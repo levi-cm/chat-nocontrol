@@ -31,6 +31,20 @@ const en = {
   translucentEffects: "Translucent interface effects",
   translucentEffectsHint:
     "Use subtle blur on navigation and elevated interface surfaces.",
+  messageQrSettings: "Message QR",
+  messageQrCreationEnabled: "Offer message QR after text encryption",
+  messageQrCreationEnabledHint:
+    "Optional output after ordinary encrypted text. Receiving message QRs remains available.",
+  qrExportSetting: "Export",
+  qrExportApp: "In-app QR",
+  qrExportLink: "Phone camera link",
+  qrShowBoth: "Show both",
+  qrImportSetting: "Import controls",
+  qrImportCamera: "Camera",
+  qrImportImage: "Screenshot or image",
+  qrAutoDecrypt: "Auto-decrypt valid message QRs",
+  qrAutoDecryptHint:
+    "Decrypt locally after authentication. No message is saved by this setting.",
   localOnly: "On-device only",
   firstTitle: "Create identity or import identity",
   firstBody:
@@ -42,6 +56,8 @@ const en = {
   publicAuthority: "Safe to share",
   publicQrAlt: "Public contact QR code",
   saveContactQr: "Save contact QR as PNG",
+  showLargerQr: "Show larger QR",
+  closeLargerQr: "Close larger QR",
   downloadContact: "Download public contact",
   publicContactHelper: "Share this contact so other people can encrypt to you.",
   publicContactHint: "Non-dangerous PPXC",
@@ -57,6 +73,11 @@ const en = {
   saveVaultQr: "Save private vault QR as PNG",
   downloadVault: "Download encrypted vault",
   vaultHint: "Encrypted PPXV",
+  privateExportsLocked: "Private exports locked",
+  privateExportPassphrase: "Re-enter vault passphrase",
+  revealPrivateExports: "Reveal private exports",
+  checkingPrivateExportPassword: "Checking password",
+  privateExportPasswordError: "Password verification failed",
   privateBody: "Keep secret. Anyone who has it can recover your identity.",
   encryptTitle: "Encrypt",
   encryptBody: "Choose one contact, then encrypt text or one file locally.",
@@ -249,8 +270,19 @@ const en = {
   scanWithCamera: "Scan with camera",
   stopCamera: "Stop camera",
   cameraPreview: "QR camera preview",
-  cameraUnavailable: "Camera scanning is unavailable.",
+  cameraInsecureContext:
+    "Open the HTTPS URL to use the camera, or upload the saved QR image.",
+  cameraPermissionDenied:
+    "Camera permission was denied. Allow it in browser settings or upload the saved QR image.",
+  cameraNotFound:
+    "No camera was found. Connect a camera or upload the saved QR image.",
+  cameraBusy:
+    "The camera is busy in another app. Close it there or upload the saved QR image.",
+  cameraUnavailable:
+    "The camera could not start. Try again or upload the saved QR image.",
   qrScanError: "Could not read this QR image.",
+  qrUnknownSender: "Import this sender's public contact first.",
+  messageQrReady: "Encrypted message QR ready for local decryption.",
   importScannedQr: "Import scanned QR",
   paste: "Paste",
   pasteUnavailable: "Clipboard paste is unavailable in this browser context.",
@@ -277,6 +309,12 @@ const en = {
   copyFailed: "Could not copy. Select the encrypted output manually.",
   saveOutput: "Save encrypted output",
   shareOutput: "Share encrypted output",
+  qrKnownSenderGuidance:
+    "The recipient must already have your public contact to verify and decrypt this compact QR.",
+  downloadAppMessageQr: "Download in-app message QR",
+  downloadLinkMessageQr: "Download phone camera link QR",
+  messageQrTooLarge: "Encrypted QR is",
+  messageQrTooLargeSuffix: "encoded bytes too large; shorten the message.",
   identityRequired: "Create or import an identity first.",
   noContactsYet: "Import a public contact before encrypting.",
   encryptFileTitle: "Encrypt a file",
@@ -309,6 +347,8 @@ const en = {
   wrongIdentityOrDamaged:
     "This item does not match your active identity or is damaged.",
   badSignature: "The item decrypted, but the sender check failed.",
+  unsupportedCompression:
+    "This compressed message needs a newer or supported browser. Update this browser or open it in another current browser.",
   technicalDetails: "Technical details",
   technicalFailureCode: "Validation failed before content release.",
   decryptedText: "Decrypted text",
@@ -410,6 +450,20 @@ const de: Record<keyof typeof en, string> = {
   translucentEffects: "Transparente Oberflächeneffekte",
   translucentEffectsHint:
     "Dezenten Weichzeichner für Navigation und erhöhte Oberflächen verwenden.",
+  messageQrSettings: "Nachrichten-QR",
+  messageQrCreationEnabled: "Nachrichten-QR nach Textverschlüsselung anbieten",
+  messageQrCreationEnabledHint:
+    "Optionale Ausgabe nach normalem verschlüsseltem Text. Der Empfang von Nachrichten-QRs bleibt verfügbar.",
+  qrExportSetting: "Export",
+  qrExportApp: "In-App-QR",
+  qrExportLink: "Link für die Handykamera",
+  qrShowBoth: "Beides anzeigen",
+  qrImportSetting: "Import-Steuerung",
+  qrImportCamera: "Kamera",
+  qrImportImage: "Screenshot oder Bild",
+  qrAutoDecrypt: "Gültige Nachrichten-QRs automatisch entschlüsseln",
+  qrAutoDecryptHint:
+    "Nach der Authentifizierung lokal entschlüsseln. Diese Einstellung speichert keine Nachricht.",
   localOnly: "Nur auf diesem Gerät",
   firstTitle: "Identität erstellen oder importieren",
   firstBody:
@@ -421,6 +475,8 @@ const de: Record<keyof typeof en, string> = {
   publicAuthority: "Darf geteilt werden",
   publicQrAlt: "QR-Code des öffentlichen Kontakts",
   saveContactQr: "Kontakt-QR als PNG speichern",
+  showLargerQr: "QR-Code größer anzeigen",
+  closeLargerQr: "Großen QR-Code schließen",
   downloadContact: "Öffentlichen Kontakt herunterladen",
   publicContactHelper:
     "Teile diesen Kontakt, damit andere dir verschlüsselt schreiben können.",
@@ -438,6 +494,11 @@ const de: Record<keyof typeof en, string> = {
   saveVaultQr: "QR des privaten Tresors als PNG speichern",
   downloadVault: "Verschlüsselten Tresor herunterladen",
   vaultHint: "Verschlüsseltes PPXV",
+  privateExportsLocked: "Private Exporte gesperrt",
+  privateExportPassphrase: "Tresor-Passwort erneut eingeben",
+  revealPrivateExports: "Private Exporte anzeigen",
+  checkingPrivateExportPassword: "Passwort wird geprüft",
+  privateExportPasswordError: "Passwortprüfung fehlgeschlagen",
   privateBody:
     "Geheim halten. Wer sie besitzt, kann deine Identität wiederherstellen.",
   encryptTitle: "Verschlüsseln",
@@ -639,8 +700,21 @@ const de: Record<keyof typeof en, string> = {
   scanWithCamera: "Mit Kamera scannen",
   stopCamera: "Kamera stoppen",
   cameraPreview: "QR-Kameravorschau",
-  cameraUnavailable: "Das Scannen mit der Kamera ist nicht verfügbar.",
+  cameraInsecureContext:
+    "Öffne die HTTPS-URL für die Kamera oder lade das gespeicherte QR-Bild hoch.",
+  cameraPermissionDenied:
+    "Der Kamerazugriff wurde abgelehnt. Erlaube ihn in den Browser-Einstellungen oder lade das gespeicherte QR-Bild hoch.",
+  cameraNotFound:
+    "Keine Kamera gefunden. Schließe eine Kamera an oder lade das gespeicherte QR-Bild hoch.",
+  cameraBusy:
+    "Die Kamera wird von einer anderen App verwendet. Schließe sie dort oder lade das gespeicherte QR-Bild hoch.",
+  cameraUnavailable:
+    "Die Kamera konnte nicht gestartet werden. Versuche es erneut oder lade das gespeicherte QR-Bild hoch.",
   qrScanError: "Dieses QR-Bild konnte nicht gelesen werden.",
+  qrUnknownSender:
+    "Importiere zuerst den öffentlichen Kontakt dieses Absenders.",
+  messageQrReady:
+    "Der verschlüsselte Nachrichten-QR ist zur lokalen Entschlüsselung bereit.",
   importScannedQr: "Gescannten QR-Code importieren",
   paste: "Einfügen",
   pasteUnavailable:
@@ -671,6 +745,12 @@ const de: Record<keyof typeof en, string> = {
     "Kopieren nicht möglich. Wähle die verschlüsselte Ausgabe manuell aus.",
   saveOutput: "Verschlüsselte Ausgabe speichern",
   shareOutput: "Verschlüsselte Ausgabe teilen",
+  qrKnownSenderGuidance:
+    "Der Empfänger muss deinen öffentlichen Kontakt bereits besitzen, um diesen kompakten QR zu prüfen und zu entschlüsseln.",
+  downloadAppMessageQr: "In-App-Nachrichten-QR herunterladen",
+  downloadLinkMessageQr: "QR-Link für die Handykamera herunterladen",
+  messageQrTooLarge: "Der verschlüsselte QR ist",
+  messageQrTooLargeSuffix: "kodierte Bytes zu groß; kürze die Nachricht.",
   identityRequired: "Erstelle oder importiere zuerst eine Identität.",
   noContactsYet: "Importiere vor dem Verschlüsseln einen öffentlichen Kontakt.",
   encryptFileTitle: "Datei verschlüsseln",
@@ -706,6 +786,8 @@ const de: Record<keyof typeof en, string> = {
     "Dieses Element passt nicht zu deiner aktiven Identität oder ist beschädigt.",
   badSignature:
     "Das Element wurde entschlüsselt, aber die Absenderprüfung ist fehlgeschlagen.",
+  unsupportedCompression:
+    "Diese komprimierte Nachricht benötigt einen neueren oder unterstützten Browser. Aktualisiere diesen Browser oder öffne sie in einem anderen aktuellen Browser.",
   technicalDetails: "Technische Details",
   technicalFailureCode:
     "Die Prüfung ist fehlgeschlagen, bevor Inhalte freigegeben wurden.",
