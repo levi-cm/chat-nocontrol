@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { EncryptTextFlow } from "../../flows/encrypt/text";
-import { messages } from "../../i18n";
+import { messages, type Locale } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
 import { checksum16 } from "../../protocol/checksum";
 import { parseMessageLinkHash } from "../../protocol/message-link";
@@ -125,23 +125,25 @@ function renderFlow({
   messageOutputMode = "both",
   messageQrCreationEnabled = false,
   includeSenderContactInLinks = true,
+  locale = "en",
   onContactsChange = vi.fn<ContactsChange>().mockResolvedValue(true),
 }: {
   messageOutputMode?: MessageOutputMode;
   messageQrCreationEnabled?: boolean;
   includeSenderContactInLinks?: boolean;
+  locale?: Locale;
   onContactsChange?: ContactsChange;
 } = {}) {
   render(
     <EncryptTextFlow
-      t={(key) => messages.en[key]}
+      t={(key) => messages[locale][key]}
       identity={identityFixture()}
       sender={sender}
       contacts={[
         { contact: recipient, nickname: "Bob", includeSenderContactInLinks },
       ]}
       onContactsChange={onContactsChange}
-      locale="en"
+      locale={locale}
       messageOutputMode={messageOutputMode}
       messageQrCreationEnabled={messageQrCreationEnabled}
       qrExportMode="both"
@@ -150,11 +152,19 @@ function renderFlow({
   return { onContactsChange };
 }
 
-async function encryptMessage(message = "hello") {
+async function encryptMessage(message = "hello", locale: Locale = "en") {
   const user = userEvent.setup();
-  await user.selectOptions(screen.getByLabelText("Recipient"), "09".repeat(32));
-  await user.type(screen.getByLabelText("Encrypted text"), message);
-  await user.click(screen.getByRole("button", { name: "Encrypt" }));
+  await user.selectOptions(
+    screen.getByLabelText(messages[locale].recipient),
+    "09".repeat(32),
+  );
+  await user.type(
+    screen.getByLabelText(messages[locale].encryptedTextLabel),
+    message,
+  );
+  await user.click(
+    screen.getByRole("button", { name: messages[locale].encryptLocally }),
+  );
   await waitFor(() =>
     expect(workerMocks.startEncryptTextJob).toHaveBeenCalledOnce(),
   );
@@ -291,6 +301,52 @@ describe("sender message outputs", () => {
       throw new Error("copy encrypted link control is not a button");
     }
     expect(copyButton.disabled).toBe(false);
+  });
+
+  it.each([
+    ["en", /show encrypted text fallback/i],
+    ["de", /verschlüsselten text als ausweichmöglichkeit anzeigen/i],
+  ] as const)(
+    "reveals the encrypted-text fallback for long Link-only output in %s",
+    async (locale, fallbackLabel) => {
+      await prepareWorkers({ compact: "pending", largeFull: true });
+      renderFlow({
+        messageOutputMode: "link",
+        includeSenderContactInLinks: true,
+        locale,
+      });
+      const user = await encryptMessage("hello", locale);
+
+      await screen.findByLabelText(messages[locale].encryptedLink);
+      expect(
+        screen.queryByLabelText(messages[locale].encryptedOutput),
+      ).toBeNull();
+      await user.click(screen.getByRole("button", { name: fallbackLabel }));
+
+      const fallback = screen.getByLabelText(messages[locale].encryptedOutput);
+      expect(fallback).toBeInstanceOf(HTMLTextAreaElement);
+      if (!(fallback instanceof HTMLTextAreaElement)) {
+        throw new Error("encrypted text fallback is not a textarea");
+      }
+      expect(fallback.readOnly).toBe(true);
+      expect(fallback.value).toContain("-----BEGIN PPX ENCRYPTED TEXT-----");
+      expect(
+        screen.getByRole("button", { name: messages[locale].copyOutput }),
+      ).not.toBeNull();
+      expect(screen.queryByRole("button", { name: fallbackLabel })).toBeNull();
+    },
+  );
+
+  it("does not add a redundant long-link fallback action in Both mode", async () => {
+    await prepareWorkers({ compact: "pending", largeFull: true });
+    renderFlow({ messageOutputMode: "both" });
+    await encryptMessage();
+
+    await screen.findByLabelText("Encrypted link");
+    expect(screen.getByLabelText("Encrypted output")).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /show encrypted text fallback/i }),
+    ).toBeNull();
   });
 
   it("uses PPXQ when contact inclusion is off and shows known-contact guidance", async () => {

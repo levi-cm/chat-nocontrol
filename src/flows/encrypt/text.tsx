@@ -639,6 +639,17 @@ export function EncryptTextFlow({
                             {t("shareEncryptedLink")}
                           </button>
                         )}
+                        {messageOutputMode === "link" &&
+                          messageLink.length > 2_000 &&
+                          !revealTextFallback && (
+                            <button
+                              class="button secondary"
+                              type="button"
+                              onClick={() => setRevealTextFallback(true)}
+                            >
+                              {t("showEncryptedTextFallback")}
+                            </button>
+                          )}
                       </div>
                       {linkCopyStatus && (
                         <p class="input-meta" role="status">
