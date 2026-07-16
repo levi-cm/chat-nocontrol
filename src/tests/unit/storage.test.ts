@@ -10,6 +10,7 @@ import {
   openPpxDatabase,
 } from "../../storage/db";
 import {
+  contactStorageId,
   listContacts,
   putContact,
   replaceContacts,
@@ -159,6 +160,42 @@ describe("minimal PPX storage", () => {
     expect(session.getSettings().messageQrCreationEnabled).toBe(true);
     session.eraseAll();
     expect(session.getSettings().messageQrCreationEnabled).toBe(false);
+  });
+
+  it("resets incoming-message settings when session data is erased", () => {
+    const session = new SessionStorage();
+    session.setSettings({
+      ...DEFAULT_SETTINGS,
+      messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+    });
+
+    session.eraseAll();
+
+    expect(session.getSettings()).toMatchObject({
+      messageOutputMode: "both",
+      autoDecryptIncomingMessages: true,
+    });
+  });
+
+  it("normalizes legacy IndexedDB contacts to include sender contact", async () => {
+    const db = await openPpxDatabase();
+    const identity = await deriveIdentityFromEntropy(
+      new Uint8Array(32),
+      "Alice",
+    );
+    const contact = createPublicContact(identity, "Alice", 1n);
+    await db.put("contacts", {
+      id: contactStorageId(contact.fingerprint),
+      contact,
+      nickname: "Legacy",
+    });
+
+    expect((await listContacts(db))[0]).toMatchObject({
+      nickname: "Legacy",
+      includeSenderContactInLinks: true,
+    });
+    db.close();
   });
 
   it("defaults contact link inclusion on and persists an explicit opt-out", async () => {
