@@ -1,6 +1,7 @@
 import type { Locale, MessageKey } from "../../i18n";
 import type {
   AccentPreference,
+  MessageOutputMode,
   QrExportMode,
   QrImportControls,
   ThemePreference,
@@ -25,7 +26,8 @@ export function SettingsFlow({
   messageQrCreationEnabled,
   qrExportMode,
   qrImportControls,
-  qrAutoDecrypt,
+  messageOutputMode,
+  autoDecryptIncomingMessages,
   onLocaleChange,
   onThemeChange,
   onAccentChange,
@@ -33,7 +35,8 @@ export function SettingsFlow({
   onMessageQrCreationEnabledChange,
   onQrExportModeChange,
   onQrImportControlsChange,
-  onQrAutoDecryptChange,
+  onMessageOutputModeChange,
+  onAutoDecryptIncomingMessagesChange,
 }: {
   t: (key: MessageKey) => string;
   locale: Locale;
@@ -43,7 +46,8 @@ export function SettingsFlow({
   messageQrCreationEnabled: boolean;
   qrExportMode: QrExportMode;
   qrImportControls: QrImportControls;
-  qrAutoDecrypt: boolean;
+  messageOutputMode: MessageOutputMode;
+  autoDecryptIncomingMessages: boolean;
   onLocaleChange: (locale: Locale) => void;
   onThemeChange: (theme: ThemePreference) => void;
   onAccentChange: (accent: AccentPreference) => void;
@@ -51,7 +55,8 @@ export function SettingsFlow({
   onMessageQrCreationEnabledChange: (enabled: boolean) => void;
   onQrExportModeChange: (mode: QrExportMode) => void;
   onQrImportControlsChange: (controls: QrImportControls) => void;
-  onQrAutoDecryptChange: (enabled: boolean) => void;
+  onMessageOutputModeChange: (mode: MessageOutputMode) => void;
+  onAutoDecryptIncomingMessagesChange: (enabled: boolean) => void;
 }) {
   return (
     <section class="flow-panel settings-flow">
@@ -124,6 +129,39 @@ export function SettingsFlow({
         </label>
       </div>
       <div class="settings-group">
+        <h2>{t("messageDeliverySettings")}</h2>
+        <label class="setting-row" for="settings-message-output">
+          <span>{t("messageOutputSetting")}</span>
+          <select
+            id="settings-message-output"
+            value={messageOutputMode}
+            onChange={(event) =>
+              onMessageOutputModeChange(
+                event.currentTarget.value as MessageOutputMode,
+              )
+            }
+          >
+            <option value="link">{t("messageOutputLink")}</option>
+            <option value="text">{t("messageOutputText")}</option>
+            <option value="both">{t("messageOutputBoth")}</option>
+          </select>
+        </label>
+        <label class="setting-toggle" for="settings-auto-decrypt-incoming">
+          <span>
+            <strong>{t("autoDecryptIncomingMessages")}</strong>
+            <small>{t("autoDecryptIncomingMessagesHint")}</small>
+          </span>
+          <input
+            id="settings-auto-decrypt-incoming"
+            type="checkbox"
+            checked={autoDecryptIncomingMessages}
+            onChange={(event) =>
+              onAutoDecryptIncomingMessagesChange(event.currentTarget.checked)
+            }
+          />
+        </label>
+      </div>
+      <div class="settings-group">
         <h2>{t("messageQrSettings")}</h2>
         <label class="setting-toggle" for="settings-message-qr-creation">
           <span>
@@ -170,20 +208,6 @@ export function SettingsFlow({
             <option value="image">{t("qrImportImage")}</option>
             <option value="both">{t("qrShowBoth")}</option>
           </select>
-        </label>
-        <label class="setting-toggle" for="settings-qr-auto-decrypt">
-          <span>
-            <strong>{t("qrAutoDecrypt")}</strong>
-            <small>{t("qrAutoDecryptHint")}</small>
-          </span>
-          <input
-            id="settings-qr-auto-decrypt"
-            type="checkbox"
-            checked={qrAutoDecrypt}
-            onChange={(event) =>
-              onQrAutoDecryptChange(event.currentTarget.checked)
-            }
-          />
         </label>
       </div>
     </section>

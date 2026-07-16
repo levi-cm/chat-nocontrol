@@ -31,6 +31,14 @@ const en = {
   translucentEffects: "Translucent interface effects",
   translucentEffectsHint:
     "Use subtle blur on navigation and elevated interface surfaces.",
+  messageDeliverySettings: "Message delivery",
+  messageOutputSetting: "Message output",
+  messageOutputLink: "Link",
+  messageOutputText: "Encrypted text",
+  messageOutputBoth: "Both",
+  autoDecryptIncomingMessages: "Auto-decrypt incoming message links and QRs",
+  autoDecryptIncomingMessagesHint:
+    "Decrypt locally after authentication. No message is saved by this setting.",
   messageQrSettings: "Message QR",
   messageQrCreationEnabled: "Offer message QR after text encryption",
   messageQrCreationEnabledHint:
@@ -42,9 +50,6 @@ const en = {
   qrImportSetting: "Import controls",
   qrImportCamera: "Camera",
   qrImportImage: "Screenshot or image",
-  qrAutoDecrypt: "Auto-decrypt valid message QRs",
-  qrAutoDecryptHint:
-    "Decrypt locally after authentication. No message is saved by this setting.",
   localOnly: "On-device only",
   firstTitle: "Create identity or import identity",
   firstBody:
@@ -446,6 +451,15 @@ const de: Record<keyof typeof en, string> = {
   translucentEffects: "Transparente Oberflächeneffekte",
   translucentEffectsHint:
     "Dezenten Weichzeichner für Navigation und erhöhte Oberflächen verwenden.",
+  messageDeliverySettings: "Nachrichtenübermittlung",
+  messageOutputSetting: "Nachrichtenausgabe",
+  messageOutputLink: "Link",
+  messageOutputText: "Verschlüsselter Text",
+  messageOutputBoth: "Beides",
+  autoDecryptIncomingMessages:
+    "Eingehende Nachrichtenlinks und QRs automatisch entschlüsseln",
+  autoDecryptIncomingMessagesHint:
+    "Nach der Authentifizierung lokal entschlüsseln. Diese Einstellung speichert keine Nachricht.",
   messageQrSettings: "Nachrichten-QR",
   messageQrCreationEnabled: "Nachrichten-QR nach Textverschlüsselung anbieten",
   messageQrCreationEnabledHint:
@@ -457,9 +471,6 @@ const de: Record<keyof typeof en, string> = {
   qrImportSetting: "Import-Steuerung",
   qrImportCamera: "Kamera",
   qrImportImage: "Screenshot oder Bild",
-  qrAutoDecrypt: "Gültige Nachrichten-QRs automatisch entschlüsseln",
-  qrAutoDecryptHint:
-    "Nach der Authentifizierung lokal entschlüsseln. Diese Einstellung speichert keine Nachricht.",
   localOnly: "Nur auf diesem Gerät",
   firstTitle: "Identität erstellen oder importieren",
   firstBody:

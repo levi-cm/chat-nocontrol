@@ -39,6 +39,7 @@ import {
   putSettings,
   type AccentPreference,
   type AppSettings,
+  type MessageOutputMode,
   type QrExportMode,
   type QrImportControls,
   type ThemePreference,
@@ -84,6 +85,8 @@ function canonicalContacts(
           encodePublicContact(record.contact),
         ),
         nickname: typeof record.nickname === "string" ? record.nickname : "",
+        includeSenderContactInLinks:
+          record.includeSenderContactInLinks !== false,
       });
     } catch {
       // IndexedDB is untrusted input; discard non-canonical or corrupted rows.
@@ -108,9 +111,11 @@ export function App() {
   const [qrImportControls, setQrImportControls] = useState<QrImportControls>(
     DEFAULT_SETTINGS.qrImportControls,
   );
-  const [qrAutoDecrypt, setQrAutoDecrypt] = useState(
-    DEFAULT_SETTINGS.qrAutoDecrypt,
+  const [messageOutputMode, setMessageOutputMode] = useState<MessageOutputMode>(
+    DEFAULT_SETTINGS.messageOutputMode,
   );
+  const [autoDecryptIncomingMessages, setAutoDecryptIncomingMessages] =
+    useState(DEFAULT_SETTINGS.autoDecryptIncomingMessages);
   const [route, setRoute] = useState<RouteName>(() =>
     routeFromHash(window.location.hash),
   );
@@ -188,10 +193,13 @@ export function App() {
           const savedContacts =
             contactsResult.status === "fulfilled" ? contactsResult.value : [];
           loaded = canonicalContacts(
-            savedContacts.map(({ contact, nickname }) => ({
-              contact,
-              nickname,
-            })),
+            savedContacts.map(
+              ({ contact, nickname, includeSenderContactInLinks }) => ({
+                contact,
+                nickname,
+                includeSenderContactInLinks,
+              }),
+            ),
           );
           loadedVault =
             vaultResult.status === "fulfilled"
@@ -239,7 +247,10 @@ export function App() {
             );
             setQrExportMode(loadedSettings.qrExportMode);
             setQrImportControls(loadedSettings.qrImportControls);
-            setQrAutoDecrypt(loadedSettings.qrAutoDecrypt);
+            setMessageOutputMode(loadedSettings.messageOutputMode);
+            setAutoDecryptIncomingMessages(
+              loadedSettings.autoDecryptIncomingMessages,
+            );
             setSessionOnly(true);
             setStorageFailure("fallback");
             clearStoredLocale();
@@ -254,7 +265,10 @@ export function App() {
           setMessageQrCreationEnabled(loadedSettings.messageQrCreationEnabled);
           setQrExportMode(loadedSettings.qrExportMode);
           setQrImportControls(loadedSettings.qrImportControls);
-          setQrAutoDecrypt(loadedSettings.qrAutoDecrypt);
+          setMessageOutputMode(loadedSettings.messageOutputMode);
+          setAutoDecryptIncomingMessages(
+            loadedSettings.autoDecryptIncomingMessages,
+          );
         }
       } else {
         context.session.setSettings({
@@ -265,13 +279,18 @@ export function App() {
           messageQrCreationEnabled,
           qrExportMode,
           qrImportControls,
-          qrAutoDecrypt,
+          messageOutputMode,
+          autoDecryptIncomingMessages,
         });
         setContacts(
           canonicalContacts(
             context.session
               .listContacts()
-              .map(({ contact, nickname }) => ({ contact, nickname })),
+              .map(({ contact, nickname, includeSenderContactInLinks }) => ({
+                contact,
+                nickname,
+                includeSenderContactInLinks,
+              })),
           ),
         );
         setStoredVault(context.session.getVault() ?? null);
@@ -395,7 +414,8 @@ export function App() {
       messageQrCreationEnabled,
       qrExportMode,
       qrImportControls,
-      qrAutoDecrypt,
+      messageOutputMode,
+      autoDecryptIncomingMessages,
     });
     if (vault) session.putVault(vault);
     else session.deleteVault();
@@ -427,7 +447,8 @@ export function App() {
         messageQrCreationEnabled,
         qrExportMode,
         qrImportControls,
-        qrAutoDecrypt,
+        messageOutputMode,
+        autoDecryptIncomingMessages,
       });
       clearStoredLocale();
       return;
@@ -442,7 +463,8 @@ export function App() {
         messageQrCreationEnabled,
         qrExportMode,
         qrImportControls,
-        qrAutoDecrypt,
+        messageOutputMode,
+        autoDecryptIncomingMessages,
       }),
     );
     settingsWriteQueue.current = write.then(
@@ -463,9 +485,10 @@ export function App() {
     };
   }, [
     accent,
+    autoDecryptIncomingMessages,
     locale,
     messageQrCreationEnabled,
-    qrAutoDecrypt,
+    messageOutputMode,
     qrExportMode,
     qrImportControls,
     sessionOnly,
@@ -637,7 +660,10 @@ export function App() {
     setMessageQrCreationEnabled(DEFAULT_SETTINGS.messageQrCreationEnabled);
     setQrExportMode(DEFAULT_SETTINGS.qrExportMode);
     setQrImportControls(DEFAULT_SETTINGS.qrImportControls);
-    setQrAutoDecrypt(DEFAULT_SETTINGS.qrAutoDecrypt);
+    setMessageOutputMode(DEFAULT_SETTINGS.messageOutputMode);
+    setAutoDecryptIncomingMessages(
+      DEFAULT_SETTINGS.autoDecryptIncomingMessages,
+    );
     setPendingQrLink(null);
     setContacts([]);
     setStoredVault(null);
@@ -739,7 +765,8 @@ export function App() {
             messageQrCreationEnabled={messageQrCreationEnabled}
             qrExportMode={qrExportMode}
             qrImportControls={qrImportControls}
-            qrAutoDecrypt={qrAutoDecrypt}
+            messageOutputMode={messageOutputMode}
+            autoDecryptIncomingMessages={autoDecryptIncomingMessages}
             onLocaleChange={setLocale}
             onThemeChange={setTheme}
             onAccentChange={setAccent}
@@ -747,7 +774,8 @@ export function App() {
             onMessageQrCreationEnabledChange={setMessageQrCreationEnabled}
             onQrExportModeChange={setQrExportMode}
             onQrImportControlsChange={setQrImportControls}
-            onQrAutoDecryptChange={setQrAutoDecrypt}
+            onMessageOutputModeChange={setMessageOutputMode}
+            onAutoDecryptIncomingMessagesChange={setAutoDecryptIncomingMessages}
           />
         ) : route === "help" ? (
           <HelpFlow
@@ -775,7 +803,7 @@ export function App() {
             onContactsChange={saveContacts}
             locale={locale}
             qrImportControls={qrImportControls}
-            qrAutoDecrypt={qrAutoDecrypt}
+            qrAutoDecrypt={autoDecryptIncomingMessages}
             pendingQrText={pendingQrLink}
             onPendingQrConsumed={() => setPendingQrLink(null)}
           />

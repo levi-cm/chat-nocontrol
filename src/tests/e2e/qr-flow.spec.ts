@@ -45,15 +45,19 @@ test("captures a fragment-only message link and scrubs it immediately", async ({
   expect(requests.every((url) => !url.includes(payload))).toBe(true);
 });
 
-test("message QR preferences persist in browser-local settings", async ({
+test("message delivery preferences persist without the legacy key", async ({
   page,
 }) => {
   await page.goto("/#/settings");
+  await expect(page.getByLabel("Message output")).toHaveValue("both");
+  await page.getByLabel("Message output").selectOption("link");
   await expect(page.getByLabel("Export")).toBeHidden();
   await page.getByLabel("Offer message QR after text encryption").check();
   await page.getByLabel("Export").selectOption("app");
   await page.getByLabel("Import controls").selectOption("image");
-  await page.getByLabel("Auto-decrypt valid message QRs").uncheck();
+  await page
+    .getByLabel("Auto-decrypt incoming message links and QRs")
+    .uncheck();
   await page.waitForFunction(
     () =>
       new Promise<boolean>((resolve) => {
@@ -68,13 +72,17 @@ test("message QR preferences persist in browser-local settings", async ({
             const value = read.result as
               | {
                   messageQrCreationEnabled?: boolean;
+                  messageOutputMode?: string;
+                  autoDecryptIncomingMessages?: boolean;
                   qrAutoDecrypt?: boolean;
                 }
               | undefined;
             database.close();
             resolve(
               value?.messageQrCreationEnabled === true &&
-                value.qrAutoDecrypt === false,
+                value.messageOutputMode === "link" &&
+                value.autoDecryptIncomingMessages === false &&
+                !("qrAutoDecrypt" in value),
             );
           };
         };
@@ -86,7 +94,8 @@ test("message QR preferences persist in browser-local settings", async ({
   ).toBeChecked();
   await expect(page.getByLabel("Export")).toHaveValue("app");
   await expect(page.getByLabel("Import controls")).toHaveValue("image");
+  await expect(page.getByLabel("Message output")).toHaveValue("link");
   await expect(
-    page.getByLabel("Auto-decrypt valid message QRs"),
+    page.getByLabel("Auto-decrypt incoming message links and QRs"),
   ).not.toBeChecked();
 });
