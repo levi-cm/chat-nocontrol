@@ -1013,8 +1013,9 @@ Safe failure copy:
 
 ### 16.8 Update, offline, and session fallback
 
-- After a deployed version changes, the app must prompt: `A newer version is available.`
-- Never reload mid-operation or while unlocked/decrypted content is visible.
+- A discovered service-worker update must activate silently without user approval.
+- Never force-reload the current document; the newest activated build loads on
+  the next manual reload or app reopen.
 - After the first successful load, the app should remain usable offline as long as the browser retains the app shell and versioned assets.
 - If storage is unavailable, the current loaded session must continue to work, but future offline reload is not guaranteed.
 - Session-only mode is the fallback when storage is denied or unavailable.
@@ -1343,7 +1344,8 @@ Accessibility and offline behavior:
 - `test:accessibility` for keyboard, screen reader, focus, contrast, and zoom.
 - `test:i18n` for language parity and translation rules.
 - `test:offline` for app-shell offline behavior after first load.
-- `test:update-banner` for version-change prompting.
+- `test:pwa-update-policy` for silent activation without forced reloads or
+  update prompts.
 - `test:network-denial` for safe behavior without network access.
 
 Release engineering:
@@ -1425,7 +1427,8 @@ This section gives the high-level implementation phases. The detailed execution 
 ### Phase 5: Accessibility, offline, and deployment
 
 - Complete keyboard, screen reader, zoom, and reduced-motion behavior.
-- Implement offline shell caching and update prompts.
+- Implement offline shell caching and silent service-worker activation without
+  forced reloads.
 - Apply the GitHub Pages routing and CSP constraints.
 
 ### Phase 6: Testing and release hardening
