@@ -1,114 +1,205 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the repository overview for the public beta docs package.
-> **Version:** 1.0-draft
-> **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [docs/product-spec.md](docs/product-spec.md), [docs/protocol-v1.md](docs/protocol-v1.md), [docs/security-architecture.md](docs/security-architecture.md), [docs/threat-model.md](docs/threat-model.md), [docs/design-spec.md](docs/design-spec.md), [docs/ux-content-spec.md](docs/ux-content-spec.md), [docs/accessibility-i18n.md](docs/accessibility-i18n.md), [docs/user-guide.en.md](docs/user-guide.en.md), [docs/user-guide.de.md](docs/user-guide.de.md), [docs/testing-and-release.md](docs/testing-and-release.md), [docs/references.md](docs/references.md), [WebLibre_full_plan.md](WebLibre_full_plan.md)
-> **Supersedes:** The original WebLibre plan is historical only; it remains archive context, not an active specification.
+<!-- markdownlint-disable MD033 MD041 -->
 
-# Chat NoControl
+<p align="center">
+  <img src="logo.png" alt="Chat NoControl logo" width="144">
+</p>
 
-Chat NoControl is the calm product behind a satirical brand name. This
-repository contains a static Preact implementation plus the normative PPX
-documentation. Identity recovery, contacts, local storage, offline shell,
-encrypted text, and worker-backed encrypted files are implemented. This source
-snapshot does not claim a current deployment or stable-security status;
-publication state is established by GitHub's release and deployment evidence.
+<h1 align="center">Chat NoControl</h1>
 
-The current protocol family is PPX Protocol v1. There is no supported stable release version yet.
+<p align="center">
+  Encrypt text and files in your browser. No account, message server, tracking,
+  or cloud history.
+</p>
 
-- Source: <https://github.com/levi-cm/chat-nocontrol>
-- Releases and review-bound artifacts: <https://github.com/levi-cm/chat-nocontrol/releases>
-- Public beta site and current availability: <https://levi-cm.github.io/chat-nocontrol/>
+<p align="center">
+  <a href="https://levi-cm.github.io/chat-nocontrol/">
+    <strong>Open the live beta preview</strong>
+  </a>
+  ·
+  <a href="docs/user-guide.en.md">English guide</a>
+  ·
+  <a href="docs/user-guide.de.md">Deutsche Anleitung</a>
+</p>
 
-## What v1 Is
+<p align="center">
+  <img
+    src="https://img.shields.io/badge/version-0.1.0--beta.1-2563eb"
+    alt="Version 0.1.0-beta.1"
+  >
+  <img
+    src="https://img.shields.io/badge/status-beta_preview-f59e0b"
+    alt="Status: beta preview"
+  >
+  <img
+    src="https://img.shields.io/badge/license-AGPL--3.0--or--later-0f766e"
+    alt="License: AGPL-3.0-or-later"
+  >
+</p>
 
-- Static, accountless, browser-first product concept with no backend, relay, key server, telemetry, analytics, or remote dependency.
-- One active identity at a time.
-- One recipient per encrypted output.
-- Local encrypt and decrypt flows for text and files.
-- Ordinary PPXT is the primary text output. Message-QR creation is an optional
-  Settings-enabled output after encryption and defaults off; receiving remains
-  available. See
-  [`docs/protocol-qr-message-v1.md`](docs/protocol-qr-message-v1.md).
-- Public contacts exchanged as QR or file payloads.
-- Identity creation uses a seven-screen backup-and-restore wizard; the UI calls the public protocol pseudonym a `Username`.
-- Every new identity uses a matching browser-vault password. Its plaintext appears only on the private A4 recovery print/PDF and is never persisted or included in QR/PPXR artifacts.
-- Encrypted IndexedDB vault storage is recommended and preselected, but written only after explicit confirmation; session-only remains available.
-- English and German launch content.
-- Calm, Apple-like mobile/desktop UI governed by the approved visual spec.
+<!-- markdownlint-enable MD033 MD041 -->
 
-## Exact v1 Limits
+> [!WARNING]
+> Chat NoControl is a beta preview, not a stable or independently reviewed
+> release. Do not rely on it for high-risk secrets. Read the
+> [security notes](SECURITY.md) and [current project status](docs/implementation-status.md)
+> before evaluating it for real use.
 
-- Text support: up to `256 KiB`.
-- File support: up to `100 MiB`.
-- Optional file caption: up to `16 KiB`.
-- Session-only mode when storage is unavailable or the user declines persistence.
-- The repository stays private through implementation and review and becomes public only with an explicitly approved public beta after every release gate passes.
-- No message history.
-- No forward secrecy.
-- No group messaging.
-- No account model.
-- No cloud sync.
-- No analytics or telemetry.
-- No remote fonts, scripts, images, or crash reporting.
-- No promise of stable production security without independent review.
+## What is Chat NoControl?
 
-## Security Summary
+Chat NoControl is an accountless tool for exchanging encrypted text and files.
+Encryption and decryption happen locally in your browser. You move the encrypted
+result through any channel you already use: email, chat, USB storage, a QR code,
+or something else.
 
-PPX v1 uses hybrid confidentiality with ML-KEM-512 and classical X25519, classical sender authentication with Ed25519, and AES-256-GCM for content protection. That is the narrow claim. It is not quantum-proof, not Signal-equivalent, and not a finished stable product.
+It is deliberately not a messaging platform. There is no Chat NoControl server
+holding accounts, contacts, messages, or keys.
 
-## Docs Map
+## How it works
 
-### Existing drafts
+1. **Create or restore an identity.** Save the recovery materials and choose
+   whether to keep an encrypted browser vault.
+2. **Exchange public contacts.** Shareable QR codes or files let people encrypt
+   something specifically for you.
+3. **Encrypt and decrypt locally.** Copy or download the encrypted output, send
+   it using another channel, then let the recipient open it in Chat NoControl.
 
-| File | Status | Purpose |
-|---|---|---|
-| [WebLibre_full_plan.md](WebLibre_full_plan.md) | Historical | Original archive plan. Read it for context only. |
-| [Chat_NoControl_full_plan.md](Chat_NoControl_full_plan.md) | Authoritative Draft | Complete v1 product, protocol, security, UX, deployment, and release specification. |
-| [docs/product-spec.md](docs/product-spec.md) | Existing Draft | Product identity, scope, release posture, and required UX. |
-| [docs/protocol-v1.md](docs/protocol-v1.md) | Existing Draft | PPX v1 object formats, identity model, and byte-level rules. |
-| [docs/security-architecture.md](docs/security-architecture.md) | Existing Draft | Cryptographic boundaries, primitives, and provider contract. |
-| [docs/threat-model.md](docs/threat-model.md) | Existing Draft | Attacker model, protected assets, and residual risks. |
-| [docs/design-spec.md](docs/design-spec.md) | Existing Draft | Functional design, state, storage, and responsive boundaries. |
-| [docs/apple-visual-spec.md](docs/apple-visual-spec.md) | Approved Visual Spec | Apple-inspired palette, system typography, layout, material, motion, and accessibility boundaries. |
-| [docs/ux-content-spec.md](docs/ux-content-spec.md) | Existing Draft | Screen copy, content structure, and user-visible wording. |
-| [docs/accessibility-i18n.md](docs/accessibility-i18n.md) | Existing Draft | Accessibility rules and English/German parity. |
-| [docs/user-guide.en.md](docs/user-guide.en.md) | Existing Draft | English user guide. |
-| [docs/user-guide.de.md](docs/user-guide.de.md) | Existing Draft | German user guide. |
-| [docs/testing-and-release.md](docs/testing-and-release.md) | Existing Draft | Testing, review, and release contract. |
-| [docs/references.md](docs/references.md) | Existing Draft | Source notes, citations, and supporting references. |
-| [docs/implementation-plan.md](docs/implementation-plan.md) | Execution Record | Decision-complete Tasks 0-17 implementation and verification sequence. |
+## What you can do
 
-## How To Review
+- Encrypt text up to `256 KiB` and files up to `100 MiB` for one recipient.
+- Add an optional file caption up to `16 KiB`.
+- Exchange public contacts by QR code, image, or file.
+- Save an encrypted identity vault in the browser or use session-only mode.
+- Recover an identity from a private QR, `.ppxrecovery` file, recovery code, or
+  24 English recovery words.
+- Receive compact encrypted-message QR codes. Creating them is an optional
+  setting and remains off by default.
+- Use the installed app shell offline after it has loaded successfully once.
+- Use the interface in English or German on desktop and mobile browsers.
 
-1. Start with [docs/product-spec.md](docs/product-spec.md) to understand the product shape and user-visible limits.
-2. Read [docs/protocol-v1.md](docs/protocol-v1.md) and [docs/security-architecture.md](docs/security-architecture.md) together for the protocol and cryptographic claims.
-3. Check [docs/threat-model.md](docs/threat-model.md) for what the system does and does not protect.
-4. Read [docs/design-spec.md](docs/design-spec.md) and [docs/ux-content-spec.md](docs/ux-content-spec.md) for the calm UI direction and the exact wording rules.
-5. Verify English and German parity in [docs/user-guide.en.md](docs/user-guide.en.md) and [docs/user-guide.de.md](docs/user-guide.de.md).
-6. Treat [WebLibre_full_plan.md](WebLibre_full_plan.md) as historical only.
-7. Before commenting on link integrity, run a quick local check for broken relative paths and terminology drift.
+## Protect your recovery material
+
+> [!CAUTION]
+> A private recovery QR, `.ppxrecovery` file, recovery code, set of 24 recovery
+> words, and recovery sheet all grant the power to restore your identity.
+> Anyone who gets one may decrypt messages intended for that identity.
+
+Recovery QR codes, `.ppxrecovery` files, recovery codes, and recovery words are
+not protected by the browser-vault password. Store them like private keys. The
+recovery PDF also contains the separate browser-vault password; never share it.
+
+If every recovery copy and the remembered browser vault are lost, the identity
+and messages encrypted for it cannot be recovered.
+
+## Privacy and security
+
+Chat NoControl has no backend, relay, account service, key server, analytics,
+telemetry, remote fonts, remote scripts, crash reporting, or cloud sync. The
+static app performs cryptographic work in dedicated browser workers and stores
+data locally only when you choose to.
+
+PPX currently combines:
+
+- **ML-KEM-512 + X25519** for hybrid confidentiality.
+- **Ed25519** for classical sender authentication.
+- **AES-256-GCM** for encrypted content and integrity protection.
+- Strict, versioned binary formats with bounded parsers and size limits.
+
+These are narrow implementation claims, not a promise that the product is
+quantum-proof or equivalent to Signal. Security still depends on an
+uncompromised device and browser, authentic public contacts, safe recovery
+storage, and independent review of the exact release.
+
+### Important limits
+
+| Chat NoControl has | Chat NoControl does not have |
+| --- | --- |
+| One active identity | Accounts or cloud identity recovery |
+| One recipient per output | Group or multi-recipient messaging |
+| Portable encrypted text and files | Delivery service or message history |
+| Classical sender signatures | Post-quantum signatures |
+| Local encrypted vault storage | Forward secrecy, ratchet, or secure deletion |
+
+See the full [security architecture](docs/security-architecture.md) and
+[threat model](docs/threat-model.md) for exact boundaries.
+
+## Current project status
+
+- Repository version: **`0.1.0-beta.1`**.
+- Core identity, recovery, contact, text, file, QR, offline, English, and German
+  flows are implemented.
+- The Pages site is a live preview, not a recorded reviewed release.
+- The latest local checkpoint records a timeout in the long browser suite's
+  recovery-QR path, while focused reruns passed.
+- Physical-device QR evidence, completed independent review, signed release
+  provenance, and final deployment evidence remain open release gates.
+
+Follow [implementation status](docs/implementation-status.md) for current test
+evidence and blockers. GitHub [Releases](https://github.com/levi-cm/chat-nocontrol/releases)
+is the source for any future published release.
+
+## For protocol enthusiasts
+
+PPX uses small, versioned objects for different jobs:
+
+| Object | Purpose |
+| --- | --- |
+| `PPXC` | Shareable public contact |
+| `PPXT` | Encrypted text |
+| `PPXF` | Encrypted file and optional caption |
+| `PPXQ` | Compact encrypted-message QR |
+| `PPXR` | Unencrypted identity recovery object |
+| `PPXV` | Password-encrypted identity vault |
+
+Start with [PPX Protocol v1](docs/protocol-v1.md). Adaptive text compression is
+documented in [Protocol v2](docs/protocol-v2.md), and compact message QR details
+live in the [PPXQ protocol document](docs/protocol-qr-message-v1.md).
 
 ## Local development
 
-Install the pinned dependencies with `npm ci`, then run `npm run dev` (or the
-equivalent `npm run dev:tailscale`). The runner reads this node's live Tailscale
-DNS name, binds Vite to `127.0.0.1:5173`, and exposes it through foreground
-Tailscale Serve. Open the printed `https://<node>.<tailnet>.ts.net/` URL. On the
-first run, Tailscale may print an administrator link for approving HTTPS
-certificates; approve it for this tailnet, then run the command again. The
-strict port prevents Vite from silently moving when another process owns
-`5173`. Stopping the command terminates both Vite and the foreground Serve.
+Requirements:
 
-Phone camera and automatic Clipboard permissions require a browser secure
-context. Plain IP HTTP does not qualify even when the network path is encrypted
-by Tailscale. Use `npm run dev:http:tailscale` only for explicit compatibility
-checks; camera scanning will direct users to HTTPS and copy actions may fall
-back to selecting the complete text for manual copying.
+- Node.js `^22.12.0` or `>=24.0.0`
+- npm
+- Tailscale for the default phone-friendly HTTPS development command
 
-`npm run dev:lan` remains available for explicit raw-LAN inspection and binds
-to `0.0.0.0`. This is broader exposure than the default Tailscale-only command;
-keep the firewall enabled and stop the server when testing is finished.
+```bash
+npm ci
+npm run dev
+```
+
+The default command binds Vite to `127.0.0.1:5173` and exposes it through
+foreground Tailscale Serve. It prints the HTTPS URL to open. HTTPS is required
+for reliable camera and clipboard permissions on phones.
+
+For explicit raw-LAN testing, `npm run dev:lan` binds to `0.0.0.0`. This exposes
+the development server more broadly, and camera or clipboard features may not
+work over plain HTTP.
+
+Useful checks:
+
+```bash
+npm run build
+npm run test
+npm run verify:quality
+npm run verify
+```
+
+`npm run verify:quality` runs the full local quality suite. `npm run verify`
+also enforces independent-review, release, SBOM, and reproducibility gates, so
+it correctly remains blocked until genuine release evidence exists.
+
+## Learn more
+
+- [English user guide](docs/user-guide.en.md)
+- [German user guide](docs/user-guide.de.md)
+- [Product specification](docs/product-spec.md)
+- [Security architecture](docs/security-architecture.md)
+- [Threat model](docs/threat-model.md)
+- [Testing and release contract](docs/testing-and-release.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security reporting](SECURITY.md)
 
 ## License
 
-This repository is licensed under `AGPL-3.0-or-later`. See [LICENSE](LICENSE).
+Chat NoControl is licensed under
+[AGPL-3.0-or-later](LICENSE).
