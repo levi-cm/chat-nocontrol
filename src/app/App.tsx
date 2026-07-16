@@ -19,6 +19,10 @@ import type {
   LockedVaultObject,
   PublicContact,
 } from "../protocol/types";
+import {
+  captureIncomingMessageIntent,
+  type IncomingMessageIntent,
+} from "../protocol/message-link";
 import { encodeBase45Upper } from "../protocol/base45";
 import { equalBytes } from "../protocol/checksum";
 import { encodePublicContact } from "../protocol/ppxc";
@@ -56,7 +60,11 @@ import {
 } from "./bootstrap";
 import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
 import {
-  captureQrMessageLink,
+  consumeExpectedIncomingIntent,
+  incomingIntentIsExpired,
+  remainingIncomingIntentLifetime,
+} from "./incoming-intent";
+import {
   clearLastUnlockedRoute,
   readLastUnlockedRoute,
   ROUTES,
@@ -95,7 +103,11 @@ function canonicalContacts(
   return valid;
 }
 
-export function App() {
+export function App({
+  initialIncomingIntent = null,
+}: {
+  initialIncomingIntent?: IncomingMessageIntent | null;
+}) {
   const [locale, setLocale] = useState<Locale>(readStoredLocale);
   const [theme, setTheme] = useState<ThemePreference>(DEFAULT_SETTINGS.theme);
   const [accent, setAccent] = useState<AccentPreference>(
@@ -119,11 +131,8 @@ export function App() {
   const [route, setRoute] = useState<RouteName>(() =>
     routeFromHash(window.location.hash),
   );
-  const [pendingQrLink, setPendingQrLink] = useState<string | null>(() => {
-    const captured = captureQrMessageLink(window.location);
-    if (captured) history.replaceState(null, "", "#/decrypt");
-    return captured;
-  });
+  const [pendingIncomingIntent, setPendingIncomingIntent] =
+    useState<IncomingMessageIntent | null>(initialIncomingIntent);
   const [activeIdentity, setActiveIdentity] = useState<DerivedIdentity | null>(
     null,
   );
@@ -141,6 +150,7 @@ export function App() {
   const degradedPersistentDb = useRef<PpxDatabase | null>(null);
   const suppressNextLocalePersistence = useRef(false);
   const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const decryptCancellation = useRef<(() => void) | null>(null);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [storageFailure, setStorageFailure] = useState<
     "fallback" | "delete-failed" | null
@@ -148,6 +158,7 @@ export function App() {
   const t = (key: MessageKey) => messages[locale][key];
 
   const lockActiveIdentity = () => {
+    decryptCancellation.current?.();
     if (activeIdentity) writeLastUnlockedRoute(route);
     if (activeIdentity) zeroizeIdentitySecrets(activeIdentity);
     setActiveIdentity(null);
@@ -375,23 +386,59 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!pendingIncomingIntent) return;
+    if (incomingIntentIsExpired(pendingIncomingIntent, Date.now())) {
+      decryptCancellation.current?.();
+      setPendingIncomingIntent(null);
+      return;
+    }
+    const remaining = remainingIncomingIntentLifetime(
+      pendingIncomingIntent,
+      Date.now(),
+    );
+    if (remaining === null) return;
+    const timer = window.setTimeout(() => {
+      decryptCancellation.current?.();
+      setPendingIncomingIntent(null);
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [pendingIncomingIntent]);
+
+  useEffect(() => {
     const updateRoute = () => {
-      const captured = captureQrMessageLink(window.location);
+      const currentUrl = new URL(window.location.href);
+      const captured = captureIncomingMessageIntent(
+        {
+          pathname: currentUrl.pathname,
+          search: currentUrl.search,
+          hash: currentUrl.hash,
+          username: currentUrl.username,
+          password: currentUrl.password,
+        },
+        window.history,
+        Date.now(),
+      );
       if (captured) {
-        setPendingQrLink(captured);
-        history.replaceState(null, "", "#/decrypt");
+        decryptCancellation.current?.();
+        setPendingIncomingIntent(captured);
         setRoute("decrypt");
         return;
       }
-      setRoute(routeFromHash(window.location.hash));
+      const nextRoute = routeFromHash(window.location.hash);
+      if (nextRoute !== "decrypt") {
+        decryptCancellation.current?.();
+        setPendingIncomingIntent(null);
+      }
+      setRoute(nextRoute);
     };
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
   }, []);
 
   const navigate = (next: RouteName) => {
-    if (next !== "decrypt" && (activeIdentity || next !== "identity")) {
-      setPendingQrLink(null);
+    if (next !== "decrypt") {
+      decryptCancellation.current?.();
+      setPendingIncomingIntent(null);
     }
     if (activeIdentity) writeLastUnlockedRoute(next);
     setRoute(next);
@@ -603,12 +650,18 @@ export function App() {
     setPublicContact(contact);
     navigate(
       existingRememberedVault
-        ? routeAfterUnlock(pendingQrLink !== null, readLastUnlockedRoute())
-        : "encrypt",
+        ? routeAfterUnlock(
+            pendingIncomingIntent !== null,
+            readLastUnlockedRoute(),
+          )
+        : pendingIncomingIntent
+          ? "decrypt"
+          : "encrypt",
     );
   };
 
   const removeStoredVault = async (): Promise<boolean> => {
+    decryptCancellation.current?.();
     const persistentDb =
       storage?.mode === "persistent"
         ? storage.db
@@ -631,6 +684,7 @@ export function App() {
   };
 
   const eraseAll = async (): Promise<boolean> => {
+    decryptCancellation.current?.();
     const persistentDb =
       storage?.mode === "persistent"
         ? storage.db
@@ -664,7 +718,7 @@ export function App() {
     setAutoDecryptIncomingMessages(
       DEFAULT_SETTINGS.autoDecryptIncomingMessages,
     );
-    setPendingQrLink(null);
+    setPendingIncomingIntent(null);
     setContacts([]);
     setStoredVault(null);
     lockActiveIdentity();
@@ -796,6 +850,51 @@ export function App() {
             messageQrCreationEnabled={messageQrCreationEnabled}
             qrExportMode={qrExportMode}
           />
+        ) : route === "decrypt" && pendingIncomingIntent?.kind === "invalid" ? (
+          <section class="flow-panel incoming-message-context">
+            <h1>{t("incomingMessageTitle")}</h1>
+            <p class="field-error" role="alert">
+              {t("incomingMessageInvalid")}
+            </p>
+            <button
+              class="button secondary"
+              type="button"
+              onClick={() => setPendingIncomingIntent(null)}
+            >
+              {t("cancel")}
+            </button>
+          </section>
+        ) : route === "decrypt" && !activeIdentity && pendingIncomingIntent ? (
+          <div class="identity-layout">
+            <section class="flow-panel incoming-message-context">
+              <h1>{t("incomingMessageTitle")}</h1>
+              <p>{t("incomingIdentityRequired")}</p>
+              <button
+                class="button secondary"
+                type="button"
+                onClick={() => {
+                  setPendingIncomingIntent(null);
+                  navigate("identity");
+                }}
+              >
+                {t("cancel")}
+              </button>
+            </section>
+            <IdentityHome
+              t={t}
+              locale={locale}
+              identity={activeIdentity}
+              contact={publicContact}
+              storedVault={storedVault}
+              storageMode={storage?.mode ?? "session-only"}
+              sessionOnly={sessionOnly}
+              hasLocalData={storedVault !== null || contacts.length > 0}
+              onReady={identityReady}
+              onDeleteVault={removeStoredVault}
+              onEraseAll={eraseAll}
+              preferImport
+            />
+          </div>
         ) : route === "decrypt" ? (
           <DecryptFlow
             key={activeIdentity ? "decrypt-unlocked" : "decrypt-locked"}
@@ -805,9 +904,14 @@ export function App() {
             onContactsChange={saveContacts}
             locale={locale}
             qrImportControls={qrImportControls}
-            qrAutoDecrypt={autoDecryptIncomingMessages}
-            pendingQrText={pendingQrLink}
-            onPendingQrConsumed={() => setPendingQrLink(null)}
+            autoDecryptIncomingMessages={autoDecryptIncomingMessages}
+            pendingIncomingIntent={pendingIncomingIntent}
+            onPendingIncomingConsumed={(expected) =>
+              setPendingIncomingIntent((current) =>
+                consumeExpectedIncomingIntent(current, expected),
+              )
+            }
+            cancellationHandle={decryptCancellation}
           />
         ) : route === "contacts" ? (
           <ContactsManage t={t} contacts={contacts} onChange={saveContacts} />
@@ -845,6 +949,7 @@ function IdentityHome({
   onReady,
   onDeleteVault,
   onEraseAll,
+  preferImport = false,
 }: {
   t: (key: MessageKey) => string;
   locale: Locale;
@@ -864,6 +969,7 @@ function IdentityHome({
   ) => Promise<void> | void;
   onDeleteVault: () => Promise<boolean>;
   onEraseAll: () => Promise<boolean>;
+  preferImport?: boolean;
 }) {
   const [passphrase, setPassphrase] = useState("");
   const passphraseBytes = new TextEncoder().encode(passphrase).byteLength;
@@ -1079,6 +1185,7 @@ function IdentityHome({
           identity={identity}
           contact={contact}
           persistentStorageAvailable={storageMode === "persistent"}
+          initialStep={preferImport ? "import" : "choice"}
           onReady={(
             readyIdentity,
             readyContact,

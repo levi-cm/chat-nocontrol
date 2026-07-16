@@ -85,6 +85,7 @@ interface IdentityCreateProps {
   recoveryQrGenerator?: typeof generateRecoveryQrDataUrl;
   usernameImageGenerator?: typeof generateRecoveryUsernameDataUrl;
   pdfGenerator?: typeof generateRecoveryPdfBytes;
+  initialStep?: "choice" | "import";
 }
 
 type Step =
@@ -165,8 +166,9 @@ export function IdentityCreate({
   recoveryQrGenerator = generateRecoveryQrDataUrl,
   usernameImageGenerator = generateRecoveryUsernameDataUrl,
   pdfGenerator = generateRecoveryPdfBytes,
+  initialStep = "choice",
 }: IdentityCreateProps) {
-  const [step, setStep] = useState<Step>("choice");
+  const [step, setStep] = useState<Step>(initialStep);
   const [username, setUsername] = useState("");
   const [pendingIdentity, setPendingIdentity] =
     useState<DerivedIdentity | null>(null);

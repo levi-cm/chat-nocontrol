@@ -34,6 +34,24 @@ describe("app shell", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).not.toBeNull();
   });
 
+  it("scrubs malformed incoming intent into a safe dismissible error", async () => {
+    window.location.hash = "#/decrypt";
+    render(<App initialIncomingIntent={{ kind: "invalid" }} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Open encrypted message" }),
+    ).not.toBeNull();
+    expect(
+      screen.getByText(
+        "This encrypted message link is invalid, incomplete, or too large.",
+      ),
+    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Import identity" }),
+    ).toBeNull();
+  });
+
   it("uses the supplied Chat NoControl logo in the app header", () => {
     const { container } = render(<App />);
     const logo = container.querySelector<HTMLImageElement>("img.brand-logo");

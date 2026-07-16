@@ -89,6 +89,14 @@ const en = {
   decryptTitle: "Decrypt",
   decryptBody:
     "Paste encrypted text or choose an encrypted file. Validation happens before content appears.",
+  incomingMessageTitle: "Open encrypted message",
+  incomingIdentityRequired:
+    "Unlock, import, or create the recipient identity to decrypt this message.",
+  incomingMessageInvalid:
+    "This encrypted message link is invalid, incomplete, or too large.",
+  incomingMessageReady: "Encrypted message ready. Decrypt when you are ready.",
+  notNow: "Not now",
+  saveSeparateContact: "Save as separate contact",
   contactsTitle: "Contacts",
   contactsBody:
     "Public contacts live only in this browser. You can remove them at any time.",
@@ -538,6 +546,15 @@ const de: Record<keyof typeof en, string> = {
   decryptTitle: "Entschlüsseln",
   decryptBody:
     "Füge verschlüsselten Text ein oder wähle eine verschlüsselte Datei. Inhalte erscheinen erst nach der Prüfung.",
+  incomingMessageTitle: "Verschlüsselte Nachricht öffnen",
+  incomingIdentityRequired:
+    "Entsperre, importiere oder erstelle die Empfängeridentität, um diese Nachricht zu entschlüsseln.",
+  incomingMessageInvalid:
+    "Dieser verschlüsselte Nachrichtenlink ist ungültig, unvollständig oder zu groß.",
+  incomingMessageReady:
+    "Verschlüsselte Nachricht bereit. Entschlüssle sie, wenn du bereit bist.",
+  notNow: "Nicht jetzt",
+  saveSeparateContact: "Als separaten Kontakt speichern",
   contactsTitle: "Kontakte",
   contactsBody:
     "Öffentliche Kontakte bleiben nur in diesem Browser. Du kannst sie jederzeit löschen.",

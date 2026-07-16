@@ -71,6 +71,7 @@ test("keeps same-pseudonym text and file senders separate until verified", async
   await expect(page.getByRole("alert")).toContainText(
     "Same pseudonym, different key. Keep both entries separate until you verify which one you want.",
   );
+  await page.getByRole("button", { name: "Save as separate contact" }).click();
 
   await page.getByLabel("Encrypted file").setInputFiles({
     name: "collision.ppxfile",

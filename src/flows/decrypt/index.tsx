@@ -14,8 +14,11 @@ import type {
   DecryptedTextOutput,
   DerivedIdentity,
   EncryptedQrTextObject,
+  EncryptedTextObject,
 } from "../../protocol/types";
 import { parseQrMessageText } from "../../protocol/ppxq";
+import type { IncomingMessageIntent } from "../../protocol/message-link";
+import { parseIncomingMessageText } from "../../app/incoming-link-input";
 import {
   type CryptoWorkerJob,
   startDecryptTextJob,
@@ -34,9 +37,10 @@ export function DecryptFlow({
   onContactsChange,
   locale,
   qrImportControls,
-  qrAutoDecrypt,
-  pendingQrText,
-  onPendingQrConsumed,
+  autoDecryptIncomingMessages,
+  pendingIncomingIntent,
+  onPendingIncomingConsumed,
+  cancellationHandle,
 }: {
   t: (key: MessageKey) => string;
   identity: DerivedIdentity | null;
@@ -44,27 +48,52 @@ export function DecryptFlow({
   onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
   locale: Locale;
   qrImportControls: QrImportControls;
-  qrAutoDecrypt: boolean;
-  pendingQrText: string | null;
-  onPendingQrConsumed: () => void;
+  autoDecryptIncomingMessages: boolean;
+  pendingIncomingIntent: IncomingMessageIntent | null;
+  onPendingIncomingConsumed: (expected?: IncomingMessageIntent) => void;
+  cancellationHandle: { current: (() => void) | null };
 }) {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<DecryptedTextOutput | null>(null);
   const [qrInput, setQrInput] = useState<EncryptedQrTextObject | null>(null);
+  const [textInputObject, setTextInputObject] =
+    useState<EncryptedTextObject | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [fileStartToken, setFileStartToken] = useState(0);
   const [smartError, setSmartError] = useState("");
-  const [collision, setCollision] = useState("");
+  const [collisionConfirmation, setCollisionConfirmation] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [status, setStatus] = useState("");
   const [savingSender, setSavingSender] = useState(false);
+  const [senderPromptDismissed, setSenderPromptDismissed] = useState(false);
   const [routingBusy, setRoutingBusy] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const routingGeneration = useRef(0);
   const textJob = useRef<CryptoWorkerJob<DecryptedTextOutput> | null>(null);
+  const pendingOwnedObject = useRef<
+    EncryptedTextObject | EncryptedQrTextObject | null
+  >(null);
   const decryptedOutput = useRef<HTMLTextAreaElement | null>(null);
+
+  const cancelActiveDecrypt = () => {
+    textJob.current?.cancel();
+    textJob.current = null;
+    pendingOwnedObject.current = null;
+    setBusy(false);
+    setTextInputObject(null);
+    setQrInput(null);
+    setStatus("");
+  };
+  useEffect(() => {
+    cancellationHandle.current = cancelActiveDecrypt;
+    return () => {
+      if (cancellationHandle.current === cancelActiveDecrypt)
+        cancellationHandle.current = null;
+    };
+  });
 
   useEffect(
     () => () => {
@@ -85,37 +114,68 @@ export function DecryptFlow({
     setError("");
     setStatus("");
     setCopyStatus("");
-    setCollision("");
-    setCollision("");
+    setCollisionConfirmation(false);
+    setSaveError("");
     setBusy(false);
     setFileBusy(false);
   }, [identity]);
 
   useEffect(() => {
-    if (!identity || !pendingQrText) return;
-    let object: EncryptedQrTextObject;
-    try {
-      object = parseQrMessageText(pendingQrText);
-    } catch {
-      setSmartError(t("qrScanError"));
-      onPendingQrConsumed();
+    if (!identity || !pendingIncomingIntent) return;
+    textJob.current?.cancel();
+    textJob.current = null;
+    setBusy(false);
+    setResult(null);
+    setError("");
+    setSmartError("");
+    if (pendingIncomingIntent.kind === "invalid") {
+      setSmartError(t("incomingMessageInvalid"));
+      onPendingIncomingConsumed(pendingIncomingIntent);
       return;
     }
-    setQrInput(object);
-    onPendingQrConsumed();
-    if (!qrAutoDecrypt) return;
-    const operation = startDecryptQrTextJob({
-      object,
-      activeIdentity: identity,
-      knownSenders: contacts.map(({ contact }) => contact),
-    });
+    const intent = pendingIncomingIntent;
+    pendingOwnedObject.current = intent.object;
+    if (intent.kind === "ppxt") {
+      setTextInputObject(intent.object);
+      setQrInput(null);
+    } else {
+      setQrInput(intent.object);
+      setTextInputObject(null);
+    }
+    setInput("");
+    if (!autoDecryptIncomingMessages) {
+      setStatus(t("incomingMessageReady"));
+      return () => {
+        if (pendingOwnedObject.current !== intent.object) return;
+        pendingOwnedObject.current = null;
+        setTextInputObject(null);
+        setQrInput(null);
+        setStatus("");
+      };
+    }
+    const operation =
+      intent.kind === "ppxt"
+        ? startDecryptTextJob({
+            object: intent.object,
+            activeIdentity: identity,
+          })
+        : startDecryptQrTextJob({
+            object: intent.object,
+            activeIdentity: identity,
+            knownSenders: contacts.map(({ contact }) => contact),
+          });
     textJob.current = operation;
+    let completed = false;
     setBusy(true);
     void operation.promise
       .then((output) => {
         if (textJob.current !== operation) return;
         setResult(output);
         setQrInput(null);
+        setTextInputObject(null);
+        pendingOwnedObject.current = null;
+        completed = true;
+        onPendingIncomingConsumed(intent);
       })
       .catch((caught) => {
         if (textJob.current !== operation) return;
@@ -133,7 +193,26 @@ export function DecryptFlow({
         textJob.current = null;
         setBusy(false);
       });
-  }, [identity, pendingQrText]);
+    return () => {
+      if (completed) return;
+      if (textJob.current === operation) {
+        textJob.current = null;
+        operation.cancel();
+        setBusy(false);
+      }
+      if (pendingOwnedObject.current !== intent.object) return;
+      pendingOwnedObject.current = null;
+      setTextInputObject(null);
+      setQrInput(null);
+      setStatus("");
+    };
+  }, [autoDecryptIncomingMessages, contacts, identity, pendingIncomingIntent]);
+
+  useEffect(() => {
+    setSenderPromptDismissed(false);
+    setCollisionConfirmation(false);
+    setSaveError("");
+  }, [result]);
 
   if (!identity) {
     return (
@@ -153,13 +232,49 @@ export function DecryptFlow({
     setStatus("");
     try {
       operation = startDecryptTextJob({
-        object: decodeTextArmor(input.trim()),
+        object: textInputObject ?? decodeTextArmor(input.trim()),
         activeIdentity: identity,
       });
       textJob.current = operation;
       const output = await operation.promise;
       if (textJob.current !== operation) return;
       setResult(output);
+      setTextInputObject(null);
+      if (pendingIncomingIntent?.kind === "ppxt")
+        onPendingIncomingConsumed(pendingIncomingIntent);
+    } catch (caught) {
+      if (!operation || textJob.current === operation) {
+        const detail =
+          caught instanceof PPXError && caught.code === "invalid-signature"
+            ? t("badSignature")
+            : caught instanceof PPXError &&
+                caught.code === "unsupported-compression"
+              ? t("unsupportedCompression")
+              : t("wrongIdentityOrDamaged");
+        setError(`${t("couldNotDecrypt")}. ${detail}`);
+      }
+    } finally {
+      if (!operation || textJob.current === operation) {
+        textJob.current = null;
+        setBusy(false);
+      }
+    }
+  };
+
+  const decryptLinkedText = async (object: EncryptedTextObject) => {
+    let operation: CryptoWorkerJob<DecryptedTextOutput> | null = null;
+    setBusy(true);
+    setResult(null);
+    setCopyStatus("");
+    setError("");
+    setStatus("");
+    try {
+      operation = startDecryptTextJob({ object, activeIdentity: identity });
+      textJob.current = operation;
+      const output = await operation.promise;
+      if (textJob.current !== operation) return;
+      setResult(output);
+      setTextInputObject(null);
     } catch (caught) {
       if (!operation || textJob.current === operation) {
         const detail =
@@ -195,6 +310,8 @@ export function DecryptFlow({
       if (textJob.current !== operation) return;
       setResult(output);
       setQrInput(null);
+      if (pendingIncomingIntent?.kind === "ppxq")
+        onPendingIncomingConsumed(pendingIncomingIntent);
     } catch (caught) {
       if (!operation || textJob.current === operation) {
         const detail =
@@ -215,13 +332,18 @@ export function DecryptFlow({
   };
 
   const decodedQr = (value: string) => {
+    pendingOwnedObject.current = null;
+    if (pendingIncomingIntent) onPendingIncomingConsumed(pendingIncomingIntent);
+    textJob.current?.cancel();
+    textJob.current = null;
+    setBusy(false);
     try {
       const object = parseQrMessageText(value);
       setQrInput(object);
       setInput("");
       setFile(null);
       setError("");
-      if (qrAutoDecrypt) void decryptQr(object);
+      if (autoDecryptIncomingMessages) void decryptQr(object);
     } catch {
       setSmartError(t("qrScanError"));
     }
@@ -231,15 +353,25 @@ export function DecryptFlow({
     const operation = textJob.current;
     textJob.current = null;
     operation?.cancel();
+    pendingOwnedObject.current = null;
+    setTextInputObject(null);
+    setQrInput(null);
+    if (pendingIncomingIntent) onPendingIncomingConsumed(pendingIncomingIntent);
     setBusy(false);
     setStatus(t("operationCancelled"));
   };
 
   const choosePpxfFile = (next: File | null) => {
+    pendingOwnedObject.current = null;
+    if (pendingIncomingIntent) onPendingIncomingConsumed(pendingIncomingIntent);
+    textJob.current?.cancel();
+    textJob.current = null;
+    setBusy(false);
     setResult(null);
     setError("");
     setSmartError("");
-    setCollision("");
+    setCollisionConfirmation(false);
+    setSaveError("");
     if (next && next.size > PPXF_ENCODED_MAX_BYTES) {
       setFile(null);
       setSmartError(t("fileTooLarge"));
@@ -250,6 +382,11 @@ export function DecryptFlow({
   };
 
   const chooseSmartFile = async (next: File | null) => {
+    pendingOwnedObject.current = null;
+    if (pendingIncomingIntent) onPendingIncomingConsumed(pendingIncomingIntent);
+    textJob.current?.cancel();
+    textJob.current = null;
+    setBusy(false);
     const generation = routingGeneration.current + 1;
     routingGeneration.current = generation;
     if (!next) {
@@ -278,7 +415,8 @@ export function DecryptFlow({
         setInput(armor);
         setResult(null);
         setError("");
-        setCollision("");
+        setCollisionConfirmation(false);
+        setSaveError("");
         return;
       }
       if (isPpxf) {
@@ -298,7 +436,8 @@ export function DecryptFlow({
         setInput(armor);
         setResult(null);
         setError("");
-        setCollision("");
+        setCollisionConfirmation(false);
+        setSaveError("");
         return;
       }
       throw new Error("unsupported encrypted input");
@@ -314,18 +453,54 @@ export function DecryptFlow({
   };
 
   const chooseDroppedText = (value: string) => {
+    pendingOwnedObject.current = null;
+    if (pendingIncomingIntent) onPendingIncomingConsumed(pendingIncomingIntent);
     routingGeneration.current += 1;
+    textJob.current?.cancel();
+    textJob.current = null;
+    setBusy(false);
     setFile(null);
     setResult(null);
     setError("");
-    setCollision("");
+    setCollisionConfirmation(false);
+    setSaveError("");
     if (value.length > PPXT_ARMOR_MAXIMUM_CHARS) {
       setInput("");
       setSmartError(t("encryptedInputTooLarge"));
       return;
     }
-    setInput(value);
-    setSmartError("");
+    try {
+      const linked = parseIncomingMessageText(value);
+      if (linked?.kind === "ppxt") {
+        setInput("");
+        setQrInput(null);
+        setTextInputObject(linked.object);
+        setSmartError("");
+        setStatus(t("incomingMessageReady"));
+        if (autoDecryptIncomingMessages) {
+          void decryptLinkedText(linked.object);
+        }
+        return;
+      }
+      if (linked?.kind === "ppxq") {
+        setInput("");
+        setTextInputObject(null);
+        setQrInput(linked.object);
+        setSmartError("");
+        setStatus(t("incomingMessageReady"));
+        if (autoDecryptIncomingMessages) void decryptQr(linked.object);
+        return;
+      }
+      setTextInputObject(null);
+      setQrInput(null);
+      setInput(value);
+      setSmartError("");
+    } catch {
+      setInput("");
+      setTextInputObject(null);
+      setQrInput(null);
+      setSmartError(t("incomingMessageInvalid"));
+    }
   };
 
   const decryptSmartInput = () => {
@@ -359,24 +534,34 @@ export function DecryptFlow({
     );
   };
 
-  const saveTextSender = async () => {
+  const saveTextSender = async (saveSeparate = false) => {
     if (!result || senderSaved || savingSender) return;
-    setSavingSender(true);
     const hasCollision = contacts.some(
       (item) =>
         item.contact.pseudonym === result.senderContact.pseudonym &&
         !isKnownSender(result.senderContact.fingerprint, [item]),
     );
+    if (hasCollision && !saveSeparate) {
+      setCollisionConfirmation(true);
+      setSaveError("");
+      return;
+    }
+    setSavingSender(true);
     try {
       const saved = await onContactsChange([
         ...contacts,
-        { contact: result.senderContact, nickname: "" },
+        {
+          contact: result.senderContact,
+          nickname: "",
+          includeSenderContactInLinks: true,
+        },
       ]);
       if (saved) {
-        setCollision(
-          hasCollision ? `${t("collisionWarning")}. ${t("collisionNote")}` : "",
-        );
+        setCollisionConfirmation(false);
+        setSaveError("");
       }
+    } catch {
+      setSaveError(t("storageFallback"));
     } finally {
       setSavingSender(false);
     }
@@ -385,6 +570,26 @@ export function DecryptFlow({
   return (
     <section class="flow-panel">
       <h1>{t("decryptTitle")}</h1>
+      {pendingIncomingIntent && pendingIncomingIntent.kind !== "invalid" && (
+        <div class="action-row incoming-message-actions">
+          <button
+            class="button secondary"
+            type="button"
+            onClick={() => {
+              pendingOwnedObject.current = null;
+              textJob.current?.cancel();
+              textJob.current = null;
+              setBusy(false);
+              setTextInputObject(null);
+              setQrInput(null);
+              setStatus("");
+              onPendingIncomingConsumed(pendingIncomingIntent);
+            }}
+          >
+            {t("cancel")}
+          </button>
+        </div>
+      )}
       <QrImport
         idPrefix="message"
         t={t}
@@ -456,13 +661,13 @@ export function DecryptFlow({
           busy ||
           fileBusy ||
           routingBusy ||
-          (!qrInput && !file && input.trim() === "")
+          (!qrInput && !textInputObject && !file && input.trim() === "")
         }
         onClick={decryptSmartInput}
       >
         {t("decryptLocally")}
       </button>
-      {qrInput && !qrAutoDecrypt && (
+      {(qrInput || textInputObject) && !autoDecryptIncomingMessages && (
         <p class="status-note" role="status">
           {t("messageQrReady")}
         </p>
@@ -529,24 +734,47 @@ export function DecryptFlow({
               {copyStatus}
             </p>
           )}
-          {!senderSaved && (
+          {!senderSaved && !senderPromptDismissed && (
             <div class="warning-panel" role="status">
               <h3>{t("unknownSender")}</h3>
               <p>{t("unknownSenderText")}</p>
-              <button
-                class="button secondary"
-                type="button"
-                disabled={savingSender}
-                onClick={() => void saveTextSender()}
-              >
-                {t("saveSender")}
-              </button>
+              <div class="action-row">
+                <button
+                  class="button secondary"
+                  type="button"
+                  disabled={savingSender}
+                  onClick={() => void saveTextSender(collisionConfirmation)}
+                >
+                  {t(
+                    collisionConfirmation
+                      ? "saveSeparateContact"
+                      : "saveSender",
+                  )}
+                </button>
+                <button
+                  class="button secondary"
+                  type="button"
+                  disabled={savingSender}
+                  onClick={() => {
+                    setSenderPromptDismissed(true);
+                    setCollisionConfirmation(false);
+                    setSaveError("");
+                  }}
+                >
+                  {t("notNow")}
+                </button>
+              </div>
+              {collisionConfirmation && (
+                <p class="field-error" role="alert">
+                  {t("collisionWarning")}. {t("collisionNote")}
+                </p>
+              )}
+              {saveError && (
+                <p class="field-error" role="alert">
+                  {saveError}
+                </p>
+              )}
             </div>
-          )}
-          {collision && (
-            <p class="field-error" role="alert">
-              {collision}
-            </p>
           )}
         </section>
       )}
