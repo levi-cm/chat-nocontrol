@@ -28,6 +28,8 @@ export const MESSAGE_LINK_MAX_ENCODED_CHARS = Math.ceil(
 export const LEGACY_QR_LINK_MAX_ENCODED_CHARS = Math.ceil(
   PPXQ_MAXIMUM_OBJECT_SIZE * (8 / Math.log2(37)),
 );
+const MESSAGE_LINK_HASH_STEM = MESSAGE_LINK_HASH_PREFIX.slice(0, -1);
+const LEGACY_QR_LINK_HASH_STEM = PPXQ_LINK_HASH_PREFIX.slice(0, -1);
 
 export interface MessageLinkLocation {
   readonly pathname: string;
@@ -43,6 +45,17 @@ export interface MessageLinkHistory {
 
 function sameOriginAbsolutePath(pathname: string): string {
   return `/${pathname.replace(/^[\\/]+/u, "")}`;
+}
+
+function isReservedHashFamily(hash: string, stem: string): boolean {
+  return hash === stem || hash.startsWith(`${stem}/`);
+}
+
+export function isReservedMessageLinkHash(hash: string): boolean {
+  return (
+    isReservedHashFamily(hash, MESSAGE_LINK_HASH_STEM) ||
+    isReservedHashFamily(hash, LEGACY_QR_LINK_HASH_STEM)
+  );
 }
 
 export function encodeMessageLink(
@@ -95,9 +108,8 @@ export function captureIncomingMessageIntent(
   capturedAt: number,
 ): IncomingMessageIntent | null {
   const { pathname, search, hash, username, password } = location;
-  const isMessageLink = hash.startsWith(MESSAGE_LINK_HASH_PREFIX);
-  const isLegacyQrLink = hash.startsWith(PPXQ_LINK_HASH_PREFIX);
-  if (!isMessageLink && !isLegacyQrLink) return null;
+  const isMessageLink = isReservedHashFamily(hash, MESSAGE_LINK_HASH_STEM);
+  if (!isReservedMessageLinkHash(hash)) return null;
 
   history.replaceState(
     null,

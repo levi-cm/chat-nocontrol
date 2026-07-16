@@ -1,4 +1,4 @@
-import { MESSAGE_LINK_HASH_PREFIX } from "../protocol/message-link";
+import { isReservedMessageLinkHash } from "../protocol/message-link";
 
 export type RouteName =
   "encrypt" | "decrypt" | "contacts" | "identity" | "help" | "settings";
@@ -62,12 +62,7 @@ export function routeAfterUnlock(
 }
 
 export function routeFromHash(hash: string): RouteName {
-  if (
-    hash.startsWith("#/decrypt/qr/") ||
-    hash.startsWith(MESSAGE_LINK_HASH_PREFIX)
-  ) {
-    return "decrypt";
-  }
+  if (isReservedMessageLinkHash(hash)) return "decrypt";
   const match = (Object.entries(ROUTES) as [RouteName, string][]).find(
     ([, value]) => value === hash,
   );

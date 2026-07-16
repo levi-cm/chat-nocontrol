@@ -206,6 +206,52 @@ describe("incoming message-link capture", () => {
     },
   );
 
+  it.each(["#/m", "#/decrypt/qr"])(
+    "scrubs exact truncated reserved stem %s",
+    (hash) => {
+      const replaceState = vi.fn();
+
+      expect(
+        captureIncomingMessageIntent(
+          {
+            pathname: "/app/",
+            search: "",
+            hash,
+            username: "",
+            password: "",
+          },
+          { replaceState },
+          42,
+        ),
+      ).toEqual({ kind: "invalid" });
+      expect(replaceState).toHaveBeenCalledWith(null, "", "/app/#/decrypt");
+      expect(routeFromHash(hash)).toBe("decrypt");
+    },
+  );
+
+  it.each(["#/message", "#/mismatch", "#/decrypt/qrcode", "#/decrypt/qrx"])(
+    "leaves reserved-stem lookalike %s untouched",
+    (hash) => {
+      const replaceState = vi.fn();
+
+      expect(
+        captureIncomingMessageIntent(
+          {
+            pathname: "/app/",
+            search: "",
+            hash,
+            username: "",
+            password: "",
+          },
+          { replaceState },
+          42,
+        ),
+      ).toBeNull();
+      expect(replaceState).not.toHaveBeenCalled();
+      expect(routeFromHash(hash)).toBe("identity");
+    },
+  );
+
   it("scrubs a network-path pathname to a same-origin absolute path", () => {
     const replaceState = vi.fn();
 
