@@ -110,6 +110,12 @@ describe("app shell", () => {
     expect(content).not.toMatch(/frame-src[^;]*(?:https?:|data:)/u);
   });
 
+  it("prevents encrypted-link referrer disclosure", () => {
+    expect(indexHtml).toMatch(
+      /<meta\s+name="referrer"\s+content="no-referrer"\s*\/?>/u,
+    );
+  });
+
   it("uses canvas colors for installed and live system chrome", () => {
     const manifest = JSON.parse(manifestText) as {
       background_color: string;

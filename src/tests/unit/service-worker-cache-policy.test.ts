@@ -23,7 +23,19 @@ describe("service worker cache allowlist", () => {
     "icons/app-icon.svg",
     "assets/unversioned.js",
     "api/import",
+    "index.html?message=UFBYVAECAwQ",
+    "index.html#/m/UFBYVAECAwQ",
   ])("denies user or unversioned path %s", (path) => {
     expect(isAllowedShellCachePath(path)).toBe(false);
+  });
+
+  it("cannot turn a fragment message payload into a cache key", () => {
+    const link = new URL(
+      "https://levi-cm.github.io/chat-nocontrol/#/m/UFBYVAECAwQ",
+    );
+
+    expect(link.pathname).toBe("/chat-nocontrol/");
+    expect(link.search).toBe("");
+    expect(isAllowedShellCachePath(`${link.pathname}${link.hash}`)).toBe(false);
   });
 });
