@@ -63,9 +63,21 @@ Der öffentliche Kontakt ist zum Teilen gedacht. Andere Leute verschlüsseln dam
 
 Der angemeldete QR-Code des verschlüsselten privaten Tresors ist zunächst verborgen. Gib das Passwort des Browser-Tresors einmal erneut ein, um ihn anzuzeigen. Dieselbe erfolgreiche Prüfung schaltet `QR des privaten Tresors als PNG speichern` und den Download der `.ppxvault`-Identitätsdatei frei, bis du `Identität` verlässt, die App sperrst oder die App in den Hintergrund wechselst. Halte beide Dateien privat. Die Wiederherstellungsdownloads während der Ersteinrichtung erhalten keine zweite Passwortabfrage.
 
-### Einstellungen und Darstellung
+### Einstellungen, Versand und Darstellung
 
 Öffne die Zahnrad-Schaltfläche in der oberen Leiste, um Sprache, Farbschema, Akzentfarbe oder transparente Oberflächeneffekte zu ändern. Als Farbschema stehen `System`, `Hell` und `Dunkel` zur Auswahl. Wenn du transparente Effekte ausschaltest, werden unscharfe Navigationsflächen durch deckende Flächen ersetzt.
+
+`Nachrichtenausgabe` steuert den Versand von Textnachrichten:
+
+- `Link` zeigt den verschlüsselten Link.
+- `Text` zeigt den normalen verschlüsselten PPXT-Text.
+- `Beides`, die Voreinstellung, zeigt zuerst den Link und danach PPXT-Text als
+  Ersatzweg.
+
+`Eingehende Nachrichtenlinks und QRs automatisch entschlüsseln` ist
+standardmäßig aktiviert. Schalte es aus, wenn ein eingehendes Element erst für
+eine ausdrückliche `Entschlüsseln`-Aktion eingesetzt werden soll. Diese
+Einstellung ersetzt die ältere, reine QR-Automatik.
 
 ## 5. Kontakte hinzufügen
 
@@ -89,15 +101,32 @@ Hilfreiche Hinweise:
 1. Öffne `Verschlüsseln`.
 2. Wähle genau einen Empfänger aus.
 3. Füge unter `Verschlüsselter Text` bis zu `256 KiB` ein oder tippe den Text ein.
-4. Wähle `Lokal verschlüsseln`.
-5. Kopiere oder speichere die verschlüsselte Ausgabe.
+4. Wenn deine Ausgabe einen Link enthält, lass `Meinen öffentlichen Kontakt im
+   Link mitsenden` aktiviert, außer der Empfänger besitzt bereits deinen exakten
+   öffentlichen Kontakt. Diese Auswahl wird für jeden Empfänger getrennt
+   gespeichert und bleibt standardmäßig an, bis du sie ausschaltest.
+5. Wähle `Verschlüsseln`.
+6. Nutze `Verschlüsselten Link kopieren` oder, falls deine Plattform Web Share
+   anbietet, `Verschlüsselten Link teilen`. Beim Teilen wird nur die URL
+   übergeben. Browser- und Ziel-App-Unterstützung sind nicht garantiert; Kopieren
+   bleibt verfügbar. Im Modus `Verschlüsselter Text` kopierst oder speicherst du
+   stattdessen die normale verschlüsselte Ausgabe.
 
-Normales PPXT ist immer die primäre Ausgabe. Die Erstellung von Nachrichten-QRs
-ist standardmäßig ausgeschaltet. Wenn du in den Einstellungen ausdrücklich
-`Nachrichten-QR nach Textverschlüsselung anbieten` aktivierst, kann eine
-kompakte Nachricht zusätzlich als In-App-QR und/oder Handykamera-Link angeboten
-werden. Es gibt keine Vorschau. Passt sie nicht, nutze die normale PPXT-Ausgabe.
-Der Empfänger muss deinen öffentlichen Kontakt bereits besitzen.
+Mit Kontakt enthält der Link selbstständiges verschlüsseltes PPXT. Ohne Kontakt
+ist der PPXQ-Link kürzer, setzt aber voraus, dass der Empfänger deinen exakten
+Absenderkontakt bereits besitzt. Kann das kompakte PPXQ nicht erstellt werden,
+schalte die Kontaktbeigabe ein oder blende den normalen verschlüsselten Text als
+Ersatz ein. Die App zeigt die genaue Linklänge. Links über 2.000 Zeichen bleiben
+kopierbar, können von Messengern aber eingeklappt, abgeschnitten oder nicht als
+Link erkannt werden.
+
+Die Erstellung von Nachrichten-QRs bleibt standardmäßig ausgeschaltet. Wenn du
+in den Einstellungen ausdrücklich `Nachrichten-QR nach Textverschlüsselung
+anbieten` aktivierst, kann eine kompakte Nachricht zusätzlich als In-App-QR
+und/oder Handykamera-Link angeboten werden. Es gibt keine Vorschau. Für
+kompaktes PPXQ muss der Empfänger deinen öffentlichen Kontakt bereits besitzen.
+Emoji, Hauttöne, Flaggen, kombinierende Zeichen und verbundene Emoji sind
+normaler UTF-8-Nachrichteninhalt und zählen zum Byte-Limit von 256 KiB.
 
 Tipps:
 
@@ -127,19 +156,36 @@ Hinweise:
 ## 8. Text oder Datei entschlüsseln
 
 1. Öffne `Entschlüsseln`.
-2. Füge Text unter `Verschlüsseltes Element` ein und wähle `Lokal entschlüsseln`.
-   Du kannst auch einen Nachrichten-QR scannen oder einen Screenshot/ein Bild
-   wählen. Gültige Nachrichten-QRs werden standardmäßig sofort entschlüsselt.
-   Der Empfang bleibt verfügbar, auch wenn die Erstellung ausgeschaltet ist.
+2. Füge normalen verschlüsselten Text oder einen verschlüsselten Nachrichtenlink
+   unter `Verschlüsseltes Element` ein und wähle `Lokal entschlüsseln`. Du kannst
+   auch einen Link öffnen, einen Nachrichten-QR scannen oder einen Screenshot/ein
+   Bild wählen. Gültige Links und Nachrichten-QRs werden standardmäßig sofort
+   entschlüsselt. Schalte die Automatik in den Einstellungen aus, wenn du erst
+   ausdrücklich bestätigen möchtest. Ein eingefügter Link wird gelesen, ohne zu
+   seinem Host zu navigieren. Der Empfang bleibt verfügbar, auch wenn die
+   QR-Erstellung ausgeschaltet ist.
 3. Wähle für Dateien unter `Datei entschlüsseln` eine `.ppxfile` und dann `Datei lokal entschlüsseln`.
 4. Wenn die Prüfung gelingt, lies den Klartext oder prüfe und lade das Dateiergebnis herunter.
 5. Wenn der Absender unbekannt ist, siehst du eine Warnung.
 6. Wenn das Element nicht zu deiner aktiven Identität passt, schlägt die App sicher fehl.
 
-Handykamera-Links tragen den Geheimtext nur hinter `#`, entfernen ihn sofort
-aus der Adresse und speichern keine ausstehende Nachricht. Bei unbekanntem
-Absender muss zuerst dessen öffentlicher Kontakt importiert werden. Bei
-Kamerafehlern bleibt der Bild-Upload verfügbar.
+Verschlüsselte Links tragen den gesamten Geheimtext hinter `#`. Die App entfernt
+gültige und fehlerhafte reservierte Fragmente vor der normalen Initialisierung
+aus der Adresse und hält nur ein verarbeitetes, ausstehendes Element höchstens
+15 Minuten im Arbeitsspeicher. Das Fragment wird nicht in einer HTTP-Anfrage
+gesendet; ein Relay-Server wird nicht genutzt. Bei einem gemerkten, gesperrten
+Tresor fragt der Eingangsweg direkt nach dem Passwort und setzt danach die
+Entschlüsselung fort. Gibt es keine aktive oder gemerkte Identität, importiere
+die richtige Identität; das ausstehende Element wird danach weiterverarbeitet.
+Abbrechen oder Ersetzen löscht das alte Element.
+
+Selbstständiges PPXT kann einen unbekannten Absender nach der Entschlüsselung
+authentifizieren. Wähle `Kontakt speichern` oder `Nicht jetzt`. Für einen bereits
+vorhandenen exakten Fingerabdruck entsteht kein Duplikat. Gehört dasselbe
+Pseudonym zu einem anderen Fingerabdruck, warnt die App vor dem Speichern und
+verlangt `Als separaten Kontakt speichern`. Kompaktes PPXQ von einem unbekannten
+Fingerabdruck schlägt sicher fehl und fordert den Import des Absenderkontakts.
+Bei Kamerafehlern bleibt der Bild-Upload verfügbar.
 
 Aktualisierte Browser öffnen unkomprimiertes PPXT v1 und komprimiertes PPXT v2.
 Fehlt einem Browser die gzip-Unterstützung, aktualisiere ihn oder öffne die
@@ -201,6 +247,18 @@ Häufige sichere Meldungen:
 - Sie schützt dich nicht vor einem kompromittierten Gerät, einer bösartigen Erweiterung oder Malware.
 - Die private Wiederherstellungskarte und jeder verschlüsselte Tresor müssen sicher aufbewahrt werden.
 - Die 24 Wiederherstellungswörter sind privates Wiederherstellungsmaterial und müssen sicher aufbewahrt werden.
+- Verschlüsselte Links können im Messenger- oder Zwischenablageverlauf, in der
+  Browser-Verlaufssynchronisierung oder in Absturzwiederherstellungen bleiben.
+  Länge und Komprimierbarkeit verraten grobe Metadaten; Screenshots können Links
+  festhalten.
+- Das Fragment wird nicht in der HTTP-Anfrage gesendet, aber die vollständige
+  URL existiert, bevor das JavaScript der App sie entfernt. Ein kompromittiertes
+  Deployment, ein Browser, eine Erweiterung oder ein Gerät kann sie trotzdem lesen.
+- Nachrichtenlinks können erneut abgespielt werden. Die App speichert keine
+  Nachrichten-IDs und bietet weder Forward Secrecy noch Ratchet oder
+  sitzungsübergreifenden Replay-Schutz.
+- Browser und Betriebssystem entscheiden, ob ein Link eine installierte PWA
+  öffnet. Browser-Fallback und Einfügen in der App bleiben unterstützt.
 
 ## 13. Hilfe
 

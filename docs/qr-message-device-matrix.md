@@ -15,6 +15,30 @@ Automated profiles are useful evidence but are not physical-device proof.
 
 Physical rows remain release blockers until run over HTTPS on named hardware.
 
+## Encrypted message link transport evidence
+
+No physical messenger or installed-PWA transport was run in this implementation
+environment. Rows must stay pending until tested on the named physical path;
+desktop automation, emulation, and unit tests are not substitutes.
+
+| Physical path | Browser/PWA open | PPXT with contact | Compact PPXQ | Linkify, truncate, preview | Share sheet |
+| --- | --- | --- | --- | --- | --- |
+| Android Chrome browser -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android installed PWA -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| iPhone Safari browser -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| iPhone installed PWA -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android/iPhone -> Signal | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android/iPhone -> Telegram | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android/iPhone -> Discord | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android/iPhone -> SMS | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Android/iPhone -> email | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+
+Each completed row must record exact OS/browser/app versions, complete link
+character count, whether links over 2,000 characters stayed intact, whether the
+browser or installed PWA opened, whether those surfaces shared local vault and
+contact storage, and the actual share-target result. Web Share availability does
+not prove that a selected target accepted the URL.
+
 ## Shared mobile shell and public-contact QR follow-up
 
 This follow-up covers the shared browser UI and `PPXC` public-contact QR. It

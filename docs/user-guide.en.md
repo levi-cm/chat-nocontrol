@@ -63,9 +63,19 @@ The public contact is safe to share. It is meant for other people to encrypt to 
 
 The logged-in encrypted private-vault QR starts hidden. Re-enter the browser-vault password once to reveal it; the same successful check enables `Save private vault QR as PNG` and the `.ppxvault` identity-file download until you leave Identity, lock the app, or put the app in the background. Keep both files private. Onboarding recovery downloads do not add this second prompt.
 
-### Settings and appearance
+### Settings, delivery, and appearance
 
 Open the gear button in the top bar to change language, theme, accent color, or translucent interface effects. Theme options are `System`, `Light`, and `Dark`. Turning translucent effects off replaces blurred navigation material with opaque surfaces.
+
+`Message output` controls text-message delivery:
+
+- `Link` shows the encrypted link.
+- `Text` shows ordinary encrypted PPXT armor.
+- `Both`, the default, shows the link first and PPXT armor as a fallback.
+
+`Auto-decrypt incoming message links and QRs` is on by default. Turn it off if
+you want an incoming item populated for an explicit `Decrypt` action instead.
+This replaces the older QR-only auto-decrypt preference.
 
 ## 5. Add contacts
 
@@ -89,15 +99,29 @@ Useful notes:
 1. Open `Encrypt`.
 2. Select one recipient.
 3. Paste or type up to `256 KiB` in `Encrypted text`.
-4. Choose `Encrypt locally`.
-5. Copy or save the encrypted output.
+4. If your output includes a link, leave `Include my public contact in link` on
+   unless the recipient already has your exact public contact. This preference
+   is stored separately for each recipient and defaults on until you switch it
+   off.
+5. Choose `Encrypt`.
+6. Use `Copy encrypted link`, or `Share encrypted link` when your platform
+   offers Web Share. Sharing sends the URL only. Browser and share-target support
+   is best effort, so copying remains available. In `Text` mode, copy or save the
+   ordinary encrypted output instead.
 
-Ordinary PPXT is always the primary output. Message-QR creation is off by
-default. If you deliberately enable `Offer message QR after text encryption`
-in Settings, a compact message that fits one high-recovery QR may additionally
-offer an in-app QR and/or phone-camera link. No preview is shown. If it does not
-fit, use the normal PPXT output. The recipient must already have your public
-contact.
+With contact inclusion on, the link contains self-contained encrypted PPXT. With
+it off, the shorter PPXQ link requires the recipient to already have your exact
+sender contact. If compact PPXQ cannot be created, switch contact inclusion on
+or reveal the ordinary encrypted-text fallback. The app shows the exact link
+length. Links over 2,000 characters remain copyable, but messengers may collapse,
+truncate, or fail to linkify them.
+
+Message-QR creation remains off by default. If you deliberately enable `Offer
+message QR after text encryption` in Settings, a compact message that fits one
+high-recovery QR may additionally offer an in-app QR and/or phone-camera link.
+No preview is shown. The recipient must already have your public contact for
+compact PPXQ. Emoji, skin tones, flags, combining marks, and joined emoji are
+ordinary UTF-8 message content and count toward the 256 KiB byte limit.
 
 Tips:
 
@@ -127,18 +151,33 @@ Notes:
 ## 8. Decrypt text or file
 
 1. Open `Decrypt`.
-2. For text, paste armor into `Encrypted item` and choose `Decrypt locally`.
-   You can also scan a message QR or choose a screenshot/image. Valid message
-   QRs decrypt immediately by default; disable that only in local settings.
-   Receiving remains available even when message-QR creation is disabled.
+2. For text, paste armor or an encrypted message link into `Encrypted item` and
+   choose `Decrypt locally`. You can also open an encrypted link, scan a message
+   QR, or choose a screenshot/image. Valid links and message QRs decrypt
+   immediately by default; turn off automatic incoming decryption in Settings
+   if you want an explicit confirmation. Pasting a link reads its fragment
+   without navigating to its host. Receiving remains available when message-QR
+   creation is disabled.
 3. For a file, select a `.ppxfile` under `Decrypt a file` and choose `Decrypt file locally`.
 4. If validation succeeds, read the plaintext or inspect and download the file result.
 5. If the sender is unknown, you will see a warning.
 6. If the item does not match your active identity, the app will fail safely.
 
-Phone-camera links keep ciphertext after `#`, scrub it from the address
-immediately, and never store pending messages. Unknown-sender QRs require that
-sender's public contact first. Camera failure always leaves image upload.
+Encrypted links keep all ciphertext after `#`. The app scrubs valid and malformed
+reserved fragments from the address before normal initialization and keeps only
+a parsed pending item in memory for at most 15 minutes. It does not send the
+fragment in an HTTP request or use a relay server. A remembered locked vault asks
+for its password on the incoming-message path and then continues decryption. If
+no active or remembered identity exists, import the correct identity; the pending
+item continues after a successful import. Canceling or replacing the item clears
+the old pending intent.
+
+Self-contained PPXT can authenticate an unknown sender after decryption. Choose
+`Save contact` or `Not now`. An exact fingerprint already in contacts creates no
+duplicate. If the same pseudonym belongs to a different fingerprint, the app
+warns before writing and requires `Save as separate contact`. Compact PPXQ from
+an unknown fingerprint fails closed and asks for sender-contact import. Camera
+failure always leaves image upload.
 
 Updated browsers open both uncompressed PPXT v1 and compressed PPXT v2. If a
 valid compressed message reaches a browser without gzip support, update the
@@ -200,6 +239,16 @@ Common safe messages:
 - It does not protect you from a compromised device, browser extension, or malware.
 - The private recovery card and any encrypted vault must be kept safe.
 - The 24 recovery words are private-equivalent recovery material and must be kept safe.
+- Encrypted links may remain in messenger history, clipboard history, browser
+  history sync, or crash recovery. Their length and compressibility leak coarse
+  metadata, and screenshots can capture them.
+- A fragment is not sent in the HTTP request, but the complete URL exists before
+  the app's JavaScript scrubs it. A compromised deployment, browser, extension,
+  or device can still read it.
+- Message links may be replayed. The app stores no message IDs and provides no
+  forward secrecy, ratchet, or cross-session replay protection.
+- Browsers and operating systems decide whether a link opens an installed PWA.
+  Browser fallback and in-app paste remain supported.
 
 ## 13. Getting help
 

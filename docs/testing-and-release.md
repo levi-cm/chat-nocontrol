@@ -157,6 +157,10 @@ the ordered release gate and must stop on the first real failure.
 | Restore practice | `unit`, `test:e2e` | QR then `.ppxrecovery` then four unique stable random words restore the pending identity; malformed and different-identity inputs fail safely; retries are unlimited and restart appears after ten failures |
 | Recommended storage | `test:storage`, `test:session-only`, `test:e2e` | Encrypted IndexedDB is preselected but not written before explicit confirmation; opt-out and unavailable storage remain session-only |
 | Message QR | `unit`, `test:e2e`, `test:accessibility`, `test:i18n` | Creation defaults off and starts no PPXQ worker; opt-in restores export/capacity behavior; scan, image, link, and auto-decrypt receiving remain available |
+| Message links | `unit`, `test:e2e`, `test:accessibility`, `test:i18n` | Raw PPXT/PPXQ base64url links round-trip; Link/Text/Both defaults and per-contact inclusion persist; active, locked, and import receiver paths preserve only a bounded in-memory intent |
+| Link input hardening | `unit`, `test:e2e`, `test:offline` | Valid and malformed reserved fragments scrub before initialization; oversized, padded, truncated, query-bearing, unknown-magic, and noncanonical inputs fail closed without payload persistence |
+| Sender contact decision | `unit`, `test:e2e`, `test:unknown-sender` | PPXT offers save/not-now, exact fingerprints deduplicate, pseudonym collisions warn before an explicit separate save, and unknown-sender PPXQ fails closed |
+| Emoji text | `unit`, `test:e2e` | UTF-8 round trips preserve emoji, skin tones, flags, combining marks, and ZWJ sequences through PPXT, PPXQ, links, and the 256 KiB byte boundary |
 | File chunks | `test:chunks` | Chunking and reassembly follow the object rules |
 | Order and manifest | `test:order`, `test:manifest` | Object order and terminal manifest handling are correct |
 | File size range | `test:file-limits` | 0 to 100 MiB boundaries are enforced |
@@ -194,9 +198,18 @@ cover H-only capacity, app/link transport, fragment scrubbing, camera denial
 with image fallback, bounded screenshot recovery, no message persistence,
 browser-local settings, offline cached use, keyboard operation, EN/DE, and axe.
 Creation-off and explicit opt-in cases must both be covered; receiving remains
-available in either state. Ordinary PPXT remains the primary output.
+available in either state. `Both` is the default message output, with the
+encrypted link first and ordinary PPXT armor retained as the raw fallback.
 Physical rows must remain explicitly `not run - hardware unavailable` until
 tested; emulation cannot satisfy them.
+
+Encrypted-link release evidence must additionally cover Android Chrome and
+iPhone Safari in both browser and installed-PWA paths where the operating system
+offers them. WhatsApp must cover contact-included PPXT and compact PPXQ links;
+Signal, Telegram, Discord, SMS, and email must record linkification, truncation,
+preview behavior, share-sheet results, and browser/PWA storage separation.
+Automation or desktop emulation does not satisfy those physical rows. Unrun
+evidence must remain labeled `not run - hardware unavailable`.
 
 The release matrix must cover maintained browsers on roughly five-year-old hardware.
 
@@ -233,6 +246,11 @@ Do not mark a release ready if any of the following remain true:
 - the release artifact cannot be traced back to a specific commit and build.
 - the repository has been made public before every public-beta gate and explicit sign-off have completed.
 - any onboarding test permits the plaintext password in IndexedDB, settings, URLs, logs, diagnostics, the standalone QR PNG, `.ppxrecovery`, or post-secret DOM state.
+- any encrypted-link payload appears in an HTTP request, resource timing,
+  CacheStorage, IndexedDB, local/session storage, diagnostics, notification,
+  document title, or generated error text.
+- physical encrypted-link messenger evidence is missing or represented as
+  passed by automation.
 
 ## 6. Evidence to keep with each release
 

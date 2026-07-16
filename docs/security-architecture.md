@@ -300,6 +300,38 @@ request/response compression oracle. This compressor must never be reused for
 attacker-chosen text combined with hidden secrets where repeated observable
 ciphertext lengths could become an oracle.
 
+### 10.1 Encrypted message link transport
+
+Message links serialize the existing raw canonical PPXT or PPXQ bytes as
+unpadded base64url after the build-defined canonical HTTPS app base:
+
+```text
+https://canonical-app.example/#/m/<BASE64URL>
+```
+
+This is a client-side transport, not a new protocol object. Contact inclusion
+on selects PPXT; contact inclusion off selects PPXQ and therefore requires an
+exact pre-saved sender contact. Link and ordinary text outputs for one send
+operation use matching message IDs and timestamps. There is no short-link
+service, relay, message API, or user-configurable destination.
+
+The app bounds and parses a reserved fragment before ordinary UI and storage
+initialization, scrubs it even on failure, and retains only the typed intent in
+memory. Pending intent expires after 15 minutes. An active identity may decrypt
+automatically according to local settings; a remembered locked vault must unlock
+in context, and a no-vault state may import the intended identity without losing
+the pending item. One decrypt worker may exist at a time and is cancelled before
+replacement or identity lock.
+
+The URI fragment is not included in the HTTP request. `no-referrer`, diagnostic
+redaction, and shell-only service-worker caching reduce secondary disclosure.
+They do not prevent messenger or clipboard retention, pre-JavaScript URL
+exposure, browser history sync or crash recovery, screenshots, or access by a
+compromised deployment, browser, extension, or device.
+
+Message-link replay is allowed. The application does not persist message IDs or
+claim cross-session replay protection, forward secrecy, or ratcheting.
+
 ## 11. File encryption workflow
 
 Compact PPXQ messages reuse the hybrid encapsulation and AES-GCM primitives but

@@ -46,7 +46,10 @@ Rules:
 | File API | [MDN File API](https://developer.mozilla.org/en-US/docs/Web/API/File_API) | File input and access reference | User-selected files only |
 | Blob | [MDN Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) | In-memory file-like data reference | Used for exports and downloads |
 | Web Share API | [MDN Web Share API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Share_API) | Sharing text/files from the app | Secure-context sharing behavior |
+| Web Share Recommendation | [W3C Web Share](https://www.w3.org/TR/web-share/) | URL-only encrypted-link sharing | Platform and selected-target support remain optional |
 | Web app manifest share_target | [MDN share_target](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/share_target) | Receiving shared content | Optional PWA integration reference |
+| URI fragments | [RFC 3986 section 3.5](https://www.rfc-editor.org/rfc/rfc3986#section-3.5) | Client-side encrypted-link payload boundary | Fragment is separated from the URI before retrieval |
+| PWA navigation management | [Chrome PWA navigation management](https://developer.chrome.com/docs/capabilities/pwa-navigation-management) | Installed-app link handling | Browser and operating-system behavior is best effort |
 | URL blob: scheme | [MDN blob: URLs](https://developer.mozilla.org/en-US/docs/Web/URI/Reference/Schemes/blob) | Blob URL behavior | Object URL lifetime and cleanup |
 
 ## 4. Accessibility and localization references

@@ -12,19 +12,21 @@ This threat model covers the browser application, the PPX protocol objects, loca
 
 The model is for Chat NoControl as a product and PPX as the protocol. It is not a claim about the security of every possible browser, operating system, extension, or deployment.
 
-### 1.1 Optional compact message-QR boundary
+### 1.1 Encrypted message link and optional compact message-QR boundary
 
-Ordinary PPXT is the primary message format and PPXQ creation defaults off.
-Enabling the optional output changes no cryptographic rule. PPXQ protects
-message content with the same hybrid encryption and sender signature as text
-messages, but requires an exact pre-saved sender contact. Receiving remains
-available while creation is disabled.
+Encrypted links are a transport for raw canonical PPXT or PPXQ bytes; they do
+not change either object's cryptography or wire format. PPXT is self-contained
+and supports authenticated unknown-sender handling after decryption. PPXQ is
+smaller but requires an exact pre-saved sender contact. No relay or message
+backend participates. Optional message-QR creation still defaults off, while
+link and QR receiving remain available.
 
 Attacker-controlled QR text, URLs, screenshots, gzip members, and claimed
 lengths are untrusted. Parsing and allocation are bounded; authentication,
 sender lookup, recipient binding, signature, decompression, length, and UTF-8
 must all succeed before plaintext. Ciphertext length still leaks coarse size and
-compression information. Fragments are transient and immediately scrubbed.
+compression information. Reserved fragments are bounded, parsed, and scrubbed
+before normal UI and storage initialization, whether valid or malformed.
 
 ## 2. Assets
 
@@ -58,6 +60,10 @@ Version 1 assumes an attacker may have one or more of these capabilities:
 - Compromise the deployment and serve modified JavaScript.
 - Compromise the browser, operating system, or an installed extension.
 - Read clipboard contents.
+- Retain, truncate, preview, or rewrite encrypted links in a messenger, email
+  client, SMS app, clipboard manager, or share target.
+- Recover a complete pre-scrub URL from browser history sync, crash recovery,
+  operating-system state, or pre-JavaScript browser behavior.
 - Capture screenshots or screen recordings.
 - Cause storage eviction or local database loss.
 - Use unaudited implementation side channels.
@@ -149,6 +155,44 @@ Mitigations:
 - Ed25519 signatures over the signed inner payload.
 - Omit stable sender metadata from the outer object when possible.
 
+### 6.3.1 Encrypted-link transport
+
+Threats:
+
+- Oversized or malformed fragments causing excessive allocation or parser work.
+- Ciphertext reaching request URLs, referrers, caches, analytics, diagnostics,
+  local storage, or generated error text.
+- A messenger truncating, collapsing, rewriting, or failing to linkify a long
+  encrypted link.
+- Replaying a previously delivered link.
+- Treating optional Web Share or installed-PWA capture as guaranteed delivery.
+- Saving an attacker-selected same-pseudonym contact without noticing its
+  different fingerprint.
+
+Mitigations and explicit limits:
+
+- Generate only the build-defined canonical HTTPS base, use a `#/m/` fragment,
+  and encode raw canonical bytes as unpadded base64url. Reject credentials,
+  queries, noncanonical alphabet, padding, impossible lengths, unknown magic,
+  and over 400,000 encoded characters before allocation.
+- Scrub valid and malformed reserved fragments to clean `#/decrypt`, removing
+  the query, before normal UI and storage initialization. Keep only a typed
+  intent in memory for at most 15 minutes; clear it on cancel, erase,
+  replacement, destructive navigation, or tab close.
+- Apply `no-referrer`; redact new message-link and legacy QR markers from
+  diagnostics. Service-worker caches contain the shell and versioned assets,
+  never fragment payloads.
+- Display exact link length and warn above 2,000 characters. Copy remains
+  possible, but messenger acceptance and integrity are not security claims.
+- Web Share sends URL-only data and remains optional. Browser/PWA navigation is
+  best effort; browser fallback and in-app paste remain required.
+- PPXT unknown senders require a post-decrypt save decision. Exact fingerprints
+  deduplicate; same-pseudonym/different-fingerprint saves warn before the write
+  and require explicit separate-contact confirmation. PPXQ unknown senders fail
+  closed.
+- Permit replay by design and run at most one decrypt operation concurrently.
+  Do not persist message IDs or claim cross-session replay protection.
+
 ### 6.4 File transfer
 
 Threats:
@@ -208,6 +252,15 @@ Residual risks are accepted by design:
 - Browser engine memory copies.
 - Human verification mistakes.
 - Untrusted transport channels.
+- Ciphertext retained by messengers, email/SMS systems, share targets, and
+  clipboard history.
+- Link length and compressibility metadata.
+- Complete URL exposure before JavaScript can scrub it.
+- Browser history synchronization and crash recovery.
+- Screenshots of links or decrypted output.
+- Installed-PWA capture and Web Share target acceptance controlled by browser,
+  operating system, and destination app.
+- No forward secrecy, continuous ratchet, or cross-session replay protection.
 
 These risks are not implementation defects if the documented warnings and validation rules are preserved.
 

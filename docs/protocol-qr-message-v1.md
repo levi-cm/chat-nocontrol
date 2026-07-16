@@ -1,6 +1,6 @@
-> **Authority:** Normative compact encrypted-message QR protocol contract.
+> **Authority:** Normative compact encrypted-message QR and encrypted-link transport contract.
 
-# Compact encrypted message QR protocol v1
+# Compact encrypted message QR and link transport v1
 
 `PPXQ` is a contact-referenced encrypted text envelope sized for one
 high-recovery QR. It retains the established hybrid ML-KEM + X25519 key
@@ -66,3 +66,46 @@ immediately scrubbed to `#/decrypt`.
 
 Current PPXT cannot fit version-40/H. PPXQ fit depends on ciphertext and
 compression; four A4 pages are not guaranteed.
+
+## Encrypted message links
+
+The backend-free message-link transport is:
+
+```text
+https://canonical-app.example/#/m/<BASE64URL>
+```
+
+`BASE64URL` is unpadded canonical base64url of the raw canonical `PPXT` or
+`PPXQ` bytes. It is never PPXT armor, base37, or a server-side identifier. The
+decoder determines the object family from the decoded `PPXT` or `PPXQ` magic
+and then applies the existing strict object parser. The link therefore changes
+transport only; it does not change PPXT or PPXQ cryptography or wire bytes.
+
+- Contact inclusion on encodes PPXT. Its encrypted inner contains the sender's
+  public contact, so an unknown sender can be authenticated after decryption.
+- Contact inclusion off encodes compact PPXQ. The recipient must already have
+  the exact sender fingerprint in contacts; unknown senders fail closed.
+- Generation uses only the build-defined canonical HTTPS app base. Credentials,
+  query parameters, non-HTTPS destinations, user-configured destinations, and
+  silent development-origin substitution are rejected.
+- The base64url input is bounded to 400,000 characters before decoding.
+  Padding, noncanonical alphabet, empty or truncated input, impossible lengths,
+  trailing data, unknown magic, and query-bearing reserved links are rejected.
+
+Both valid and malformed reserved `#/m/` links are scrubbed before normal app
+and storage initialization. The clean location is the current app pathname plus
+`#/decrypt`, with its query removed. Only a typed parsed intent and capture time
+remain in memory; the full incoming URL is not retained. A valid intent expires
+after 15 minutes and is also cleared by cancel, erase, replacement, destructive
+navigation, or tab close. The established `#/decrypt/qr/<BASE37>` PPXQ link
+remains accepted and receives the same early-scrub treatment.
+
+The fragment is processed by the client and is not part of the HTTP request
+under [RFC 3986 section 3.5](https://www.rfc-editor.org/rfc/rfc3986#section-3.5).
+The document also uses a `no-referrer` policy. These properties do not remove
+the residual exposure before JavaScript starts or in browser-managed history,
+sync, and crash recovery.
+
+Replay is permitted by design. The app allows only one active decrypt operation
+at a time, but it does not persist message IDs and does not claim cross-session
+replay protection.
