@@ -139,7 +139,7 @@ The product must not claim:
 - Identity creation is a seven-screen wizard with progress values `30%`, `42%`, `54%`, `66%`, `78%`, `90%`, and `100%`; secrets from the recovery-document screen must not be recoverable with Back navigation after the user continues.
 - Every new identity requires a matching browser-vault password before recovery artifacts are produced. The password accepts printable ASCII, permits internal spaces, rejects leading or trailing spaces, and is limited to `256` bytes.
 - The user must download both the private QR PNG and `.ppxrecovery` file and attest that each was stored safely before continuing.
-- The recovery words must be preserved through handwriting, a physical printout, or a saved PDF. The private A4 recovery print/PDF includes the exact plaintext browser-vault password; no other recovery artifact includes it.
+- The user must handwrite all 24 recovery words and download and safely store the private A4 recovery PDF, confirming both separately before continuing. The PDF includes the exact plaintext browser-vault password; no other recovery artifact includes it.
 - Recovery practice must verify the saved QR, then the `.ppxrecovery` file, then four unique random recovery-word positions. Practice allows unlimited retries and offers restart after ten failed word submissions.
 - An expert skip may bypass only recovery practice, never required downloads or backup attestations.
 - Remembering the encrypted vault in local IndexedDB is recommended and preselected, but persistence occurs only after explicit confirmation; session-only remains available.

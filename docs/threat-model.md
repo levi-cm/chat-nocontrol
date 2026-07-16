@@ -115,7 +115,7 @@ Mitigations:
 - Keep the pseudonym out of the fingerprint.
 - Make recovery objects visually dangerous.
 - Use a seven-screen state machine that clears the password, words, recovery code, QR presentation, and print model after the recovery-document step and cannot recreate them through Back navigation.
-- Require both QR PNG and `.ppxrecovery` downloads with safe-storage attestations, plus handwritten, physical-print, or saved-PDF confirmation.
+- Require both QR PNG and `.ppxrecovery` downloads with safe-storage attestations, plus separate confirmations for all 24 handwritten words and a safely stored downloaded PDF.
 - Require practice restoring the pending identity from QR, then `.ppxrecovery`, then four random word positions; unlimited retries avoid lockout, and restart is offered after ten failures.
 - Permit the confirmed expert skip to bypass only restore practice, never backup gates.
 - Render the plaintext vault password only in the private A4 print/PDF and never persist or serialize it into QR/PPXR artifacts.

@@ -152,7 +152,7 @@ the ordered release gate and must stop on the first real failure.
 | Session-only | `test:session-only` | No identity or contact persistence remains after session end |
 | Identity wizard | `unit`, `test:e2e` | Seven transitions use `30/42/54/66/78/90/100`, Back cannot recreate cleared secrets, and restart/skip boundaries hold |
 | Vault password | `unit`, `test:e2e` | Matching printable ASCII is required; internal spaces, edge-space rejection, case sensitivity, and the `256`-byte maximum behave correctly |
-| Backup artifacts | `unit`, `test:e2e` | QR PNG and `.ppxrecovery` downloads plus separate attestations gate progress; written words, stored printout, and stored PDF are three required independent confirmations |
+| Backup artifacts | `unit`, `test:e2e` | QR PNG and `.ppxrecovery` downloads plus separate attestations gate progress; the recovery-document gate requires one PDF download followed by independent confirmations for written words and safely stored PDF |
 | Recovery document | `unit`, `test:e2e` | One-page A4 print/PDF contains the exact password, username, dates, QR, full recovery code, and all words while other artifacts and post-secret state do not contain the password |
 | Restore practice | `unit`, `test:e2e` | QR then `.ppxrecovery` then four unique stable random words restore the pending identity; malformed and different-identity inputs fail safely; retries are unlimited and restart appears after ten failures |
 | Recommended storage | `test:storage`, `test:session-only`, `test:e2e` | Encrypted IndexedDB is preselected but not written before explicit confirmation; opt-out and unavailable storage remain session-only |

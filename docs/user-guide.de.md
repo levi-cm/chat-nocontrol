@@ -18,7 +18,7 @@ Die App läuft im Browser. Für die normale Nutzung braucht sie keinen Server.
 - Wenn du 24 Wiederherstellungswörter verwendest, denk daran, dass sie nur auf Englisch sind und dieselbe kryptografische Identität wiederherstellen, aber nicht das ursprüngliche Pseudonym oder die ursprüngliche Erstellungszeit.
 - Nutze einen Browser mit aktuellem JavaScript- und Dateisupport.
 - Erstelle ein Passwort für den Browser-Tresor, das du nirgendwo sonst verwendest. Es darf nur druckbares ASCII enthalten, innere Leerzeichen nutzen, nicht mit einem Leerzeichen beginnen oder enden und höchstens 256 Bytes lang sein.
-- Plane ein, sowohl das private QR-PNG als auch die `.ppxrecovery`-Datei zu speichern und die Wörter abzuschreiben, das Wiederherstellungsblatt auszudrucken oder sein PDF zu speichern.
+- Plane ein, sowohl das private QR-PNG als auch die `.ppxrecovery`-Datei zu speichern, alle 24 Wörter abzuschreiben und die Wiederherstellungs-PDF herunterzuladen und sicher aufzubewahren.
 
 ## 3. Identität erstellen oder importieren
 
@@ -28,7 +28,7 @@ Die App läuft im Browser. Für die normale Nutzung braucht sie keinen Server.
    1. Gib einen öffentlichen `Benutzernamen` ein und erzeuge die Identität.
    2. Gib das Passwort für den Browser-Tresor zweimal ein. Es schützt nur die verschlüsselte Browser-Kopie; Wiederherstellung per QR, Datei oder Wörtern benötigt es nicht.
    3. Lade sowohl das private QR-PNG als auch die `.ppxrecovery`-Datei herunter und bestätige für beide die sichere Aufbewahrung.
-   4. Schreibe alle 24 englischen Wörter ab, öffne die Druckaktion und lade die private A4-Wiederherstellungs-PDF herunter. Bestätige alle drei Sicherungen einzeln; eine oder zwei Bestätigungen reichen nicht. Auf dem Desktop erscheint die exakt erzeugte PDF eingebettet, auf kleinen Bildschirmen bleiben Wörter und Aktionen ohne gequetschte Vorschau sichtbar. Das Blatt enthält Benutzername, Daten, QR-Code, vollständigen Wiederherstellungscode, Wörter und das exakte Klartext-Passwort des Browser-Tresors. Teile es nie und verwende dieses Passwort nirgendwo sonst.
+   4. Schreibe alle 24 englischen Wörter ab und nutze die einzelne Download-Aktion für die private A4-Wiederherstellungs-PDF. Bestätige beide Sicherungen einzeln: aufgeschriebene Wörter und sicher verwahrte PDF. Die PDF-Bestätigung bleibt bis zum Download deaktiviert; ohne beide Bestätigungen geht es nicht weiter. Auf dem Desktop erscheint die exakt erzeugte PDF eingebettet; auf kleinen Bildschirmen bleibt die Vorschau verborgen, während Wörter und eine vollbreite Download-Aktion verfügbar bleiben. Das Blatt enthält Benutzername, Daten, QR-Code, vollständigen Wiederherstellungscode, Wörter und das exakte Klartext-Passwort des Browser-Tresors. Teile es nie und verwende dieses Passwort nirgendwo sonst.
    5. Übe den Import nach dem Löschen des Browser-Speichers, indem du den gespeicherten QR-Code scannst/hochlädst oder den Wiederherstellungscode einfügst.
    6. Importiere die gespeicherte `.ppxrecovery`-Datei und gib anschließend die vier abgefragten zufälligen Wortpositionen ein. Falsche Antworten kannst du unbegrenzt wiederholen; nach zehn Fehlversuchen wird zusätzlich ein bestätigter Neustart angeboten.
    7. Bestätige, ob die App den verschlüsselten Tresor speichern soll. `Auf diesem Gerät merken` ist empfohlen und vorausgewählt, aber erst mit Weiter wird in IndexedDB geschrieben. Mit `Nur für diese Sitzung` lehnst du das ab.

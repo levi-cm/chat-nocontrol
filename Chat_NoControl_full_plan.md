@@ -890,7 +890,7 @@ Creation uses a seven-screen state-machine wizard, not one vertically scrollable
 1. **Username — `30%`:** collect the public, nonunique username, map it to the protocol `pseudonym`, and generate only after validation and explicit action.
 2. **Create password — `42%`:** require matching printable-ASCII browser-vault password fields. Internal spaces are allowed, leading/trailing spaces are rejected, and the maximum is `256` bytes. Prepare the encrypted `LockedVaultObject` without persisting it.
 3. **Digital backups — `54%`:** require ordinary-click downloads of the branded private QR PNG and `.ppxrecovery`, with separate safe-storage attestations.
-4. **Words and recovery document — `66%`:** show the 24 English words and offer a transient browser print preview plus direct one-page A4 PDF. Require confirmation of handwritten words, a physical printout, or a safely stored PDF. The document includes the username, localized and ISO creation dates, private recovery QR, full wrapped `PPX1:RECOVERY:...` code, all 24 numbered words, and the exact plaintext browser-vault password.
+4. **Words and recovery document — `66%`:** show the 24 English words, an embedded desktop PDF preview, and one direct one-page A4 PDF Download action. Require both confirmation of handwritten words and confirmation of a safely stored downloaded PDF; the PDF confirmation remains unavailable until download. The document includes the username, localized and ISO creation dates, private recovery QR, full wrapped `PPX1:RECOVERY:...` code, all 24 numbered words, and the exact plaintext browser-vault password.
 5. **QR restore practice — `78%`:** teach the cleared-browser import path and verify a saved QR image, camera scan, or pasted recovery code by deriving and comparing the pending identity ID.
 6. **File and word restore practice — `90%`:** verify the saved `.ppxrecovery`, then request four stable unique random word positions together. Allow unlimited retries, identify incorrect fields, and offer confirmed restart after ten failures.
 7. **Local storage and finish — `100%`:** recommend and preselect encrypted IndexedDB persistence, but write only after explicit confirmation. Session-only is the secondary opt-out and the fallback when persistence is unavailable.
@@ -1054,7 +1054,7 @@ Required capabilities:
 - Required recovery downloads and separate safe-storage attestations must be keyboard, pointer, touch, and switch accessible through ordinary activation.
 - Every wizard screen must expose `Step {n} of 7` and its progress value as text, not through color or bar width alone.
 - Focus moves to each new screen heading; field errors and the four requested word positions are programmatically associated and announced.
-- Print/PDF controls, the expert-skip confirmation, and all practice alternatives must be keyboard complete.
+- The recovery PDF preview and its single Download action, the expert-skip confirmation, and all practice alternatives must be keyboard complete.
 - The identity flow must not depend on a time-based hold gesture or typed export phrase.
 
 ### 17.3 Localization rules

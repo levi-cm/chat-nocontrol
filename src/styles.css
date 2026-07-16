@@ -1803,6 +1803,9 @@ textarea.field-control {
   .action-row {
     display: grid;
   }
+  .recovery-pdf-actions {
+    justify-content: stretch;
+  }
   .button {
     width: 100%;
     min-width: 0;

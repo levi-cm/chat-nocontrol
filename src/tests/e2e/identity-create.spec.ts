@@ -80,6 +80,18 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   const preview = page.getByTitle("Private recovery PDF preview");
   if (testInfo.project.name.startsWith("mobile")) {
     await expect(preview).toHaveCount(0);
+    const recoveryPdfRegion = page.getByRole("region", {
+      name: "Recovery PDF",
+    });
+    const [regionWidth, downloadWidth] = await Promise.all([
+      recoveryPdfRegion.evaluate(
+        (element) => element.getBoundingClientRect().width,
+      ),
+      page
+        .getByRole("button", { name: "Download recovery PDF" })
+        .evaluate((element) => element.getBoundingClientRect().width),
+    ]);
+    expect(downloadWidth).toBeGreaterThanOrEqual(regionWidth - 1);
   } else {
     await expect(preview).toBeVisible();
   }

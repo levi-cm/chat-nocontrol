@@ -49,7 +49,7 @@ Requirements:
 - Focused text, password, textarea, and select controls must show one continuous accent ring with no neutral inner border, clipping, or layout shift; the soft halo supplements rather than replaces the visible ring.
 - Weak browser-vault passwords must open a keyboard-trapped confirmation dialog. Its safe action and Escape return focus to the password field; its warning must be complete in English and German.
 - Browser-vault creation failures must focus a contextual error summary, preserve both password values and pending setup, and leave retry and confirmed restart available.
-- The print preview must be keyboard operable, return focus to its invoking control, and preserve access to browser Print / Save as PDF.
+- The recovery PDF preview and its single Download action must be keyboard operable; small screens may omit the preview but must retain the full-width Download action.
 - The four recovery-word fields must expose their requested positions, individual error states, and a shared error summary to assistive technology.
 - The expert skip must be a real focusable action with an accessible confirmation dialog; it may skip only restore practice.
 
@@ -118,7 +118,7 @@ Requirements:
 | Camera | Verify access only on action and stop on exit |
 | Wizard | Verify seven labeled steps, progress `30/42/54/66/78/90/100`, weak-password confirmation, transition focus, safe Back behavior, and secret-screen non-recreation |
 | Recovery practice | Verify QR/file/word controls, four positional labels, error announcement, unlimited retries, ten-failure restart, and expert-skip dialog |
-| Print/PDF | Verify A4 preview controls, focus return, readable wrapping, and 200% zoom/reflow |
+| Recovery PDF | Verify the A4 preview and single Download action, readable wrapping, mobile full-width layout, and 200% zoom/reflow |
 
 ### 7.2 Localization tests
 
@@ -136,7 +136,7 @@ Requirements:
 ### 7.3 End-to-end coverage
 
 - First-time identity creation in both locales.
-- Seven-screen identity creation, matching password entry, mandatory QR and `.ppxrecovery` downloads, backup attestations, print/PDF, QR restore, file restore, four-word practice, and preselected local storage in both locales.
+- Seven-screen identity creation, matching password entry, mandatory QR, `.ppxrecovery`, and PDF downloads, written-word and storage attestations, QR restore, file restore, four-word practice, and preselected local storage in both locales.
 - Session-only opt-out and storage-unavailable fallback in both locales.
 - Encrypt and decrypt flows in both locales.
 - Unknown-sender warning after decryption.

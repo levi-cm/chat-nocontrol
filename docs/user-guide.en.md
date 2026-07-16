@@ -18,7 +18,7 @@ It runs in your browser. It does not need a server for normal use.
 - If you use 24 recovery words, know that they are English-only and restore the same cryptographic identity without restoring the original pseudonym or creation time.
 - Have a browser with current JavaScript and file support.
 - Create a browser-vault password that you do not use elsewhere. It must use printable ASCII, may contain internal spaces, must not start or end with a space, and may be at most 256 bytes.
-- Plan to save both a private QR PNG and `.ppxrecovery` file, and to handwrite the words, print the recovery sheet, or save its PDF.
+- Plan to save both a private QR PNG and `.ppxrecovery` file, handwrite all 24 words, and download and safely store the recovery PDF.
 
 ## 3. Create or import an identity
 
@@ -28,7 +28,7 @@ It runs in your browser. It does not need a server for normal use.
    1. Enter a public `Username` and generate the identity.
    2. Enter and confirm the browser-vault password. The password protects only the encrypted browser copy; QR, recovery-file, and word recovery do not require it.
    3. Download both the private QR PNG and `.ppxrecovery` file and confirm that each is stored safely.
-   4. Write down all 24 English words, open the print action, and download the private A4 recovery PDF. Confirm all three backups separately; one or two confirmations cannot continue. Desktop shows the exact generated PDF inline, while small screens keep the words and actions without squeezing the preview. The sheet contains your username, dates, QR, full recovery code, words, and exact plaintext browser-vault password. Never share it or reuse that password.
+   4. Write down all 24 English words and use the single Download action for the private A4 recovery PDF. Confirm both backups separately: written words and safely stored PDF. The PDF confirmation stays unavailable until download, and either missing confirmation blocks continuation. Desktop shows the exact generated PDF inline; small screens hide the preview but keep the words and a full-width Download action. The sheet contains your username, dates, QR, full recovery code, words, and exact plaintext browser-vault password. Never share it or reuse that password.
    5. Practice the cleared-browser import path by scanning/uploading the saved QR or pasting the recovery code.
    6. Import the saved `.ppxrecovery`, then enter the four requested random word positions. Wrong answers can be retried without limit; after ten failed submissions the app also offers a confirmed restart.
    7. Confirm whether to remember the encrypted vault. `Remember on this device` is recommended and preselected, but the app writes to IndexedDB only after you continue. Choose `Session only` to opt out.
