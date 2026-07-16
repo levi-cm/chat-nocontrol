@@ -75,9 +75,12 @@ test("encrypts text to one selected contact locally", async ({ page }) => {
     /BEGIN PPX ENCRYPTED TEXT/u,
   );
   await page.getByRole("button", { name: "Copy encrypted output" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    "Copied. Clipboard clearing after 60 seconds is best effort.",
-  );
+  await expect(
+    page.getByRole("status").filter({
+      hasText:
+        /^Copied\. Clipboard clearing after 60 seconds is best effort\.$/u,
+    }),
+  ).toHaveText("Copied. Clipboard clearing after 60 seconds is best effort.");
   expect(
     await page.evaluate(() => localStorage.getItem("legacy-encrypted-copy")),
   ).toBe("yes");
