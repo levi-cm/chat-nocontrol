@@ -58,6 +58,7 @@ import {
   readStoredLocale,
   syncThemeColor,
 } from "./bootstrap";
+import { createSerializedContactSaveQueue } from "./contact-save-queue";
 import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
 import {
   consumeExpectedIncomingIntent,
@@ -150,12 +151,18 @@ export function App({
   const degradedPersistentDb = useRef<PpxDatabase | null>(null);
   const suppressNextLocalePersistence = useRef(false);
   const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve());
+  const contactsWriteQueue = useRef(createSerializedContactSaveQueue());
+  const contactsRef = useRef<ManagedContact[]>([]);
   const decryptCancellation = useRef<(() => void) | null>(null);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [storageFailure, setStorageFailure] = useState<
     "fallback" | "delete-failed" | null
   >(null);
   const t = (key: MessageKey) => messages[locale][key];
+  const commitContacts = (next: ManagedContact[]) => {
+    contactsRef.current = next;
+    setContacts(next);
+  };
 
   const lockActiveIdentity = () => {
     decryptCancellation.current?.();
@@ -248,7 +255,7 @@ export function App({
           if (loadedVault) session.putVault(loadedVault);
           if (!cancelled) {
             setStorage({ mode: "session-only", session });
-            setContacts(loaded);
+            commitContacts(loaded);
             setStoredVault(loadedVault);
             setLocale(loadedLocale);
             setTheme(loadedSettings.theme);
@@ -268,7 +275,7 @@ export function App({
             clearStoredLocale();
           }
         } else if (!cancelled) {
-          setContacts(loaded);
+          commitContacts(loaded);
           setStoredVault(loadedVault);
           setLocale(loadedLocale);
           setTheme(loadedSettings.theme);
@@ -294,7 +301,7 @@ export function App({
           messageOutputMode,
           autoDecryptIncomingMessages,
         });
-        setContacts(
+        commitContacts(
           canonicalContacts(
             context.session
               .listContacts()
@@ -546,40 +553,32 @@ export function App({
 
   const saveContacts = async (next: ManagedContact[]): Promise<boolean> => {
     if (!storageReady || !storage) return false;
-    const nextIds = new Set(
-      next.map(({ contact }) =>
-        [...contact.fingerprint]
-          .map((byte) => byte.toString(16).padStart(2, "0"))
-          .join(""),
-      ),
-    );
-    const destructive = contacts.some(
-      ({ contact }) =>
-        !nextIds.has(
-          [...contact.fingerprint]
-            .map((byte) => byte.toString(16).padStart(2, "0"))
-            .join(""),
-        ),
-    );
-    if (!sessionOnly && storage.mode === "persistent") {
-      try {
-        await replaceContacts(storage.db, next);
-      } catch {
-        if (destructive) {
-          setStorageFailure("delete-failed");
-          return false;
+    return contactsWriteQueue.current.enqueue({
+      base: contacts,
+      next,
+      getCurrent: () => contactsRef.current,
+      persist: async (merged, destructive) => {
+        if (!sessionOnly && storage.mode === "persistent") {
+          try {
+            await replaceContacts(storage.db, merged);
+          } catch {
+            if (destructive) {
+              setStorageFailure("delete-failed");
+              return false;
+            }
+            fallBackToSession([...merged], storedVault);
+          }
+        } else {
+          const session =
+            storage.mode === "session-only"
+              ? storage.session
+              : sessionMemory.current;
+          session.replaceContacts(merged);
         }
-        fallBackToSession(next, storedVault);
-      }
-    } else {
-      const session =
-        storage.mode === "session-only"
-          ? storage.session
-          : sessionMemory.current;
-      session.replaceContacts(next);
-    }
-    setContacts(next);
-    return true;
+        return true;
+      },
+      commit: commitContacts,
+    });
   };
 
   const identityReady = async (
@@ -718,7 +717,7 @@ export function App({
       DEFAULT_SETTINGS.autoDecryptIncomingMessages,
     );
     setPendingIncomingIntent(null);
-    setContacts([]);
+    commitContacts([]);
     setStoredVault(null);
     lockActiveIdentity();
     clearLastUnlockedRoute();
