@@ -177,9 +177,8 @@ This is the planned source tree for the implementation. The goal is small, focus
 │  │  ├─ scan-worker.ts             # QR scanning and classification assistance
 │  │  └─ shared.ts                  # worker dispatch helpers using crypto/contracts.ts
 │  ├─ sw/
-│  │  ├─ service-worker.ts          # shell caching and update detection
+│  │  ├─ service-worker.ts          # shell caching and silent update activation
 │  │  ├─ cache-policy.ts            # versioned asset allowlist and denial logic
-│  │  └─ update.ts                  # version banner state and safe update prompts
 │  ├─ diagnostics/
 │  │  ├─ report.ts                  # local diagnostics assembly
 │  │  ├─ sanitize.ts                # strip sensitive values and paths
@@ -355,13 +354,13 @@ Key implementation shape:
     "test:accessibility": "vitest run src/tests/accessibility && playwright test src/tests/accessibility",
     "test:i18n": "vitest run src/tests/unit/i18n.test.ts src/tests/accessibility/i18n.test.ts",
     "test:offline": "playwright test src/tests/release/offline.spec.ts",
-    "test:update-banner": "playwright test src/tests/release/update-banner.spec.ts",
+    "test:pwa-update-policy": "npm run build && playwright test src/tests/release/pwa-update.spec.ts",
     "test:network-denial": "playwright test src/tests/release/network-denial.spec.ts",
     "test:release": "tsx scripts/verify-release.ts",
     "test:sbom": "tsx scripts/build-sbom.ts --verify",
     "test:reproducibility": "tsx scripts/check-reproducibility.ts",
     "test:dependency-review": "tsx scripts/check-dependencies.ts",
-    "verify": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:update-banner && npm run test:network-denial && npm run test:release && npm run test:sbom && npm run test:reproducibility && npm run test:dependency-review"
+    "verify": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:pwa-update-policy && npm run test:network-denial && npm run test:release && npm run test:sbom && npm run test:reproducibility && npm run test:dependency-review"
   }
 }
 ```
@@ -1286,7 +1285,7 @@ Exact behavior:
 - Lock now is explicit.
 - Clipboard clearing is best effort after 60 seconds.
 - No secure deletion guarantee may be claimed.
-- The app must keep a coherent state machine for open decrypted content, active identity, and update banners.
+- The app must keep a coherent state machine for open decrypted content and active identity; updates must never force-reload it.
 
 Exact commands and expected outcomes:
 
@@ -1478,7 +1477,7 @@ Future commit message:
 
 - `feat: add encrypt and decrypt workflows`
 
-## 16) Implement Help/About/diagnostics/chat-control explainer/offline PWA/GitHub Pages Actions/meta CSP/update prompt/no network
+## 16) Implement Help/About/diagnostics/chat-control explainer/offline PWA/GitHub Pages Actions/meta CSP/silent updates/no network
 
 Prerequisites:
 
@@ -1489,13 +1488,13 @@ Create/modify/test paths:
 
 - Create: `src/flows/help/*`, `src/diagnostics/*`, `src/sw/*`, `.github/workflows/ci.yml`, `.github/workflows/pages.yml`, `.github/workflows/release.yml`, `.github/workflows/security-review.yml`, `public/robots.txt`, `SECURITY.md`, `CONTRIBUTING.md`, `scripts/verify-release.ts`, `scripts/build-sbom.ts`, `scripts/package-release.ts`, `scripts/check-reproducibility.ts`, `scripts/check-dependencies.ts`.
 - Modify: `public/manifest.webmanifest`, `README.md`, `src/app/bootstrap.ts`.
-- Test: `src/tests/e2e/help-diagnostics.spec.ts`, `src/tests/release/offline.spec.ts`, `src/tests/release/update-banner.spec.ts`, `src/tests/release/network-denial.spec.ts`.
+- Test: `src/tests/e2e/help-diagnostics.spec.ts`, `src/tests/release/offline.spec.ts`, `src/tests/release/pwa-update.spec.ts`, `src/tests/release/network-denial.spec.ts`.
 
 Fail-test / verify-fail / implement / verify-pass:
 
 - [ ] Fail-test: confirm diagnostics are not auto-submitted and the help surface does not claim remote support.
 - [ ] Verify-fail: ensure the service worker caches only the app shell and versioned static assets.
-- [ ] Implement: add the help/about/diagnostics flow, the chat-control explainer entry, offline update banners, and GitHub Pages workflow support.
+- [ ] Implement: add the help/about/diagnostics flow, the chat-control explainer entry, silent service-worker activation, and GitHub Pages workflow support.
 - [ ] Verify-pass: confirm the meta CSP baseline, hash routing, and offline behavior are consistent with the hosting contract.
 
 Key interfaces:
@@ -1514,14 +1513,14 @@ Exact behavior:
 
 - The app must never auto-submit diagnostics.
 - The user must review diagnostics before any GitHub issue draft is opened.
-- The update banner text must match `A newer version is available.` and the German equivalent.
+- The generated worker must call `skipWaiting()` and `clientsClaim()` without waiting for user approval. The app must not force-reload an open document; the newest active worker serves the next manual reload or app reopen.
 - The service worker must never cache user data, decrypted content, recovery material, imported files, or diagnostics waiting for review.
 - `connect-src` is self only, no network telemetry.
 
 Exact commands and expected outcomes:
 
 - `npm run test:offline` -> app shell and versioned assets remain usable offline after first load.
-- `npm run test:update-banner` -> update prompt appears only in the safe state.
+- `npm run test:pwa-update-policy` -> the worker activates and claims clients silently, while the app shows no update prompt.
 - `npm run test:network-denial` -> the app fails safely and stays usable where designed.
 - `npm run test:release` -> Pages contract and provenance checks are consistent.
 
@@ -1635,7 +1634,7 @@ The intended command order for implementation and final verification is:
 29. `npm run test:accessibility`
 30. `npm run test:i18n`
 31. `npm run test:offline`
-32. `npm run test:update-banner`
+32. `npm run test:pwa-update-policy`
 33. `npm run test:network-denial`
 34. `npm run test:release`
 35. `npm run test:sbom`

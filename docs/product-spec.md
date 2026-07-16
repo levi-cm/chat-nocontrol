@@ -167,8 +167,8 @@ The product must not claim:
 
 ## 12. Update and offline behavior
 
-- After a deployed version changes, the app must prompt: `A newer version is available.`
-- Never reload mid-operation or while unlocked/decrypted content is visible.
+- A discovered service-worker update must activate silently without showing a prompt.
+- Never force-reload the current document; the newest activated build loads on the next manual reload or app reopen.
 - After the first successful load, the app should remain usable offline as long as the browser retains the app shell and versioned assets.
 - If storage is unavailable, the current loaded session must continue to work, but future offline reload is not guaranteed.
 

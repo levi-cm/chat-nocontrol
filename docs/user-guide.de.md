@@ -170,8 +170,8 @@ Zum Modus `Nur Sitzung`:
 ## 10. Offline-Nutzung und Updates
 
 - Nachdem die App einmal erfolgreich geladen wurde, kann sie offline weiterarbeiten, wenn dein Browser die App-Shell und die Assets behält.
-- Wenn eine neuere Version bereitsteht, siehst du einen Hinweis.
-- Lade die Seite nicht neu, während du verschlüsselst, entschlüsselst oder ein entschlüsseltes Ergebnis offen hast.
+- Neue Versionen werden im Hintergrund ohne Hinweis aktiviert und unterbrechen die geöffnete Seite nicht.
+- Lade die Seite neu oder öffne die App vollständig erneut, wenn du die neueste aktivierte Version nutzen möchtest. Lade nicht neu, während du verschlüsselst, entschlüsselst oder ein entschlüsseltes Ergebnis offen hast.
 
 ## 11. Fehlerbehebung
 
@@ -190,7 +190,6 @@ Häufige sichere Meldungen:
 - `Dieses Element passt nicht zu deiner aktiven Identität oder ist beschädigt.`
 - `Das Element wurde entschlüsselt, aber die Absenderprüfung ist fehlgeschlagen.`
 - `Speicher ist nicht verfügbar, deshalb wird sich diese Sitzung nicht merken.`
-- `Eine neuere Version ist verfügbar.`
 
 ## 12. Sicherheitsgrenzen
 

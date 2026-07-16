@@ -390,14 +390,12 @@ German:
 
 English:
 
-- Update banner: `A newer version is available.`
-- Update banner action: `Review later`
+- Update behavior: activate silently; never force-reload the open document
 - Offline state: `You are offline, but this session can keep working.`
 
 German:
 
-- Update banner: `Eine neuere Version ist verfügbar.`
-- Update banner action: `Später ansehen`
+- Update-Verhalten: im Hintergrund aktivieren; das geöffnete Dokument nie automatisch neu laden
 - Offline state: `Du bist offline, aber diese Sitzung kann weiterarbeiten.`
 
 ## 9. Help and About
@@ -432,7 +430,6 @@ German:
 
 The following strings are exact and may be reused in English or German UI where the product requires a fixed phrase:
 
-- `A newer version is available.`
 - `Export the private recovery card before you finish.`
 - `This card is dangerous. Anyone who gets it can recover your private identity. Do not share it.`
 - `This item does not match your active identity or is damaged.`

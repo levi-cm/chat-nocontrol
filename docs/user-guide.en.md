@@ -169,8 +169,8 @@ About session-only mode:
 ## 10. Offline use and updates
 
 - After the app has loaded successfully once, it may keep working offline if your browser keeps the app shell and assets.
-- If a newer version is deployed, you will see an update message.
-- Do not reload in the middle of encryption, decryption, or an open decrypted result.
+- New versions activate silently in the background without interrupting the open page.
+- Reload the page or fully reopen the app when you want to use the newest activated version. Do not reload in the middle of encryption, decryption, or an open decrypted result.
 
 ## 11. Troubleshooting
 
@@ -189,7 +189,6 @@ Common safe messages:
 - `This item does not match your active identity or is damaged.`
 - `The item decrypted, but the sender check failed.`
 - `Storage is unavailable, so this session will not be remembered.`
-- `A newer version is available.`
 
 ## 12. Security limits
 

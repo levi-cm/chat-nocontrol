@@ -724,7 +724,7 @@ GitHub Pages cannot provide the same response-header control. Include a strict C
 - Show source commit and build timestamp in About.
 - Build must be reproducible from the lockfile.
 - Generate and publish SHA-256 checksums for release ZIP files.
-- Do not auto-reload a new service worker while an identity is unlocked or decrypted content is visible. Prompt the user to lock and reload.
+- Activate a discovered service worker silently, but never force-reload the open document. The newest activated build loads on the next manual reload or app reopen.
 
 ### 14.3 GitHub Pages
 
@@ -1309,7 +1309,7 @@ Document that wipe is best-effort in JavaScript.
 
 - First successful online load precaches only versioned application assets.
 - App reloads and creates/decrypts a test message with network disabled.
-- Service-worker update prompts rather than silently replacing an active unlocked app.
+- Discovered service workers activate silently without force-reloading the active app; the newest activated build loads on the next manual reload or app reopen.
 - Production build contains no runtime URL beginning with `http://` or `https://` except documentation text intentionally displayed to users.
 - Cloudflare headers match Section 14.
 - GitHub Pages build uses configured base path.

@@ -147,8 +147,8 @@ The wizard must explain that the QR, `.ppxrecovery`, recovery code, 24 words, an
 - The app should be able to work offline after the first successful load.
 - Versioned assets may be cached for reloads.
 - Identities, contacts, decrypted content, and QR payloads must never be cached as application assets.
-- When a deployed version changes, the app must notify the user that a newer version is available.
-- Reload must never interrupt an operation or a visible decrypted result.
+- A discovered service-worker update must activate silently without user approval.
+- The app must never force-reload the current document; the newest activated build loads on the next manual reload or app reopen.
 
 ## 8. Error model
 

@@ -114,9 +114,9 @@ The offline goal is availability of the app shell and previously fetched version
 
 ## 6. Update and rollback behavior
 
-The app must show a clear update prompt when a deployed version changes.
-
-The prompt must not ask the user to reload in the middle of encryption, decryption, or an open decrypted view.
+A discovered service-worker update must activate silently without user approval.
+The app must not force-reload an open document; the newest activated build must
+load on the next manual reload or app reopen.
 
 Release records must include:
 

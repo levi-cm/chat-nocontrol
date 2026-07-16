@@ -29,7 +29,7 @@ a pass.
 | 13 | Complete | EN/DE responsive shell, keyboard-complete flows, axe, ARIA snapshots, 200% zoom, focus, contrast, reduced motion, visual matrix, and a real Orca/AT-SPI Chromium keyboard traversal pass. |
 | 14 | Complete | The seven-screen identity flow, required vault password, branded recovery artifacts, transient print/PDF, restore practice, secret cleanup, and explicit recommended-storage decision pass unit, EN/DE, cross-browser, accessibility, offline, and network-denial gates. |
 | 15 | Complete | Smart text/file routing, exact copy/download, authenticated preview, bad-signature/unknown-sender behavior, cancellation, limits, and Blob URL cleanup pass. |
-| 16 | Complete (implementation) | Help/diagnostics, app-shell-only offline caching, safe update prompt, meta CSP, network denial, pinned Actions, and manual-only Pages workflow pass locally. Deployment is intentionally held behind Task 17 release gates. |
+| 16 | Complete (implementation) | Help/diagnostics, app-shell-only offline caching, silent automatic worker activation, meta CSP, network denial, pinned Actions, and manual-only Pages workflow pass locally. Deployment is intentionally held behind Task 17 release gates. |
 | 17 | Pre-review candidate blocked from release | Local hardening and focused quality gates pass. One recovery-QR decode test remains flaky only inside the long all-browser run, so the current work is not described as a completely green candidate. Publication remains blocked on a frozen clean commit, genuine independent review, signed release provenance, explicit approval, and deployment evidence. |
 
 Adaptive PPXT text compression is implemented as canonical v2/flag1 around the
@@ -64,7 +64,7 @@ unchanged; physical rows remain honestly unrun.
 - Real screen-reader check: Orca `50.2` consumed Chromium's live AT-SPI tree while OS-level Tab navigation announced the banner, language control, primary navigation, current page, and identity actions. Orca produced 176 speech-output records; the stopped raw debug log had SHA-256 `5bea68df79ca3b5c18c29f4260b48e88bb1d0f9674738d22e4ce245df2b7862f`. The headed desktop keyboard matrix also passed 7/7 while Orca was active.
 - `npm run test:network-denial`: 15 tests passed.
 - `npm run test:offline -- --reporter=dot`: 5 tests passed.
-- `npm run test:update-banner`: 15 tests passed.
+- `npm run test:pwa-update-policy`: generated-worker policy passed and the no-prompt check passed in all 5 browser projects.
 - `npm run test:session-only`: 60 tests passed.
 - `npm run test:en-de`: 15 tests passed.
 - `npm run test:dependency-review`: approved dependency pins and `npm audit --audit-level=high` passed with 0 high-severity vulnerabilities.

@@ -107,7 +107,7 @@ the ordered release gate and must stop on the first real failure.
 - `test:accessibility`
 - `test:i18n`
 - `test:offline`
-- `test:update-banner`
+- `test:pwa-update-policy`
 - `test:network-denial`
 
 ### 2.5 Release engineering
@@ -173,7 +173,7 @@ the ordered release gate and must stop on the first real failure.
 | Accessibility | `test:accessibility` | Keyboard, screen reader, focus, contrast, and zoom checks pass |
 | Localization | `test:i18n` | English and German remain semantically aligned |
 | Offline | `test:offline` | App shell and versioned assets work offline after first load |
-| Update banner | `test:update-banner` | New-version prompt appears at the right time |
+| PWA update policy | `test:pwa-update-policy` | New workers activate silently; the current document is not force-reloaded |
 | Network denial | `test:network-denial` | The app fails safely and remains usable where designed |
 
 ### 3.5 Release engineering
