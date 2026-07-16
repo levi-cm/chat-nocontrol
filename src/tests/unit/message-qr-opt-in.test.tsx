@@ -169,6 +169,24 @@ function encryptedLinkField(): HTMLTextAreaElement {
   return element;
 }
 
+function contactInclusionCheckbox(): HTMLInputElement {
+  const element = screen.getByRole("checkbox", {
+    name: /include my public contact/i,
+  });
+  if (!(element instanceof HTMLInputElement)) {
+    throw new Error("contact inclusion control is not an input");
+  }
+  return element;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((accept) => {
+    resolve = accept;
+  });
+  return { promise, resolve };
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -306,6 +324,88 @@ describe("sender message outputs", () => {
     expect(onContactsChange).toHaveBeenCalledWith([
       expect.objectContaining({ includeSenderContactInLinks: false }),
     ]);
+  });
+
+  it("keeps committed PPXT visible and disables transport actions until opt-out saves", async () => {
+    await prepareWorkers();
+    const save = deferred<boolean>();
+    const onContactsChange = vi.fn<ContactsChange>(() => save.promise);
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
+    renderFlow({ messageOutputMode: "link", onContactsChange });
+    const user = await encryptMessage();
+    const checkbox = contactInclusionCheckbox();
+
+    await user.click(checkbox);
+
+    expect(checkbox.checked).toBe(true);
+    expect(checkbox.disabled).toBe(true);
+    expect(
+      parseMessageLinkHash(new URL(encryptedLinkField().value).hash).kind,
+    ).toBe("ppxt");
+    expect(
+      screen
+        .getByRole("button", { name: "Copy encrypted link" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: "Share encrypted link" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(onContactsChange).toHaveBeenCalledOnce();
+
+    save.resolve(true);
+    await waitFor(() => expect(contactInclusionCheckbox().checked).toBe(false));
+    expect(contactInclusionCheckbox().disabled).toBe(false);
+    expect(
+      parseMessageLinkHash(new URL(encryptedLinkField().value).hash).kind,
+    ).toBe("ppxq");
+  });
+
+  it.each(["false", "throw"] as const)(
+    "rolls back a %s preference save and reports localized safe storage status",
+    async (failure) => {
+      await prepareWorkers();
+      const onContactsChange = vi.fn<ContactsChange>(() =>
+        failure === "false"
+          ? Promise.resolve(false)
+          : Promise.reject(new Error("storage-failed")),
+      );
+      renderFlow({ messageOutputMode: "link", onContactsChange });
+      const user = await encryptMessage();
+
+      await user.click(contactInclusionCheckbox());
+
+      expect(
+        await screen.findByText(
+          "Persistent storage became unavailable. This session continues in memory.",
+        ),
+      ).not.toBeNull();
+      expect(contactInclusionCheckbox().checked).toBe(true);
+      expect(contactInclusionCheckbox().disabled).toBe(false);
+      expect(
+        parseMessageLinkHash(new URL(encryptedLinkField().value).hash).kind,
+      ).toBe("ppxt");
+    },
+  );
+
+  it("prevents a second preference action while the first save is pending", async () => {
+    await prepareWorkers();
+    const save = deferred<boolean>();
+    const onContactsChange = vi.fn<ContactsChange>(() => save.promise);
+    renderFlow({ messageOutputMode: "link", onContactsChange });
+    const user = await encryptMessage();
+    const checkbox = contactInclusionCheckbox();
+
+    await user.click(checkbox);
+    await user.click(checkbox);
+
+    expect(checkbox.disabled).toBe(true);
+    expect(onContactsChange).toHaveBeenCalledOnce();
+    save.resolve(false);
   });
 
   it("offers contact inclusion and encrypted-text fallback after compact failure", async () => {

@@ -36,6 +36,12 @@ function fingerprintId(value: Uint8Array): string {
   return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+interface ContactPreferenceUpdate {
+  recipientId: string;
+  desired: boolean;
+  state: "pending" | "confirmed" | "failed";
+}
+
 export function EncryptTextFlow({
   t,
   identity,
@@ -73,6 +79,8 @@ export function EncryptTextFlow({
   const [error, setError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const [linkCopyStatus, setLinkCopyStatus] = useState("");
+  const [contactPreferenceUpdate, setContactPreferenceUpdate] =
+    useState<ContactPreferenceUpdate | null>(null);
   const [status, setStatus] = useState("");
   const [mode, setMode] = useState<"text" | "file">("text");
   const [fileBusy, setFileBusy] = useState(false);
@@ -80,6 +88,7 @@ export function EncryptTextFlow({
   const qrJob = useRef<CryptoWorkerJob<EncryptedQrTextObject> | null>(null);
   const outputRef = useRef<HTMLTextAreaElement | null>(null);
   const linkOutputRef = useRef<HTMLTextAreaElement | null>(null);
+  const contactPreferenceRequest = useRef(0);
 
   useEffect(
     () => () => {
@@ -87,6 +96,7 @@ export function EncryptTextFlow({
       job.current = null;
       qrJob.current?.cancel();
       qrJob.current = null;
+      contactPreferenceRequest.current += 1;
     },
     [],
   );
@@ -107,8 +117,18 @@ export function EncryptTextFlow({
     (item) => fingerprintId(item.contact.fingerprint) === recipientId,
   );
   const recipient = recipientItem?.contact;
-  const includeSenderContactInLinks =
+  const committedContactInclusion =
     recipientItem?.includeSenderContactInLinks !== false;
+  const selectedPreferenceUpdate =
+    contactPreferenceUpdate?.recipientId === recipientId
+      ? contactPreferenceUpdate
+      : null;
+  const preferencePending = selectedPreferenceUpdate?.state === "pending";
+  const preferenceFailed = selectedPreferenceUpdate?.state === "failed";
+  const includeSenderContactInLinks =
+    selectedPreferenceUpdate?.state === "confirmed"
+      ? selectedPreferenceUpdate.desired
+      : committedContactInclusion;
   const linkEnabled = messageOutputMode !== "text";
   const messageLink = useMemo(() => {
     if (!linkEnabled || !fullOutput) return "";
@@ -136,6 +156,31 @@ export function EncryptTextFlow({
       link: prepareMessageQr(bytes, "link", appBase),
     };
   }, [qrOutput]);
+
+  useEffect(() => {
+    if (!contactPreferenceUpdate) return;
+    if (contactPreferenceUpdate.recipientId !== recipientId || !recipientItem) {
+      contactPreferenceRequest.current += 1;
+      setContactPreferenceUpdate(null);
+      return;
+    }
+    if (
+      contactPreferenceUpdate.state === "confirmed" &&
+      committedContactInclusion === contactPreferenceUpdate.desired
+    ) {
+      setContactPreferenceUpdate(null);
+    }
+  }, [
+    committedContactInclusion,
+    contactPreferenceUpdate,
+    recipientId,
+    recipientItem,
+  ]);
+
+  const clearContactPreferenceUpdate = () => {
+    contactPreferenceRequest.current += 1;
+    setContactPreferenceUpdate(null);
+  };
 
   const resetTextOutput = () => {
     qrJob.current?.cancel();
@@ -294,7 +339,7 @@ export function EncryptTextFlow({
   };
 
   const copyLink = async () => {
-    if (!messageLink || !linkOutputRef.current) return;
+    if (preferencePending || !messageLink || !linkOutputRef.current) return;
     const result = await copyWithBestEffortClear(
       messageLink,
       linkOutputRef.current,
@@ -311,7 +356,12 @@ export function EncryptTextFlow({
   };
 
   const shareLink = async () => {
-    if (!messageLink || typeof navigator.share !== "function") return;
+    if (
+      preferencePending ||
+      !messageLink ||
+      typeof navigator.share !== "function"
+    )
+      return;
     try {
       await navigator.share({ url: messageLink });
     } catch {
@@ -319,16 +369,38 @@ export function EncryptTextFlow({
     }
   };
 
-  const setContactInclusion = (include: boolean) => {
-    if (!recipientItem || recipientItem.includeSenderContactInLinks === include)
+  const setContactInclusion = async (include: boolean) => {
+    if (
+      !recipientItem ||
+      preferencePending ||
+      includeSenderContactInLinks === include
+    )
       return;
+    const requestId = contactPreferenceRequest.current + 1;
+    contactPreferenceRequest.current = requestId;
     const next = contacts.map((item) =>
       item === recipientItem
         ? { ...item, includeSenderContactInLinks: include }
         : item,
     );
     setLinkCopyStatus("");
-    void onContactsChange(next);
+    setContactPreferenceUpdate({
+      recipientId,
+      desired: include,
+      state: "pending",
+    });
+    let saved = false;
+    try {
+      saved = await onContactsChange(next);
+    } catch {
+      saved = false;
+    }
+    if (contactPreferenceRequest.current !== requestId) return;
+    setContactPreferenceUpdate({
+      recipientId,
+      desired: include,
+      state: saved ? "confirmed" : "failed",
+    });
   };
 
   return (
@@ -341,8 +413,9 @@ export function EncryptTextFlow({
           type="search"
           placeholder={t("searchContacts")}
           value={recipientSearch}
-          disabled={busy || fileBusy}
+          disabled={busy || fileBusy || preferencePending}
           onInput={(event) => {
+            clearContactPreferenceUpdate();
             setRecipientSearch(event.currentTarget.value);
             setRecipientId("");
             resetTextOutput();
@@ -378,8 +451,9 @@ export function EncryptTextFlow({
         <select
           id="recipient"
           value={recipientId}
-          disabled={busy || fileBusy}
+          disabled={busy || fileBusy || preferencePending}
           onChange={(event) => {
+            clearContactPreferenceUpdate();
             setRecipientId(event.currentTarget.value);
             resetTextOutput();
           }}
@@ -413,9 +487,10 @@ export function EncryptTextFlow({
               id="include-contact-in-link"
               type="checkbox"
               checked={includeSenderContactInLinks}
-              disabled={busy}
+              disabled={busy || preferencePending}
+              aria-busy={preferencePending}
               onChange={(event) =>
-                setContactInclusion(event.currentTarget.checked)
+                void setContactInclusion(event.currentTarget.checked)
               }
             />
             <span>{t("includeContactInMessageLink")}</span>
@@ -425,6 +500,16 @@ export function EncryptTextFlow({
               ? t("includedContactLinkHint")
               : t("compactLinkKnownContactHint")}
           </p>
+          {preferencePending && (
+            <p class="input-meta" role="status">
+              {t("operationProgress")}
+            </p>
+          )}
+          {preferenceFailed && (
+            <p class="field-error" role="alert">
+              {t("storageFallback")}
+            </p>
+          )}
         </div>
       )}
       {mode === "text" && (
@@ -539,6 +624,7 @@ export function EncryptTextFlow({
                         <button
                           class="button primary"
                           type="button"
+                          disabled={preferencePending}
                           onClick={() => void copyLink()}
                         >
                           {t("copyEncryptedLink")}
@@ -547,6 +633,7 @@ export function EncryptTextFlow({
                           <button
                             class="button secondary"
                             type="button"
+                            disabled={preferencePending}
                             onClick={() => void shareLink()}
                           >
                             {t("shareEncryptedLink")}
@@ -574,7 +661,8 @@ export function EncryptTextFlow({
                         <button
                           class="button secondary"
                           type="button"
-                          onClick={() => setContactInclusion(true)}
+                          disabled={preferencePending}
+                          onClick={() => void setContactInclusion(true)}
                         >
                           {t("switchContactInclusionOn")}
                         </button>
