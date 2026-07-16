@@ -9,7 +9,11 @@ import {
   deletePpxDatabase,
   openPpxDatabase,
 } from "../../storage/db";
-import { listContacts, putContact } from "../../storage/contacts";
+import {
+  listContacts,
+  putContact,
+  replaceContacts,
+} from "../../storage/contacts";
 import { getVault, putVault } from "../../storage/vault";
 import { SessionStorage } from "../../storage/session";
 import {
@@ -87,12 +91,13 @@ describe("minimal PPX storage", () => {
     expect(context.mode).toBe("session-only");
   });
 
-  it("normalizes browser-local message QR preferences without migration", () => {
+  it("normalizes incoming-message settings and migrates the legacy QR flag", () => {
     expect(normalizeSettings(undefined)).toMatchObject({
       messageQrCreationEnabled: false,
       qrExportMode: "both",
       qrImportControls: "both",
-      qrAutoDecrypt: true,
+      messageOutputMode: "both",
+      autoDecryptIncomingMessages: true,
     });
     expect(
       normalizeSettings({
@@ -100,14 +105,39 @@ describe("minimal PPX storage", () => {
         messageQrCreationEnabled: "invalid" as never,
         qrExportMode: "invalid" as never,
         qrImportControls: "invalid" as never,
+        messageOutputMode: "invalid" as never,
         qrAutoDecrypt: false,
       }),
     ).toMatchObject({
       messageQrCreationEnabled: false,
       qrExportMode: DEFAULT_SETTINGS.qrExportMode,
       qrImportControls: DEFAULT_SETTINGS.qrImportControls,
-      qrAutoDecrypt: false,
+      messageOutputMode: DEFAULT_SETTINGS.messageOutputMode,
+      autoDecryptIncomingMessages: false,
     });
+    expect(
+      normalizeSettings({
+        locale: "en",
+        autoDecryptIncomingMessages: true,
+        qrAutoDecrypt: false,
+      }).autoDecryptIncomingMessages,
+    ).toBe(true);
+  });
+
+  it("writes only the new incoming-message settings shape", async () => {
+    const db = await openPpxDatabase();
+    await putSettings(db, {
+      locale: "en",
+      messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+      qrAutoDecrypt: true,
+    });
+    expect(await getSettings(db)).toEqual({
+      locale: "en",
+      messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+    });
+    db.close();
   });
 
   it("persists an explicit message QR creation opt-in in both storage modes", async () => {
@@ -129,5 +159,52 @@ describe("minimal PPX storage", () => {
     expect(session.getSettings().messageQrCreationEnabled).toBe(true);
     session.eraseAll();
     expect(session.getSettings().messageQrCreationEnabled).toBe(false);
+  });
+
+  it("defaults contact link inclusion on and persists an explicit opt-out", async () => {
+    const db = await openPpxDatabase();
+    const identity = await deriveIdentityFromEntropy(
+      new Uint8Array(32),
+      "Alice",
+    );
+    const contact = createPublicContact(identity, "Alice", 1n);
+
+    const initial = await putContact(db, contact);
+    expect(initial.includeSenderContactInLinks).toBe(true);
+    expect((await listContacts(db))[0]?.includeSenderContactInLinks).toBe(true);
+
+    const optedOut = await putContact(db, contact, undefined, false);
+    expect(optedOut.includeSenderContactInLinks).toBe(false);
+    expect(
+      (await db.get("contacts", optedOut.id))?.includeSenderContactInLinks,
+    ).toBe(false);
+
+    await replaceContacts(db, [
+      {
+        contact,
+        nickname: "Friend",
+      },
+    ]);
+    expect((await listContacts(db))[0]).toMatchObject({
+      nickname: "Friend",
+      includeSenderContactInLinks: false,
+    });
+    db.close();
+
+    const session = new SessionStorage();
+    expect(session.putContact(contact).includeSenderContactInLinks).toBe(true);
+    expect(
+      session.putContact(contact, "Friend", false).includeSenderContactInLinks,
+    ).toBe(false);
+    session.replaceContacts([
+      {
+        contact,
+        nickname: "Renamed",
+      },
+    ]);
+    expect(session.listContacts()[0]).toMatchObject({
+      nickname: "Renamed",
+      includeSenderContactInLinks: false,
+    });
   });
 });

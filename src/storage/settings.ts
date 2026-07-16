@@ -5,6 +5,7 @@ export type AccentPreference =
   "blue" | "indigo" | "purple" | "teal" | "pink" | "orange" | "graphite";
 export type QrExportMode = "app" | "link" | "both";
 export type QrImportControls = "camera" | "image" | "both";
+export type MessageOutputMode = "link" | "text" | "both";
 
 export interface AppSettings {
   locale: "en" | "de";
@@ -14,7 +15,8 @@ export interface AppSettings {
   messageQrCreationEnabled: boolean;
   qrExportMode: QrExportMode;
   qrImportControls: QrImportControls;
-  qrAutoDecrypt: boolean;
+  messageOutputMode: MessageOutputMode;
+  autoDecryptIncomingMessages: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -25,7 +27,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   messageQrCreationEnabled: false,
   qrExportMode: "both",
   qrImportControls: "both",
-  qrAutoDecrypt: true,
+  messageOutputMode: "both",
+  autoDecryptIncomingMessages: true,
 };
 
 const themes = new Set<ThemePreference>(["system", "light", "dark"]);
@@ -44,6 +47,7 @@ const qrImportControlValues = new Set<QrImportControls>([
   "image",
   "both",
 ]);
+const messageOutputModes = new Set<MessageOutputMode>(["link", "text", "both"]);
 
 export function normalizeSettings(
   value: StoredSettings | undefined,
@@ -73,10 +77,17 @@ export function normalizeSettings(
     )
       ? (value?.qrImportControls as QrImportControls)
       : DEFAULT_SETTINGS.qrImportControls,
-    qrAutoDecrypt:
-      typeof value?.qrAutoDecrypt === "boolean"
-        ? value.qrAutoDecrypt
-        : DEFAULT_SETTINGS.qrAutoDecrypt,
+    messageOutputMode: messageOutputModes.has(
+      value?.messageOutputMode as MessageOutputMode,
+    )
+      ? (value?.messageOutputMode as MessageOutputMode)
+      : DEFAULT_SETTINGS.messageOutputMode,
+    autoDecryptIncomingMessages:
+      typeof value?.autoDecryptIncomingMessages === "boolean"
+        ? value.autoDecryptIncomingMessages
+        : typeof value?.qrAutoDecrypt === "boolean"
+          ? value.qrAutoDecrypt
+          : DEFAULT_SETTINGS.autoDecryptIncomingMessages,
   };
 }
 
@@ -84,7 +95,9 @@ export function putSettings(
   db: PpxDatabase,
   settings: StoredSettings,
 ): Promise<"preferences"> {
-  return db.put("settings", settings, "preferences");
+  const current = { ...settings };
+  delete current.qrAutoDecrypt;
+  return db.put("settings", current, "preferences");
 }
 
 export function getSettings(

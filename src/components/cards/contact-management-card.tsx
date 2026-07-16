@@ -5,6 +5,7 @@ import { formatFingerprintBytes } from "./public-contact-card";
 export interface ManagedContact {
   contact: PublicContact;
   nickname: string;
+  includeSenderContactInLinks: boolean;
 }
 
 export function displayIdentityId(identityId: Uint8Array): string {

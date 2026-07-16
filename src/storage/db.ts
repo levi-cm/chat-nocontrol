@@ -8,6 +8,7 @@ export interface StoredContact {
   id: string;
   contact: PublicContact;
   nickname: string;
+  includeSenderContactInLinks?: boolean;
 }
 
 export interface StoredSettings {
@@ -19,6 +20,9 @@ export interface StoredSettings {
   messageQrCreationEnabled?: boolean;
   qrExportMode?: "app" | "link" | "both";
   qrImportControls?: "camera" | "image" | "both";
+  messageOutputMode?: "link" | "text" | "both";
+  autoDecryptIncomingMessages?: boolean;
+  /** Legacy read-only migration source. New writes omit this field. */
   qrAutoDecrypt?: boolean;
 }
 
