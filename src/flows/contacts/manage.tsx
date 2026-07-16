@@ -118,6 +118,8 @@ export function ContactsManage({
         next[existingIndex] = {
           contact,
           nickname: nickname || next[existingIndex]?.nickname || "",
+          includeSenderContactInLinks:
+            next[existingIndex]?.includeSenderContactInLinks ?? true,
         };
         if (!(await onChange(next))) throw new Error("storage write failed");
         setStatus(t("mergeNote"));
@@ -125,7 +127,12 @@ export function ContactsManage({
         const collision = contacts.some(
           (item) => item.contact.pseudonym === contact.pseudonym,
         );
-        if (!(await onChange([...contacts, { contact, nickname }])))
+        if (
+          !(await onChange([
+            ...contacts,
+            { contact, nickname, includeSenderContactInLinks: true },
+          ]))
+        )
           throw new Error("storage write failed");
         if (collision) {
           setStatus(`${t("collisionWarning")}. ${t("collisionNote")}`);

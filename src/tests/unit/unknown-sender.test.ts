@@ -12,10 +12,22 @@ describe("unknown sender state", () => {
     );
     const saved = createPublicContact(alice, "Alice", 1n);
     expect(
-      isKnownSender(saved.fingerprint, [{ contact: saved, nickname: "" }]),
+      isKnownSender(saved.fingerprint, [
+        {
+          contact: saved,
+          nickname: "",
+          includeSenderContactInLinks: true,
+        },
+      ]),
     ).toBe(true);
     expect(
-      isKnownSender(impostor.fingerprint, [{ contact: saved, nickname: "" }]),
+      isKnownSender(impostor.fingerprint, [
+        {
+          contact: saved,
+          nickname: "",
+          includeSenderContactInLinks: true,
+        },
+      ]),
     ).toBe(false);
   });
 });

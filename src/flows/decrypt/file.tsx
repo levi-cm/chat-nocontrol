@@ -181,7 +181,11 @@ export function DecryptFileFlow({
     try {
       const saved = await onContactsChange([
         ...contacts,
-        { contact: result.senderContact, nickname: "" },
+        {
+          contact: result.senderContact,
+          nickname: "",
+          includeSenderContactInLinks: true,
+        },
       ]);
       if (saved) {
         setCollision(
