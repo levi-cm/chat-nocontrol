@@ -20,15 +20,22 @@ test("validates then decrypts armored text with unknown-sender warning", async (
   page,
 }) => {
   await page.addInitScript(() => {
-    let value = "";
+    const value = "";
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: {
         readText: () => Promise.resolve(value),
-        writeText: (next: string) => {
-          value = next;
-          return Promise.resolve();
+        writeText: () => {
+          return Promise.reject(new DOMException("denied"));
         },
+      },
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: (command: string) => {
+        if (command !== "copy") return false;
+        localStorage.setItem("legacy-decrypted-copy", "yes");
+        return true;
       },
     });
   });
@@ -89,6 +96,9 @@ test("validates then decrypts armored text with unknown-sender warning", async (
       { exact: true },
     ),
   ).toBeVisible();
+  expect(
+    await page.evaluate(() => localStorage.getItem("legacy-decrypted-copy")),
+  ).toBe("yes");
   await expect(
     page.getByRole("heading", { name: "Unknown sender" }),
   ).toBeVisible();

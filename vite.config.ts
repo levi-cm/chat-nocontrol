@@ -26,7 +26,7 @@ export default defineConfig(({ command }) => ({
       manifest: false,
       workbox: {
         cleanupOutdatedCaches: true,
-        globPatterns: ["**/*.{html,js,css,svg,webmanifest}"],
+        globPatterns: ["**/*.{html,js,css,svg,png,webmanifest}"],
         manifestTransforms: [
           (entries) =>
             Promise.resolve({

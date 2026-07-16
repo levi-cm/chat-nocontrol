@@ -8,14 +8,15 @@ function SvgIcon({ children }: { children: preact.ComponentChildren }) {
   );
 }
 
-export function BrandMark() {
+export function BrandLogo() {
   return (
-    <svg viewBox="0 0 36 36" aria-hidden="true" focusable="false">
-      <path d="M8.5 9.5h12a4 4 0 0 1 4 4v5.25a4 4 0 0 1-4 4h-5.7l-4.7 4.1v-4.4a4 4 0 0 1-3.6-4v-4.95a4 4 0 0 1 4-4Z" />
-      <path d="M16.5 13.25h9a4 4 0 0 1 4 4v4.25a4 4 0 0 1-4 4h-1.7v3.25l-4.15-3.25H16.5a4 4 0 0 1-4-4v-4.25a4 4 0 0 1 4-4Z" />
-      <circle cx="18" cy="19.4" r="1.25" />
-      <circle cx="23" cy="19.4" r="1.25" />
-    </svg>
+    <img
+      class="brand-logo"
+      src="./icons/app-logo-512.png"
+      alt=""
+      width="36"
+      height="36"
+    />
   );
 }
 

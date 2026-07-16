@@ -225,28 +225,24 @@ describe("identity creation failure ownership", () => {
       await userEvent.click(
         screen.getByRole("button", { name: "Continue to recovery words" }),
       );
-      await userEvent.click(
-        await screen.findByRole("link", { name: "Print / Save as PDF" }),
-      );
-      await userEvent.click(
-        screen.getByRole("button", { name: "Download recovery PDF" }),
-      );
+      const downloadPdf = await screen.findByRole<HTMLButtonElement>("button", {
+        name: "Download recovery PDF",
+      });
+      await waitFor(() => expect(downloadPdf.disabled).toBe(false));
+      await userEvent.click(downloadPdf);
       await userEvent.click(
         screen.getByRole("checkbox", { name: "I wrote down all 24 words" }),
       );
-      await userEvent.click(
-        screen.getByRole("checkbox", {
-          name: "I printed and safely stored the recovery document",
-        }),
-      );
-      await userEvent.click(
-        screen.getByRole("checkbox", {
-          name: "I safely stored the recovery PDF",
-        }),
-      );
-      await userEvent.click(
-        screen.getByRole("button", { name: "Continue to restore practice" }),
-      );
+      const pdfStored = screen.getByRole<HTMLInputElement>("checkbox", {
+        name: "I safely stored the recovery PDF",
+      });
+      await waitFor(() => expect(pdfStored.disabled).toBe(false));
+      await userEvent.click(pdfStored);
+      const continuePractice = screen.getByRole<HTMLButtonElement>("button", {
+        name: "Continue to restore practice",
+      });
+      await waitFor(() => expect(continuePractice.disabled).toBe(false));
+      await userEvent.click(continuePractice);
       await userEvent.click(
         screen.getByRole("button", { name: "I know what I’m doing" }),
       );

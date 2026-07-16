@@ -31,7 +31,6 @@ describe("recovery print view", () => {
           bytes={new Uint8Array([37, 80, 68, 70])}
           filename="recovery.pdf"
           locale="en"
-          onPrint={vi.fn()}
           onDownload={vi.fn()}
         />,
       );
@@ -40,11 +39,11 @@ describe("recovery print view", () => {
         screen.queryAllByTitle("Private recovery PDF preview"),
       ).toHaveLength(expectedFrames);
       expect(
-        screen.getByRole("link", { name: "Print / Save as PDF" }),
-      ).not.toBeNull();
+        screen.queryByRole("link", { name: "Print / Save as PDF" }),
+      ).toBeNull();
       expect(
-        screen.getByRole("button", { name: "Download recovery PDF" }),
-      ).not.toBeNull();
+        screen.getAllByRole("button", { name: "Download recovery PDF" }),
+      ).toHaveLength(1);
     },
   );
 
@@ -74,7 +73,6 @@ describe("recovery print view", () => {
         bytes={bytes}
         filename="recovery.pdf"
         locale="en"
-        onPrint={vi.fn()}
         onDownload={vi.fn()}
       />,
     );

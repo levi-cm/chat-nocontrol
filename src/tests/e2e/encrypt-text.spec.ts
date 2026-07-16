@@ -12,7 +12,15 @@ test("encrypts text to one selected contact locally", async ({ page }) => {
       configurable: true,
       value: {
         readText: () => Promise.resolve(""),
-        writeText: () => Promise.resolve(),
+        writeText: () => Promise.reject(new DOMException("denied")),
+      },
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: (command: string) => {
+        if (command !== "copy") return false;
+        localStorage.setItem("legacy-encrypted-copy", "yes");
+        return true;
       },
     });
   });
@@ -70,6 +78,9 @@ test("encrypts text to one selected contact locally", async ({ page }) => {
   await expect(page.getByRole("status")).toContainText(
     "Copied. Clipboard clearing after 60 seconds is best effort.",
   );
+  expect(
+    await page.evaluate(() => localStorage.getItem("legacy-encrypted-copy")),
+  ).toBe("yes");
   await page.getByLabel("Encrypted text").fill("Changed after encryption");
   await expect(page.getByLabel("Encrypted output")).toHaveCount(0);
 

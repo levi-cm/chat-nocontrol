@@ -235,27 +235,16 @@ select {
 .brand-mark {
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
   width: 36px;
   height: 36px;
-  border-radius: 11px;
-  color: #ffffff;
-  background: var(--accent);
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28);
 }
 
-.brand-mark svg {
-  width: 30px;
-  height: 30px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.65;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.brand-mark circle {
-  fill: currentColor;
-  stroke: none;
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .icon-button {
@@ -641,6 +630,14 @@ select {
   gap: 14px;
   margin: 24px 0;
 }
+.backup-method {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+.backup-method .button {
+  width: 100%;
+}
 .backup-methods {
   padding: 18px;
   border: 1px solid var(--hairline);
@@ -810,6 +807,11 @@ select {
   display: grid;
   gap: 16px;
 }
+.recovery-document-grid {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
 .recovery-pdf-frame {
   width: 100%;
   aspect-ratio: 210 / 297;
@@ -819,6 +821,7 @@ select {
   box-shadow: var(--shadow);
 }
 .recovery-pdf-actions {
+  justify-content: flex-start;
   margin: 0;
 }
 .recovery-preview-mobile-note {
@@ -1567,8 +1570,7 @@ textarea.field-control {
   --focus: #cbd5e1;
 }
 
-:root[data-theme="dark"] .button.primary,
-:root[data-theme="dark"] .brand-mark {
+:root[data-theme="dark"] .button.primary {
   color: var(--accent-ink);
 }
 
@@ -1596,8 +1598,7 @@ textarea.field-control {
     --shadow: 0 8px 24px rgb(0 0 0 / 0.24);
   }
 
-  :root[data-theme="system"] .button.primary,
-  :root[data-theme="system"] .brand-mark {
+  :root[data-theme="system"] .button.primary {
     color: var(--accent-ink);
   }
 
@@ -1641,6 +1642,34 @@ textarea.field-control {
     --accent-pressed: #e2e8f0;
     --accent-soft: #2a303b;
     --focus: #cbd5e1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .workspace.identity-workspace {
+    width: min(100%, 1280px);
+    padding-inline: clamp(32px, 4vw, 56px);
+  }
+  .identity-workspace .flow-panel,
+  .identity-workspace .identity-detail {
+    width: min(100%, 1040px);
+  }
+  .identity-workspace .flow-panel:not(.recovery-flow) > .lead,
+  .identity-workspace .flow-panel:not(.recovery-flow) > .username-guidance,
+  .identity-workspace .flow-panel:not(.recovery-flow) > .passphrase-field-group,
+  .identity-workspace .flow-panel:not(.recovery-flow) > .field {
+    width: min(100%, 720px);
+  }
+  .identity-exports {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: min(100%, 1040px);
+  }
+  .backup-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .recovery-document-grid {
+    grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1.1fr);
+    gap: 28px;
   }
 }
 

@@ -83,9 +83,9 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   } else {
     await expect(preview).toBeVisible();
   }
-  const printPage = page.waitForEvent("popup");
-  await page.getByRole("link", { name: "Print / Save as PDF" }).click();
-  await (await printPage).close();
+  await expect(
+    page.getByRole("link", { name: "Print / Save as PDF" }),
+  ).toHaveCount(0);
   const pdfDownloadEvent = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download recovery PDF" }).click();
   const pdfDownload = await pdfDownloadEvent;
@@ -99,12 +99,6 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   });
   await page
     .getByRole("checkbox", { name: "I wrote down all 24 words" })
-    .check();
-  await expect(continueRecovery).toBeDisabled();
-  await page
-    .getByRole("checkbox", {
-      name: "I printed and safely stored the recovery document",
-    })
     .check();
   await expect(continueRecovery).toBeDisabled();
   await page

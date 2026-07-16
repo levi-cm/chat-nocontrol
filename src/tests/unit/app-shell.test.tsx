@@ -34,6 +34,14 @@ describe("app shell", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).not.toBeNull();
   });
 
+  it("uses the supplied Chat NoControl logo in the app header", () => {
+    const { container } = render(<App />);
+    const logo = container.querySelector<HTMLImageElement>("img.brand-logo");
+
+    expect(logo?.getAttribute("src")).toBe("./icons/app-logo-512.png");
+    expect(logo?.getAttribute("alt")).toBe("");
+  });
+
   it("switches all shell copy and document language to German", async () => {
     const user = userEvent.setup();
     render(<App />);

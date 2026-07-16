@@ -1,7 +1,9 @@
 const EXPLICIT_SHELL_PATHS = new Set([
   "index.html",
   "manifest.webmanifest",
-  "icons/app-icon.svg",
+  "icons/app-logo-512.png",
+  "icons/app-logo-192.png",
+  "icons/favicon-32.png",
 ]);
 
 const VERSIONED_ASSET =

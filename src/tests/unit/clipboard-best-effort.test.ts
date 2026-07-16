@@ -66,6 +66,49 @@ describe("clipboard best-effort clearing", () => {
     ).resolves.toBe("copied");
   });
 
+  it("runs legacy copy before the asynchronous Clipboard write settles", async () => {
+    const target = textarea("mobile encrypted output");
+    let rejectWrite: (reason: DOMException) => void = vi.fn();
+    const clipboard = {
+      writeText: vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            rejectWrite = reject;
+          }),
+      ),
+      readText: vi.fn(() => Promise.reject(new DOMException("denied"))),
+    };
+    const legacyCopy = vi.fn(() => true);
+
+    const pendingCopy = copy(
+      "mobile encrypted output",
+      target,
+      clipboard,
+      legacyCopy,
+    );
+    const legacyCallsBeforeSettlement = legacyCopy.mock.calls.length;
+    rejectWrite(new DOMException("denied"));
+
+    await expect(pendingCopy).resolves.toBe("copied");
+    expect(legacyCallsBeforeSettlement).toBe(1);
+  });
+
+  it("falls back when Clipboard write throws synchronously", async () => {
+    const target = textarea("mobile decrypted output");
+    const clipboard = {
+      writeText: vi.fn(() => {
+        throw new DOMException("denied");
+      }),
+      readText: vi.fn(() => Promise.reject(new DOMException("denied"))),
+    };
+    const legacyCopy = vi.fn(() => true);
+
+    await expect(
+      copy("mobile decrypted output", target, clipboard, legacyCopy),
+    ).resolves.toBe("copied");
+    expect(legacyCopy).toHaveBeenCalledOnce();
+  });
+
   it("reports selected when automatic and legacy copy are unavailable", async () => {
     const target = textarea("manual selection fallback");
 

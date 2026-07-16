@@ -1,4 +1,4 @@
-import { BrandMark } from "../components/navigation/icons";
+import { BrandLogo } from "../components/navigation/icons";
 import { messages, type Locale } from "../i18n";
 import type { RuntimeSupport } from "./runtime-support";
 
@@ -26,7 +26,7 @@ export function UnsupportedEnvironment({
       <header class="topbar material">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">
-            <BrandMark />
+            <BrandLogo />
           </span>
           <span>{t.brand}</span>
         </div>

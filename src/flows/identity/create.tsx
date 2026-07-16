@@ -102,13 +102,11 @@ type Step =
 
 interface RecoveryDocumentCompletion {
   wordsWritten: boolean;
-  printStored: boolean;
   pdfStored: boolean;
 }
 
 const emptyRecoveryDocumentCompletion = (): RecoveryDocumentCompletion => ({
   wordsWritten: false,
-  printStored: false,
   pdfStored: false,
 });
 
@@ -194,7 +192,6 @@ export function IdentityCreate({
   const [fileDownloaded, setFileDownloaded] = useState(false);
   const [qrStored, setQrStored] = useState(false);
   const [fileStored, setFileStored] = useState(false);
-  const [printUsed, setPrintUsed] = useState(false);
   const [pdfDownloaded, setPdfDownloaded] = useState(false);
   const [recoveryDocumentCompletion, setRecoveryDocumentCompletion] =
     useState<RecoveryDocumentCompletion>(emptyRecoveryDocumentCompletion);
@@ -296,7 +293,6 @@ export function IdentityCreate({
     });
     setRecoveryPdfFilename("");
     setRecoveryDocumentCompletion(emptyRecoveryDocumentCompletion());
-    setPrintUsed(false);
     setPdfDownloaded(false);
     setQrPracticeValue("");
     if (recoveryBytesOwner.current) {
@@ -323,7 +319,6 @@ export function IdentityCreate({
     setFileDownloaded(false);
     setQrStored(false);
     setFileStored(false);
-    setPrintUsed(false);
     setPdfDownloaded(false);
     setRecoveryDocumentCompletion(emptyRecoveryDocumentCompletion());
     setPrintModel(null);
@@ -1075,39 +1070,45 @@ export function IdentityCreate({
           <h1 tabIndex={-1}>{t("digitalBackupsTitle")}</h1>
           <p class="lead">{t("digitalBackupsBody")}</p>
           <div class="backup-actions">
-            <button
-              class="button secondary"
-              type="button"
-              disabled={busy}
-              onClick={() => void downloadPrivateQr()}
-            >
-              {t("savePrivateQr")}
-            </button>
-            <label class="check-row">
-              <input
-                type="checkbox"
-                disabled={!qrDownloaded}
-                checked={qrStored}
-                onChange={(event) => setQrStored(event.currentTarget.checked)}
-              />
-              <span>{t("confirmQrStored")}</span>
-            </label>
-            <button
-              class="button secondary"
-              type="button"
-              onClick={downloadRecoveryFile}
-            >
-              {t("downloadRecoveryFile")}
-            </button>
-            <label class="check-row">
-              <input
-                type="checkbox"
-                disabled={!fileDownloaded}
-                checked={fileStored}
-                onChange={(event) => setFileStored(event.currentTarget.checked)}
-              />
-              <span>{t("confirmFileStored")}</span>
-            </label>
+            <div class="backup-method">
+              <button
+                class="button secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => void downloadPrivateQr()}
+              >
+                {t("savePrivateQr")}
+              </button>
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  disabled={!qrDownloaded}
+                  checked={qrStored}
+                  onChange={(event) => setQrStored(event.currentTarget.checked)}
+                />
+                <span>{t("confirmQrStored")}</span>
+              </label>
+            </div>
+            <div class="backup-method">
+              <button
+                class="button secondary"
+                type="button"
+                onClick={downloadRecoveryFile}
+              >
+                {t("downloadRecoveryFile")}
+              </button>
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  disabled={!fileDownloaded}
+                  checked={fileStored}
+                  onChange={(event) =>
+                    setFileStored(event.currentTarget.checked)
+                  }
+                />
+                <span>{t("confirmFileStored")}</span>
+              </label>
+            </div>
           </div>
           {error && (
             <p class="field-error" role="alert">
@@ -1141,22 +1142,23 @@ export function IdentityCreate({
           <WizardProgress t={t} current={4} />
           <h1 tabIndex={-1}>{t("recoveryDocumentTitle")}</h1>
           <p class="danger-copy">{t("recoveryDocumentBody")}</p>
-          <ol class="word-grid">
-            {words.map((word, index) => (
-              <li key={`${index}-${word}`}>{word}</li>
-            ))}
-          </ol>
-          {printModel && recoveryPdfBytes ? (
-            <RecoveryPdfPreview
-              bytes={recoveryPdfBytes}
-              filename={recoveryPdfFilename}
-              locale={locale}
-              onPrint={() => setPrintUsed(true)}
-              onDownload={() => setPdfDownloaded(true)}
-            />
-          ) : (
-            <p aria-live="polite">{busy ? t("creatingIdentity") : error}</p>
-          )}
+          <div class="recovery-document-grid">
+            <ol class="word-grid">
+              {words.map((word, index) => (
+                <li key={`${index}-${word}`}>{word}</li>
+              ))}
+            </ol>
+            {printModel && recoveryPdfBytes ? (
+              <RecoveryPdfPreview
+                bytes={recoveryPdfBytes}
+                filename={recoveryPdfFilename}
+                locale={locale}
+                onDownload={() => setPdfDownloaded(true)}
+              />
+            ) : (
+              <p aria-live="polite">{busy ? t("creatingIdentity") : error}</p>
+            )}
+          </div>
           <fieldset class="backup-methods">
             <legend>{t("confirmWordBackup")}</legend>
             <label class="check-row">
@@ -1171,20 +1173,6 @@ export function IdentityCreate({
                 }
               />
               <span>{t("confirmWordsWritten")}</span>
-            </label>
-            <label class="check-row">
-              <input
-                type="checkbox"
-                disabled={!printUsed}
-                checked={recoveryDocumentCompletion.printStored}
-                onChange={(event) =>
-                  setRecoveryDocumentCompletion((current) => ({
-                    ...current,
-                    printStored: event.currentTarget.checked,
-                  }))
-                }
-              />
-              <span>{t("confirmPrintedRecovery")}</span>
             </label>
             <label class="check-row">
               <input
@@ -1211,7 +1199,6 @@ export function IdentityCreate({
             type="button"
             disabled={
               !recoveryDocumentCompletion.wordsWritten ||
-              !recoveryDocumentCompletion.printStored ||
               !recoveryDocumentCompletion.pdfStored
             }
             onClick={leaveSecretScreens}

@@ -48,7 +48,7 @@ describe("runtime support", () => {
 
 describe("unsupported runtime screen", () => {
   it("blocks the app before identity creation on insecure HTTP", () => {
-    render(
+    const { container } = render(
       <AppRoot
         locale="en"
         runtimeSupport={{ supported: false, reason: "insecure-context" }}
@@ -62,6 +62,11 @@ describe("unsupported runtime screen", () => {
     expect(
       screen.queryByRole("button", { name: "Create new identity" }),
     ).toBeNull();
+    expect(
+      container
+        .querySelector<HTMLImageElement>("img.brand-logo")
+        ?.getAttribute("src"),
+    ).toBe("./icons/app-logo-512.png");
   });
 
   it("explains missing WebCrypto in German", () => {

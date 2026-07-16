@@ -24,18 +24,6 @@ export async function copyWithBestEffortClear(
   clipboard: ClipboardPort | undefined = navigator.clipboard,
   legacyCopy: () => boolean = () => document.execCommand("copy"),
 ): Promise<CopyResult> {
-  if (clipboard) {
-    try {
-      await clipboard.writeText(value);
-      setTimeout(() => {
-        void clearIfUnchanged(value, clipboard);
-      }, 60_000);
-      return "copied";
-    } catch {
-      // Continue with the synchronous selection fallback from this user click.
-    }
-  }
-
   try {
     target.focus();
     target.select();
@@ -43,9 +31,30 @@ export async function copyWithBestEffortClear(
   } catch {
     return "failed";
   }
-  try {
-    return legacyCopy() ? "copied" : "selected";
-  } catch {
-    return "selected";
+
+  let clipboardWrite = Promise.resolve(false);
+  if (clipboard) {
+    try {
+      clipboardWrite = clipboard.writeText(value).then(
+        () => true,
+        () => false,
+      );
+    } catch {
+      clipboardWrite = Promise.resolve(false);
+    }
   }
+  let legacyCopied = false;
+  try {
+    legacyCopied = legacyCopy();
+  } catch {
+    legacyCopied = false;
+  }
+  const clipboardCopied = await clipboardWrite;
+  if (!clipboardCopied && !legacyCopied) return "selected";
+  if (clipboard) {
+    setTimeout(() => {
+      void clearIfUnchanged(value, clipboard);
+    }, 60_000);
+  }
+  return "copied";
 }

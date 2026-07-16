@@ -192,11 +192,6 @@ test("identity creation is keyboard complete through recovery guard", async ({
   await activateWithKeyboard(
     page.getByRole("button", { name: "Continue to recovery words" }),
   );
-  const printPage = page.waitForEvent("popup");
-  await activateWithKeyboard(
-    page.getByRole("link", { name: "Print / Save as PDF" }),
-  );
-  await (await printPage).close();
   const pdfDownload = page.waitForEvent("download");
   await activateWithKeyboard(
     page.getByRole("button", { name: "Download recovery PDF" }),
@@ -206,11 +201,6 @@ test("identity creation is keyboard complete through recovery guard", async ({
     name: "I wrote down all 24 words",
   });
   await written.focus();
-  await page.keyboard.press("Space");
-  const printed = page.getByRole("checkbox", {
-    name: "I printed and safely stored the recovery document",
-  });
-  await printed.focus();
   await page.keyboard.press("Space");
   const pdfStored = page.getByRole("checkbox", {
     name: "I safely stored the recovery PDF",

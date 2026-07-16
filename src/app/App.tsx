@@ -9,7 +9,7 @@ import { ConfirmationDialog } from "../components/dialogs/confirmation";
 import { PrivateExportCard } from "../components/cards/private-export-card";
 import { TextField } from "../components/forms/text-field";
 import { PassphraseMeter } from "../components/forms/passphrase-meter";
-import { BrandMark, NavigationIcon } from "../components/navigation/icons";
+import { BrandLogo, NavigationIcon } from "../components/navigation/icons";
 import type { ManagedContact } from "../components/cards/contact-management-card";
 import { defaultCryptoProvider } from "../crypto/default-provider";
 import { zeroizeIdentitySecrets } from "../crypto/zeroize";
@@ -670,7 +670,7 @@ export function App() {
           onClick={() => navigate("identity")}
         >
           <span class="brand-mark" aria-hidden="true">
-            <BrandMark />
+            <BrandLogo />
           </span>
           <span>{t("brand")}</span>
         </a>
@@ -743,7 +743,12 @@ export function App() {
         )}
       </div>
 
-      <main class="workspace" id="main-content">
+      <main
+        class={
+          route === "identity" ? "workspace identity-workspace" : "workspace"
+        }
+        id="main-content"
+      >
         {!storageReady ? (
           <section class="flow-panel" aria-busy="true">
             <h1>{t("loadingStorage")}</h1>

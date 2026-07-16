@@ -52,11 +52,8 @@ export async function completeRecoveryConfirmation(
           fileDownload: ".ppxrecovery-Datei herunterladen",
           fileStored: "Ich habe die .ppxrecovery-Datei sicher gespeichert",
           continueWords: "Weiter zu den Wiederherstellungswörtern",
-          printLink: "Drucken / Als PDF speichern",
           pdfDownload: "Wiederherstellungs-PDF herunterladen",
           wordsWritten: "Ich habe alle 24 Wörter aufgeschrieben",
-          printStored:
-            "Ich habe das Wiederherstellungsdokument gedruckt und sicher verwahrt",
           pdfStored: "Ich habe das Wiederherstellungs-PDF sicher verwahrt",
           continuePractice: "Weiter zur Wiederherstellungsübung",
           expertSkip: "Ich weiß, was ich tue",
@@ -72,10 +69,8 @@ export async function completeRecoveryConfirmation(
           fileDownload: "Download .ppxrecovery file",
           fileStored: "I stored the .ppxrecovery file safely",
           continueWords: "Continue to recovery words",
-          printLink: "Print / Save as PDF",
           pdfDownload: "Download recovery PDF",
           wordsWritten: "I wrote down all 24 words",
-          printStored: "I printed and safely stored the recovery document",
           pdfStored: "I safely stored the recovery PDF",
           continuePractice: "Continue to restore practice",
           expertSkip: "I know what I’m doing",
@@ -98,14 +93,10 @@ export async function completeRecoveryConfirmation(
   await fileDownload;
   await page.getByRole("checkbox", { name: labels.fileStored }).check();
   await page.getByRole("button", { name: labels.continueWords }).click();
-  const printWindow = page.waitForEvent("popup");
-  await page.getByRole("link", { name: labels.printLink }).click();
-  await (await printWindow).close();
   const pdfDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: labels.pdfDownload }).click();
   await pdfDownload;
   await page.getByRole("checkbox", { name: labels.wordsWritten }).check();
-  await page.getByRole("checkbox", { name: labels.printStored }).check();
   await page.getByRole("checkbox", { name: labels.pdfStored }).check();
   await page.getByRole("button", { name: labels.continuePractice }).click();
   await page.getByRole("button", { name: labels.expertSkip }).click();

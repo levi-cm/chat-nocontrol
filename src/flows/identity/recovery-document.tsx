@@ -9,13 +9,11 @@ export function RecoveryPdfPreview({
   bytes,
   filename,
   locale,
-  onPrint,
   onDownload,
 }: {
   bytes: Uint8Array;
   filename: string;
   locale: Locale;
-  onPrint: () => void;
   onDownload: () => void;
 }) {
   const [url, setUrl] = useState("");
@@ -61,22 +59,6 @@ export function RecoveryPdfPreview({
         )
       )}
       <div class="action-row recovery-pdf-actions">
-        <a
-          class="button secondary"
-          href={url || undefined}
-          target="_blank"
-          rel="noreferrer"
-          aria-disabled={url === ""}
-          onClick={(event) => {
-            if (!url) {
-              event.preventDefault();
-              return;
-            }
-            onPrint();
-          }}
-        >
-          {de ? "Drucken / Als PDF speichern" : "Print / Save as PDF"}
-        </a>
         <button
           class="button secondary"
           type="button"

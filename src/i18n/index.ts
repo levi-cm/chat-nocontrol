@@ -139,11 +139,9 @@ const en = {
   recoveryDocumentTitle: "Write down or print your recovery words",
   recoveryDocumentBody:
     "These words, the private QR, and the .ppxrecovery file can all restore your identity. Anyone who gets them can decrypt as you.",
-  openPrintPreview: "Open print preview",
   downloadRecoveryPdf: "Download recovery PDF",
   confirmWordBackup: "Confirm all recovery backups",
   confirmWordsWritten: "I wrote down all 24 words",
-  confirmPrintedRecovery: "I printed and safely stored the recovery document",
   confirmPdfStored: "I safely stored the recovery PDF",
   continueRestorePractice: "Continue to restore practice",
   qrPracticeTitle: "Practice restoring with your private QR",
@@ -563,12 +561,9 @@ const de: Record<keyof typeof en, string> = {
   recoveryDocumentTitle: "Wiederherstellungswörter aufschreiben oder drucken",
   recoveryDocumentBody:
     "Diese Wörter, der private QR-Code und die .ppxrecovery-Datei können alle deine Identität wiederherstellen. Wer sie erhält, kann als du entschlüsseln.",
-  openPrintPreview: "Druckansicht öffnen",
   downloadRecoveryPdf: "Wiederherstellungs-PDF herunterladen",
   confirmWordBackup: "Alle Wiederherstellungssicherungen bestätigen",
   confirmWordsWritten: "Ich habe alle 24 Wörter aufgeschrieben",
-  confirmPrintedRecovery:
-    "Ich habe das Wiederherstellungsdokument gedruckt und sicher verwahrt",
   confirmPdfStored: "Ich habe das Wiederherstellungs-PDF sicher verwahrt",
   continueRestorePractice: "Weiter zur Wiederherstellungsübung",
   qrPracticeTitle: "Wiederherstellung mit dem privaten QR-Code üben",

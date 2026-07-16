@@ -220,7 +220,7 @@ describe("seven-screen identity wizard", () => {
     ).toBe(true);
   });
 
-  it("requires all three recovery-document confirmations", async () => {
+  it("requires only written words and the downloaded PDF confirmation", async () => {
     const user = userEvent.setup();
     const download = vi
       .spyOn(HTMLAnchorElement.prototype, "click")
@@ -295,18 +295,25 @@ describe("seven-screen identity wizard", () => {
     const written = screen.getByRole("checkbox", {
       name: "I wrote down all 24 words",
     });
-    const printed = screen.getByRole("checkbox", {
-      name: "I printed and safely stored the recovery document",
-    });
     const pdf = screen.getByRole("checkbox", {
       name: "I safely stored the recovery PDF",
     });
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "I printed and safely stored the recovery document",
+      }),
+    ).toBeNull();
     expect(continueButton.disabled).toBe(true);
     await user.click(written);
     expect(continueButton.disabled).toBe(true);
-    expect((printed as HTMLInputElement).disabled).toBe(true);
     expect((pdf as HTMLInputElement).disabled).toBe(true);
-    expect(download).toHaveBeenCalledTimes(2);
+    await user.click(
+      screen.getByRole("button", { name: "Download recovery PDF" }),
+    );
+    expect((pdf as HTMLInputElement).disabled).toBe(false);
+    await user.click(pdf);
+    expect(continueButton.disabled).toBe(false);
+    expect(download).toHaveBeenCalledTimes(3);
   });
 
   it("requires explicit confirmation before creating a weak-password vault", async () => {
