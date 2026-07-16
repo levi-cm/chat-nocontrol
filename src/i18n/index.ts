@@ -304,6 +304,30 @@ const en = {
   textCapabilityNote: "Copy, save, or share when available",
   couldNotEncrypt: "Could not encrypt",
   encryptLocally: "Encrypt",
+  includeContactInMessageLink: "Include my public contact in link",
+  includedContactLinkHint:
+    "The recipient can authenticate you and choose whether to save your public contact.",
+  compactLinkKnownContactHint:
+    "The recipient must already have your public contact to authenticate and decrypt this compact link.",
+  encryptedLink: "Encrypted link",
+  messageLinkLength: "Link length",
+  characters: "characters",
+  longMessageLinkWarning:
+    "This link is longer than 2,000 characters. Some messengers may collapse or truncate it; encrypted text remains the fallback.",
+  copyEncryptedLink: "Copy encrypted link",
+  shareEncryptedLink: "Share encrypted link",
+  linkCopySucceeded:
+    "Link copied. Clipboard clearing after 60 seconds is best effort.",
+  linkCopySelected:
+    "Automatic copy is unavailable. The complete link is selected; press Ctrl+C or use Copy.",
+  linkCopyFailed:
+    "Could not copy. Select the complete encrypted link manually.",
+  preparingCompactLink: "Creating compact encrypted link...",
+  compactLinkUnavailable:
+    "Compact encrypted link could not be created. Include your public contact or use encrypted text instead.",
+  switchContactInclusionOn: "Include my public contact",
+  showEncryptedTextFallback: "Show encrypted text fallback",
+  messageLinkUnavailable: "Encrypted link could not be created.",
   encryptedOutput: "Encrypted output",
   copyOutput: "Copy encrypted output",
   copySucceeded: "Copied. Clipboard clearing after 60 seconds is best effort.",
@@ -739,6 +763,32 @@ const de: Record<keyof typeof en, string> = {
   textCapabilityNote: "Kopieren, speichern oder teilen, wenn verfügbar",
   couldNotEncrypt: "Verschlüsselung nicht möglich",
   encryptLocally: "Verschlüsseln",
+  includeContactInMessageLink: "Meinen öffentlichen Kontakt im Link mitsenden",
+  includedContactLinkHint:
+    "Der Empfänger kann dich authentifizieren und selbst entscheiden, ob dein öffentlicher Kontakt gespeichert wird.",
+  compactLinkKnownContactHint:
+    "Der Empfänger muss deinen öffentlichen Kontakt bereits besitzen, um diesen kompakten Link zu authentifizieren und zu entschlüsseln.",
+  encryptedLink: "Verschlüsselter Link",
+  messageLinkLength: "Linklänge",
+  characters: "Zeichen",
+  longMessageLinkWarning:
+    "Dieser Link ist länger als 2.000 Zeichen. Manche Messenger kürzen oder verbergen ihn; verschlüsselter Text bleibt die Ausweichmöglichkeit.",
+  copyEncryptedLink: "Verschlüsselten Link kopieren",
+  shareEncryptedLink: "Verschlüsselten Link teilen",
+  linkCopySucceeded:
+    "Link kopiert. Das Löschen der Zwischenablage nach 60 Sekunden ist nur ein bestmöglicher Versuch.",
+  linkCopySelected:
+    "Automatisches Kopieren ist nicht verfügbar. Der vollständige Link ist ausgewählt; drücke Strg+C oder verwende Kopieren.",
+  linkCopyFailed:
+    "Kopieren nicht möglich. Wähle den vollständigen verschlüsselten Link manuell aus.",
+  preparingCompactLink: "Kompakter verschlüsselter Link wird erstellt...",
+  compactLinkUnavailable:
+    "Der kompakte verschlüsselte Link konnte nicht erstellt werden. Sende deinen öffentlichen Kontakt mit oder verwende verschlüsselten Text.",
+  switchContactInclusionOn: "Meinen öffentlichen Kontakt mitsenden",
+  showEncryptedTextFallback:
+    "Verschlüsselten Text als Ausweichmöglichkeit anzeigen",
+  messageLinkUnavailable:
+    "Der verschlüsselte Link konnte nicht erstellt werden.",
   encryptedOutput: "Verschlüsselte Ausgabe",
   copyOutput: "Verschlüsselte Ausgabe kopieren",
   copySucceeded:

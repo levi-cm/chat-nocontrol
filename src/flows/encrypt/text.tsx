@@ -11,10 +11,12 @@ import {
 import { QrActionIcon } from "../../components/navigation/qr-icon";
 import { PasteButton } from "../../components/forms/paste-button";
 import { copyWithBestEffortClear } from "../identity/clipboard";
+import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
 import { createSenderSigningCapability } from "../../crypto/identity";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
 import { encodeTextArmor } from "../../protocol/ppxt-armor";
+import { encodeMessageLink } from "../../protocol/message-link";
 import { encodeEncryptedQrText } from "../../protocol/ppxq-outer";
 import type {
   DerivedIdentity,
@@ -27,7 +29,7 @@ import {
   startEncryptQrTextJob,
 } from "../../workers/crypto-client";
 import type { EncryptedTextObject } from "../../protocol/types";
-import type { QrExportMode } from "../../storage/settings";
+import type { MessageOutputMode, QrExportMode } from "../../storage/settings";
 import { EncryptFileFlow } from "./file";
 
 function fingerprintId(value: Uint8Array): string {
@@ -39,7 +41,9 @@ export function EncryptTextFlow({
   identity,
   sender,
   contacts,
+  onContactsChange,
   locale,
+  messageOutputMode,
   messageQrCreationEnabled,
   qrExportMode,
 }: {
@@ -47,7 +51,9 @@ export function EncryptTextFlow({
   identity: DerivedIdentity | null;
   sender: PublicContact | null;
   contacts: ManagedContact[];
+  onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
   locale: Locale;
+  messageOutputMode: MessageOutputMode;
   messageQrCreationEnabled: boolean;
   qrExportMode: QrExportMode;
 }) {
@@ -55,16 +61,25 @@ export function EncryptTextFlow({
   const [recipientSearch, setRecipientSearch] = useState("");
   const [plaintext, setPlaintext] = useState("");
   const [output, setOutput] = useState("");
+  const [fullOutput, setFullOutput] = useState<EncryptedTextObject | null>(
+    null,
+  );
   const [qrOutput, setQrOutput] = useState<EncryptedQrTextObject | null>(null);
+  const [compactStatus, setCompactStatus] = useState<
+    "idle" | "pending" | "ready" | "failed"
+  >("idle");
+  const [revealTextFallback, setRevealTextFallback] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [linkCopyStatus, setLinkCopyStatus] = useState("");
   const [status, setStatus] = useState("");
   const [mode, setMode] = useState<"text" | "file">("text");
   const [fileBusy, setFileBusy] = useState(false);
   const job = useRef<CryptoWorkerJob<EncryptedTextObject> | null>(null);
   const qrJob = useRef<CryptoWorkerJob<EncryptedQrTextObject> | null>(null);
   const outputRef = useRef<HTMLTextAreaElement | null>(null);
+  const linkOutputRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(
     () => () => {
@@ -88,9 +103,27 @@ export function EncryptTextFlow({
         .includes(query),
     );
   }, [contacts, recipientSearch]);
-  const recipient = contacts.find(
+  const recipientItem = contacts.find(
     (item) => fingerprintId(item.contact.fingerprint) === recipientId,
-  )?.contact;
+  );
+  const recipient = recipientItem?.contact;
+  const includeSenderContactInLinks =
+    recipientItem?.includeSenderContactInLinks !== false;
+  const linkEnabled = messageOutputMode !== "text";
+  const messageLink = useMemo(() => {
+    if (!linkEnabled || !fullOutput) return "";
+    const value = includeSenderContactInLinks
+      ? ({ kind: "ppxt", object: fullOutput } as const)
+      : qrOutput
+        ? ({ kind: "ppxq", object: qrOutput } as const)
+        : null;
+    if (!value) return "";
+    try {
+      return encodeMessageLink(value, CHAT_NOCONTROL_CANONICAL_APP_BASE);
+    } catch {
+      return "";
+    }
+  }, [fullOutput, includeSenderContactInLinks, linkEnabled, qrOutput]);
   const qrCapacities = useMemo(() => {
     if (!qrOutput) return null;
     const bytes = encodeEncryptedQrText(qrOutput);
@@ -103,6 +136,19 @@ export function EncryptTextFlow({
       link: prepareMessageQr(bytes, "link", appBase),
     };
   }, [qrOutput]);
+
+  const resetTextOutput = () => {
+    qrJob.current?.cancel();
+    qrJob.current = null;
+    setOutput("");
+    setFullOutput(null);
+    setQrOutput(null);
+    setCompactStatus("idle");
+    setRevealTextFallback(false);
+    setCopyStatus("");
+    setLinkCopyStatus("");
+    setError("");
+  };
 
   if (!identity || !sender) {
     return (
@@ -125,11 +171,20 @@ export function EncryptTextFlow({
     if (!recipient) return;
     let operation: CryptoWorkerJob<EncryptedTextObject> | null = null;
     let compactOperation: CryptoWorkerJob<EncryptedQrTextObject> | null = null;
+    job.current?.cancel();
+    qrJob.current?.cancel();
+    job.current = null;
+    qrJob.current = null;
     setBusy(true);
     setError("");
     setStatus("");
     setOutput("");
+    setFullOutput(null);
     setQrOutput(null);
+    setCompactStatus("idle");
+    setRevealTextFallback(false);
+    setCopyStatus("");
+    setLinkCopyStatus("");
     try {
       const now = BigInt(Math.floor(Date.now() / 1000));
       const messageId = crypto.getRandomValues(new Uint8Array(16));
@@ -146,8 +201,10 @@ export function EncryptTextFlow({
       const object = await operation.promise;
       if (job.current !== operation) return;
       setOutput(encodeTextArmor(object));
-      if (messageQrCreationEnabled)
+      setFullOutput(object);
+      if (messageOutputMode !== "text" || messageQrCreationEnabled)
         try {
+          setCompactStatus("pending");
           compactOperation = startEncryptQrTextJob({
             sender,
             senderSigningCapability: createSenderSigningCapability(identity),
@@ -160,14 +217,21 @@ export function EncryptTextFlow({
           qrJob.current = compactOperation;
           void compactOperation.promise
             .then((compact) => {
-              if (qrJob.current === compactOperation) setQrOutput(compact);
+              if (qrJob.current === compactOperation) {
+                setQrOutput(compact);
+                setCompactStatus("ready");
+              }
             })
-            .catch(() => undefined)
+            .catch(() => {
+              if (qrJob.current === compactOperation) {
+                setCompactStatus("failed");
+              }
+            })
             .finally(() => {
               if (qrJob.current === compactOperation) qrJob.current = null;
             });
         } catch {
-          // PPXT remains successful when optional compact QR generation is unavailable.
+          setCompactStatus("failed");
         }
     } catch {
       if (!operation || job.current === operation)
@@ -229,6 +293,44 @@ export function EncryptTextFlow({
     }
   };
 
+  const copyLink = async () => {
+    if (!messageLink || !linkOutputRef.current) return;
+    const result = await copyWithBestEffortClear(
+      messageLink,
+      linkOutputRef.current,
+    );
+    setLinkCopyStatus(
+      t(
+        result === "copied"
+          ? "linkCopySucceeded"
+          : result === "selected"
+            ? "linkCopySelected"
+            : "linkCopyFailed",
+      ),
+    );
+  };
+
+  const shareLink = async () => {
+    if (!messageLink || typeof navigator.share !== "function") return;
+    try {
+      await navigator.share({ url: messageLink });
+    } catch {
+      // Cancellation and target refusal leave the generated link usable.
+    }
+  };
+
+  const setContactInclusion = (include: boolean) => {
+    if (!recipientItem || recipientItem.includeSenderContactInLinks === include)
+      return;
+    const next = contacts.map((item) =>
+      item === recipientItem
+        ? { ...item, includeSenderContactInLinks: include }
+        : item,
+    );
+    setLinkCopyStatus("");
+    void onContactsChange(next);
+  };
+
   return (
     <section class="flow-panel">
       <h1>{t("encryptTitle")}</h1>
@@ -243,10 +345,7 @@ export function EncryptTextFlow({
           onInput={(event) => {
             setRecipientSearch(event.currentTarget.value);
             setRecipientId("");
-            setOutput("");
-            setQrOutput(null);
-            setCopyStatus("");
-            setError("");
+            resetTextOutput();
           }}
         />
       </div>
@@ -282,10 +381,7 @@ export function EncryptTextFlow({
           disabled={busy || fileBusy}
           onChange={(event) => {
             setRecipientId(event.currentTarget.value);
-            setOutput("");
-            setQrOutput(null);
-            setCopyStatus("");
-            setError("");
+            resetTextOutput();
           }}
         >
           <option value="">{t("recipient")}</option>
@@ -310,6 +406,27 @@ export function EncryptTextFlow({
         </select>
       </div>
       {recipientId === "" && <p class="empty-state">{t("chooseRecipient")}</p>}
+      {mode === "text" && linkEnabled && recipientItem && (
+        <div class="contact-link-preference">
+          <label class="checkbox-row" for="include-contact-in-link">
+            <input
+              id="include-contact-in-link"
+              type="checkbox"
+              checked={includeSenderContactInLinks}
+              disabled={busy}
+              onChange={(event) =>
+                setContactInclusion(event.currentTarget.checked)
+              }
+            />
+            <span>{t("includeContactInMessageLink")}</span>
+          </label>
+          <p class="input-meta">
+            {includeSenderContactInLinks
+              ? t("includedContactLinkHint")
+              : t("compactLinkKnownContactHint")}
+          </p>
+        </div>
+      )}
       {mode === "text" && (
         <>
           <div class="field">
@@ -322,10 +439,7 @@ export function EncryptTextFlow({
                 disabled={busy}
                 onPaste={(value) => {
                   setPlaintext(value);
-                  setOutput("");
-                  setQrOutput(null);
-                  setCopyStatus("");
-                  setError("");
+                  resetTextOutput();
                 }}
                 onError={setError}
               />
@@ -338,10 +452,7 @@ export function EncryptTextFlow({
               disabled={busy}
               onInput={(event) => {
                 setPlaintext(event.currentTarget.value);
-                setOutput("");
-                setQrOutput(null);
-                setCopyStatus("");
-                setError("");
+                resetTextOutput();
               }}
             />
             <p class="input-meta">
@@ -393,42 +504,146 @@ export function EncryptTextFlow({
           )}
           {output && (
             <div class="output-panel">
-              <label for="encrypted-output">{t("encryptedOutput")}</label>
-              <textarea
-                ref={outputRef}
-                class="field-control mono-output"
-                id="encrypted-output"
-                rows={10}
-                readOnly
-                value={output}
-              />
-              <div class="action-row">
-                <button
-                  class="button secondary"
-                  type="button"
-                  onClick={() => void copy()}
-                >
-                  {t("copyOutput")}
-                </button>
-                <button class="button secondary" type="button" onClick={save}>
-                  {t("saveOutput")}
-                </button>
-                {typeof navigator.share === "function" && (
-                  <button
-                    class="button secondary"
-                    type="button"
-                    onClick={() => void share()}
-                  >
-                    {t("shareOutput")}
-                  </button>
-                )}
-              </div>
-              {copyStatus && (
-                <p class="input-meta" role="status">
-                  {copyStatus}
-                </p>
+              {linkEnabled && (
+                <section class="message-link-output">
+                  <h2 id="encrypted-link-label">{t("encryptedLink")}</h2>
+                  {messageLink ? (
+                    <>
+                      <label class="visually-hidden" for="encrypted-link">
+                        {t("encryptedLink")}
+                      </label>
+                      <textarea
+                        ref={linkOutputRef}
+                        class="field-control mono-output message-link-field"
+                        id="encrypted-link"
+                        rows={5}
+                        readOnly
+                        value={messageLink}
+                      />
+                      <p class="input-meta">
+                        {t("messageLinkLength")}:{" "}
+                        {formatLocalNumber(messageLink.length, locale)}{" "}
+                        {t("characters")}
+                      </p>
+                      {messageLink.length > 2_000 && (
+                        <p class="field-warning" role="status">
+                          {t("longMessageLinkWarning")}
+                        </p>
+                      )}
+                      {!includeSenderContactInLinks && (
+                        <p class="input-meta">
+                          {t("compactLinkKnownContactHint")}
+                        </p>
+                      )}
+                      <div class="action-row">
+                        <button
+                          class="button primary"
+                          type="button"
+                          onClick={() => void copyLink()}
+                        >
+                          {t("copyEncryptedLink")}
+                        </button>
+                        {typeof navigator.share === "function" && (
+                          <button
+                            class="button secondary"
+                            type="button"
+                            onClick={() => void shareLink()}
+                          >
+                            {t("shareEncryptedLink")}
+                          </button>
+                        )}
+                      </div>
+                      {linkCopyStatus && (
+                        <p class="input-meta" role="status">
+                          {linkCopyStatus}
+                        </p>
+                      )}
+                    </>
+                  ) : !includeSenderContactInLinks &&
+                    compactStatus === "pending" ? (
+                    <p class="input-meta" role="status">
+                      {t("preparingCompactLink")}
+                    </p>
+                  ) : !includeSenderContactInLinks &&
+                    compactStatus === "failed" ? (
+                    <div class="compact-link-failure">
+                      <p class="field-error" role="alert">
+                        {t("compactLinkUnavailable")}
+                      </p>
+                      <div class="action-row">
+                        <button
+                          class="button secondary"
+                          type="button"
+                          onClick={() => setContactInclusion(true)}
+                        >
+                          {t("switchContactInclusionOn")}
+                        </button>
+                        {messageOutputMode === "link" &&
+                          !revealTextFallback && (
+                            <button
+                              class="button secondary"
+                              type="button"
+                              onClick={() => setRevealTextFallback(true)}
+                            >
+                              {t("showEncryptedTextFallback")}
+                            </button>
+                          )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p class="field-error" role="alert">
+                      {t("messageLinkUnavailable")}
+                    </p>
+                  )}
+                </section>
               )}
-              {qrCapacities && (
+              {(messageOutputMode !== "link" || revealTextFallback) && (
+                <section class="encrypted-text-fallback">
+                  <h2 id="encrypted-output-label">{t("encryptedOutput")}</h2>
+                  <label class="visually-hidden" for="encrypted-output">
+                    {t("encryptedOutput")}
+                  </label>
+                  <textarea
+                    ref={outputRef}
+                    class="field-control mono-output"
+                    id="encrypted-output"
+                    rows={10}
+                    readOnly
+                    value={output}
+                  />
+                  <div class="action-row">
+                    <button
+                      class="button secondary"
+                      type="button"
+                      onClick={() => void copy()}
+                    >
+                      {t("copyOutput")}
+                    </button>
+                    <button
+                      class="button secondary"
+                      type="button"
+                      onClick={save}
+                    >
+                      {t("saveOutput")}
+                    </button>
+                    {typeof navigator.share === "function" && (
+                      <button
+                        class="button secondary"
+                        type="button"
+                        onClick={() => void share()}
+                      >
+                        {t("shareOutput")}
+                      </button>
+                    )}
+                  </div>
+                  {copyStatus && (
+                    <p class="input-meta" role="status">
+                      {copyStatus}
+                    </p>
+                  )}
+                </section>
+              )}
+              {messageQrCreationEnabled && qrCapacities && (
                 <div class="qr-message-actions">
                   <p class="input-meta">{t("qrKnownSenderGuidance")}</p>
                   <div class="action-row">

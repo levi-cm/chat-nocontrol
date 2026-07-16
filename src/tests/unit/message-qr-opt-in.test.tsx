@@ -1,15 +1,40 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
+import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { EncryptTextFlow } from "../../flows/encrypt/text";
 import { messages } from "../../i18n";
-import { parseEncryptedTextOuter } from "../../protocol/ppxt-outer";
-import type { DerivedIdentity, PublicContact } from "../../protocol/types";
-import { canonicalProtocolBytes } from "../helpers/canonical-protocol";
+import { formatLocalNumber } from "../../i18n/format";
+import { checksum16 } from "../../protocol/checksum";
+import { parseMessageLinkHash } from "../../protocol/message-link";
+import { parseEncryptedQrText } from "../../protocol/ppxq-outer";
+import {
+  encodeEncryptedTextHeader,
+  parseEncryptedTextOuter,
+} from "../../protocol/ppxt-outer";
+import type {
+  DerivedIdentity,
+  EncryptedQrTextObject,
+  EncryptedTextObject,
+  EncryptQrTextInput,
+  EncryptTextInput,
+  PublicContact,
+} from "../../protocol/types";
+import type { MessageOutputMode } from "../../storage/settings";
+import type { CryptoWorkerJob } from "../../workers/crypto-client";
+import {
+  canonicalProtocolBytes,
+  canonicalQrTextBytes,
+} from "../helpers/canonical-protocol";
 
 const workerMocks = vi.hoisted(() => ({
-  startEncryptTextJob: vi.fn(),
-  startEncryptQrTextJob: vi.fn(),
+  startEncryptTextJob:
+    vi.fn<(input: EncryptTextInput) => CryptoWorkerJob<EncryptedTextObject>>(),
+  startEncryptQrTextJob:
+    vi.fn<
+      (input: EncryptQrTextInput) => CryptoWorkerJob<EncryptedQrTextObject>
+    >(),
 }));
 
 vi.mock("../../workers/crypto-client", () => workerMocks);
@@ -48,60 +73,313 @@ function contactFixture(fill: number, pseudonym: string): PublicContact {
   };
 }
 
+const sender = contactFixture(8, "Alice");
+const recipient = contactFixture(9, "Bob");
+type ContactsChange = (contacts: ManagedContact[]) => Promise<boolean>;
+
+async function prepareWorkers({
+  compact = "resolve",
+  largeFull = false,
+}: {
+  compact?: "resolve" | "reject" | "pending";
+  largeFull?: boolean;
+} = {}) {
+  const parsedPpxt = parseEncryptedTextOuter(
+    (await canonicalProtocolBytes()).ppxt,
+  );
+  const largeCiphertext = new Uint8Array(1_500).fill(7);
+  const largeBase = {
+    ...parsedPpxt,
+    ciphertextLength: largeCiphertext.byteLength,
+    ciphertext: largeCiphertext,
+  };
+  const largeHeader = encodeEncryptedTextHeader(largeBase);
+  const largePayload = new Uint8Array(
+    largeHeader.length + largeCiphertext.length,
+  );
+  largePayload.set(largeHeader);
+  largePayload.set(largeCiphertext, largeHeader.length);
+  const ppxt = largeFull
+    ? { ...largeBase, checksum: checksum16(largePayload) }
+    : parsedPpxt;
+  const ppxq = parseEncryptedQrText(canonicalQrTextBytes());
+  workerMocks.startEncryptTextJob.mockReturnValue({
+    requestId: "ppxt",
+    promise: Promise.resolve(ppxt),
+    cancel: vi.fn(),
+  });
+  workerMocks.startEncryptQrTextJob.mockImplementation(() => ({
+    requestId: "ppxq",
+    promise:
+      compact === "resolve"
+        ? Promise.resolve(ppxq)
+        : compact === "reject"
+          ? Promise.reject(new Error("compact-too-large"))
+          : new Promise(() => undefined),
+    cancel: vi.fn(),
+  }));
+  return { ppxt, ppxq };
+}
+
+function renderFlow({
+  messageOutputMode = "both",
+  messageQrCreationEnabled = false,
+  includeSenderContactInLinks = true,
+  onContactsChange = vi.fn<ContactsChange>().mockResolvedValue(true),
+}: {
+  messageOutputMode?: MessageOutputMode;
+  messageQrCreationEnabled?: boolean;
+  includeSenderContactInLinks?: boolean;
+  onContactsChange?: ContactsChange;
+} = {}) {
+  render(
+    <EncryptTextFlow
+      t={(key) => messages.en[key]}
+      identity={identityFixture()}
+      sender={sender}
+      contacts={[
+        { contact: recipient, nickname: "Bob", includeSenderContactInLinks },
+      ]}
+      onContactsChange={onContactsChange}
+      locale="en"
+      messageOutputMode={messageOutputMode}
+      messageQrCreationEnabled={messageQrCreationEnabled}
+      qrExportMode="both"
+    />,
+  );
+  return { onContactsChange };
+}
+
+async function encryptMessage(message = "hello") {
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText("Recipient"), "09".repeat(32));
+  await user.type(screen.getByLabelText("Encrypted text"), message);
+  await user.click(screen.getByRole("button", { name: "Encrypt" }));
+  await waitFor(() =>
+    expect(workerMocks.startEncryptTextJob).toHaveBeenCalledOnce(),
+  );
+  return user;
+}
+
+function encryptedLinkField(): HTMLTextAreaElement {
+  const element = screen.getByLabelText("Encrypted link");
+  if (!(element instanceof HTMLTextAreaElement)) {
+    throw new Error("encrypted link field is not a textarea");
+  }
+  return element;
+}
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  Object.defineProperty(navigator, "share", {
+    configurable: true,
+    value: undefined,
+  });
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: undefined,
+  });
 });
 
-describe("message QR creation opt-in", () => {
+describe("sender message outputs", () => {
   it.each([
-    [false, 0],
-    [true, 1],
+    ["text", false, 0],
+    ["text", true, 1],
+    ["link", false, 1],
+    ["both", false, 1],
   ] as const)(
-    "starts the PPXQ worker only when creationEnabled=%s",
-    async (messageQrCreationEnabled, expectedCalls) => {
-      const object = parseEncryptedTextOuter(
-        (await canonicalProtocolBytes()).ppxt,
-      );
-      workerMocks.startEncryptTextJob.mockReturnValue({
-        requestId: "ppxt",
-        promise: Promise.resolve(object),
-        cancel: vi.fn(),
-      });
-      workerMocks.startEncryptQrTextJob.mockReturnValue({
-        requestId: "ppxq",
-        promise: new Promise(() => undefined),
-        cancel: vi.fn(),
-      });
-      const sender = contactFixture(8, "Alice");
-      const recipient = contactFixture(9, "Bob");
-      const user = userEvent.setup();
+    "%s output with QR=%s starts compact worker %s time(s)",
+    async (messageOutputMode, messageQrCreationEnabled, expectedCalls) => {
+      await prepareWorkers({ compact: "pending" });
+      renderFlow({ messageOutputMode, messageQrCreationEnabled });
+      await encryptMessage();
 
-      render(
-        <EncryptTextFlow
-          t={(key) => messages.en[key]}
-          identity={identityFixture()}
-          sender={sender}
-          contacts={[{ contact: recipient, nickname: "Bob" }]}
-          locale="en"
-          messageQrCreationEnabled={messageQrCreationEnabled}
-          qrExportMode="both"
-        />,
-      );
-      await user.selectOptions(
-        screen.getByLabelText("Recipient"),
-        "09".repeat(32),
-      );
-      await user.type(screen.getByLabelText("Encrypted text"), "hello");
-      await user.click(screen.getByRole("button", { name: "Encrypt" }));
-
-      await waitFor(() =>
-        expect(workerMocks.startEncryptTextJob).toHaveBeenCalledOnce(),
-      );
       expect(workerMocks.startEncryptQrTextJob).toHaveBeenCalledTimes(
         expectedCalls,
       );
-      expect(screen.getByLabelText("Encrypted output")).not.toBeNull();
+      expect(screen.queryByLabelText("Encrypted link") !== null).toBe(
+        messageOutputMode !== "text",
+      );
+      expect(screen.queryByLabelText("Encrypted output") !== null).toBe(
+        messageOutputMode !== "link",
+      );
     },
   );
+
+  it("passes identical message metadata to PPXT and PPXQ workers", async () => {
+    await prepareWorkers();
+    renderFlow({ messageOutputMode: "both" });
+    await encryptMessage("emoji 😀");
+    await waitFor(() =>
+      expect(workerMocks.startEncryptQrTextJob).toHaveBeenCalledOnce(),
+    );
+
+    const full = workerMocks.startEncryptTextJob.mock.calls[0]?.[0];
+    const compact = workerMocks.startEncryptQrTextJob.mock.calls[0]?.[0];
+    if (!full || !compact)
+      throw new Error("encryption workers were not called");
+    expect(compact.messageId).toEqual(full.messageId);
+    expect(compact.sentAt).toBe(full.sentAt);
+    expect(compact.createdAt).toBe(full.createdAt);
+    expect(compact.plaintext).toBe("emoji 😀");
+  });
+
+  it("does not reveal QR actions when compact output exists only for links", async () => {
+    await prepareWorkers();
+    renderFlow({ messageOutputMode: "both", messageQrCreationEnabled: false });
+    await encryptMessage();
+
+    expect(
+      screen.queryByRole("button", { name: /download .*message qr/i }),
+    ).toBeNull();
+  });
+
+  it("uses PPXT for contact-included canonical links and reports exact length", async () => {
+    await prepareWorkers({ compact: "pending" });
+    renderFlow({
+      messageOutputMode: "both",
+      includeSenderContactInLinks: true,
+    });
+    await encryptMessage();
+
+    await screen.findByLabelText("Encrypted link");
+    const link = encryptedLinkField();
+    expect(link.value.startsWith(CHAT_NOCONTROL_CANONICAL_APP_BASE)).toBe(true);
+    expect(parseMessageLinkHash(new URL(link.value).hash).kind).toBe("ppxt");
+    expect(
+      screen.getByText(
+        `Link length: ${formatLocalNumber(link.value.length, "en")} characters`,
+      ),
+    ).not.toBeNull();
+  });
+
+  it("warns without disabling links above 2,000 characters", async () => {
+    await prepareWorkers({ compact: "pending", largeFull: true });
+    renderFlow({
+      messageOutputMode: "link",
+      includeSenderContactInLinks: true,
+    });
+    await encryptMessage();
+
+    await screen.findByLabelText("Encrypted link");
+    const link = encryptedLinkField();
+    expect(link.value.length).toBeGreaterThan(2_000);
+    expect(screen.getByText(/longer than 2,000 characters/i)).not.toBeNull();
+    const copyButton = screen.getByRole("button", {
+      name: "Copy encrypted link",
+    });
+    if (!(copyButton instanceof HTMLButtonElement)) {
+      throw new Error("copy encrypted link control is not a button");
+    }
+    expect(copyButton.disabled).toBe(false);
+  });
+
+  it("uses PPXQ when contact inclusion is off and shows known-contact guidance", async () => {
+    await prepareWorkers();
+    renderFlow({
+      messageOutputMode: "link",
+      includeSenderContactInLinks: false,
+    });
+    await encryptMessage();
+
+    await screen.findByLabelText("Encrypted link");
+    const link = encryptedLinkField();
+    expect(parseMessageLinkHash(new URL(link.value).hash).kind).toBe("ppxq");
+    expect(
+      screen.getAllByText(/must already have your public contact/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("persists contact inclusion changes immediately", async () => {
+    await prepareWorkers();
+    const { onContactsChange } = renderFlow({ messageOutputMode: "link" });
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByLabelText("Recipient"),
+      "09".repeat(32),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: /include my public contact/i }),
+    );
+
+    expect(onContactsChange).toHaveBeenCalledWith([
+      expect.objectContaining({ includeSenderContactInLinks: false }),
+    ]);
+  });
+
+  it("offers contact inclusion and encrypted-text fallback after compact failure", async () => {
+    await prepareWorkers({ compact: "reject" });
+    renderFlow({
+      messageOutputMode: "link",
+      includeSenderContactInLinks: false,
+    });
+    const user = await encryptMessage();
+
+    expect(
+      await screen.findByText(/compact encrypted link could not be created/i),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: /include my public contact/i }),
+    ).not.toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: /show encrypted text fallback/i }),
+    );
+    expect(screen.getByLabelText("Encrypted output")).not.toBeNull();
+  });
+
+  it("copy fallback selects the whole encrypted link", async () => {
+    await prepareWorkers();
+    renderFlow({ messageOutputMode: "link" });
+    const user = await encryptMessage();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockRejectedValue(new Error("denied")),
+        readText: vi.fn().mockRejectedValue(new Error("denied")),
+      },
+    });
+    await user.click(
+      screen.getByRole("button", { name: "Copy encrypted link" }),
+    );
+    expect(
+      await screen.findByText(/complete link is selected/i),
+    ).not.toBeNull();
+  });
+
+  it.each(["resolve", "cancel"] as const)(
+    "shares URL-only when Web Share will %s",
+    async (result) => {
+      const share = vi
+        .fn()
+        .mockImplementation(() =>
+          result === "resolve"
+            ? Promise.resolve()
+            : Promise.reject(new DOMException("cancelled", "AbortError")),
+        );
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: share,
+      });
+      await prepareWorkers();
+      renderFlow({ messageOutputMode: "link" });
+      const user = await encryptMessage();
+      await user.click(
+        screen.getByRole("button", { name: "Share encrypted link" }),
+      );
+
+      const link = encryptedLinkField().value;
+      expect(share).toHaveBeenCalledWith({ url: link });
+      expect(screen.getByLabelText("Encrypted link")).not.toBeNull();
+    },
+  );
+
+  it("hides Web Share action when unavailable", async () => {
+    await prepareWorkers();
+    renderFlow({ messageOutputMode: "link" });
+    await encryptMessage();
+    expect(
+      screen.queryByRole("button", { name: "Share encrypted link" }),
+    ).toBeNull();
+  });
 });

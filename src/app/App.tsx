@@ -790,7 +790,9 @@ export function App() {
             identity={activeIdentity}
             sender={publicContact}
             contacts={contacts}
+            onContactsChange={saveContacts}
             locale={locale}
+            messageOutputMode={messageOutputMode}
             messageQrCreationEnabled={messageQrCreationEnabled}
             qrExportMode={qrExportMode}
           />
