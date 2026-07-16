@@ -62,7 +62,7 @@ import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
 import {
   consumeExpectedIncomingIntent,
   incomingIntentIsExpired,
-  remainingIncomingIntentLifetime,
+  scheduleIncomingIntentExpiry,
 } from "./incoming-intent";
 import {
   clearLastUnlockedRoute,
@@ -159,6 +159,7 @@ export function App({
 
   const lockActiveIdentity = () => {
     decryptCancellation.current?.();
+    setPendingIncomingIntent(null);
     if (activeIdentity) writeLastUnlockedRoute(route);
     if (activeIdentity) zeroizeIdentitySecrets(activeIdentity);
     setActiveIdentity(null);
@@ -392,16 +393,14 @@ export function App({
       setPendingIncomingIntent(null);
       return;
     }
-    const remaining = remainingIncomingIntentLifetime(
+    return scheduleIncomingIntentExpiry(
       pendingIncomingIntent,
       Date.now(),
+      () => {
+        decryptCancellation.current?.();
+        setPendingIncomingIntent(null);
+      },
     );
-    if (remaining === null) return;
-    const timer = window.setTimeout(() => {
-      decryptCancellation.current?.();
-      setPendingIncomingIntent(null);
-    }, remaining);
-    return () => window.clearTimeout(timer);
   }, [pendingIncomingIntent]);
 
   useEffect(() => {

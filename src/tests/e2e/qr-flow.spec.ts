@@ -40,8 +40,9 @@ test("captures a fragment-only message link and scrubs it immediately", async ({
   await page.goto(`/#/decrypt/qr/${payload}`);
   await expect(page).toHaveURL(/#\/decrypt$/u);
   await expect(
-    page.getByText("Create or import an identity first."),
+    page.getByRole("heading", { name: "Open encrypted message" }),
   ).toBeVisible();
+  await expect(page.getByLabel("24 recovery words")).toBeVisible();
   expect(requests.every((url) => !url.includes(payload))).toBe(true);
 });
 

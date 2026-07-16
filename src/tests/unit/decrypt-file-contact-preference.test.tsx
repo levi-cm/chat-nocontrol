@@ -45,6 +45,7 @@ describe("decrypted file sender contact preference", () => {
       cancel: vi.fn(),
     });
     const onContactsChange = vi.fn(() => Promise.resolve(true));
+    const cancellationHandle = { current: null as (() => void) | null };
 
     render(
       <DecryptFileFlow
@@ -55,6 +56,7 @@ describe("decrypted file sender contact preference", () => {
         file={new File([new Uint8Array([1])], "encrypted.ppxf")}
         startToken={1}
         onBusyChange={vi.fn()}
+        cancellationHandle={cancellationHandle}
         locale="en"
       />,
     );
@@ -70,5 +72,37 @@ describe("decrypted file sender contact preference", () => {
         includeSenderContactInLinks: true,
       }),
     ]);
+  });
+
+  it("exposes synchronous cancellation for an active file worker", async () => {
+    const identity = await deriveIdentityFromEntropy(
+      new Uint8Array(32).fill(7),
+      "Recipient",
+    );
+    const cancel = vi.fn();
+    vi.mocked(startDecryptFileJob).mockReturnValue({
+      requestId: "pending-file",
+      promise: new Promise(() => undefined),
+      cancel,
+    });
+    const cancellationHandle = { current: null as (() => void) | null };
+
+    render(
+      <DecryptFileFlow
+        t={(key) => key}
+        identity={identity}
+        contacts={[]}
+        onContactsChange={() => Promise.resolve(true)}
+        file={new File([new Uint8Array([1])], "encrypted.ppxf")}
+        startToken={1}
+        onBusyChange={vi.fn()}
+        cancellationHandle={cancellationHandle}
+        locale="en"
+      />,
+    );
+
+    await waitFor(() => expect(startDecryptFileJob).toHaveBeenCalledOnce());
+    cancellationHandle.current?.();
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });

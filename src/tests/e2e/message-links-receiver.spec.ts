@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import {
   createSenderSigningCapability,
   deriveIdentityFromEntropy,
@@ -81,6 +82,18 @@ test("cold capture scrubs before identity setup and never sends the fragment", a
     page.getByRole("heading", { name: "Open encrypted message" }),
   ).toBeVisible();
   await expect(page.getByLabel("24 recovery words")).toBeVisible();
+  const dimensions = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.client);
+  expect(
+    (
+      await new AxeBuilder({ page })
+        .include(".incoming-message-context")
+        .analyze()
+    ).violations,
+  ).toEqual([]);
   expect(requests.every((url) => !url.includes(encoded))).toBe(true);
   expect(
     await page.evaluate(async (needle) => {
@@ -228,6 +241,56 @@ test("captures, scrubs, and auto-decrypts a link in an active session", async ({
     page.getByRole("heading", { name: "Unknown sender" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Not now" })).toBeVisible();
+});
+
+test("locking clears a manual-ready incoming intent before identity zeroization", async ({
+  page,
+}) => {
+  const entropy = new Uint8Array(32).fill(72);
+  const link = await messageLink(entropy, "must disappear on lock");
+  await page.goto("/");
+  await importSessionIdentity(page, { entropy, pseudonym: "Link Bob" });
+  await page.getByRole("link", { name: "Open settings" }).click();
+  await page
+    .getByRole("checkbox", {
+      name: /^Auto-decrypt incoming message links and QRs/u,
+    })
+    .uncheck();
+  await page.evaluate((hash) => {
+    window.location.hash = hash;
+  }, new URL(link).hash);
+  await expect(
+    page.getByText("Encrypted message ready. Decrypt when you are ready."),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Lock now" }).click();
+
+  await expect(
+    page.getByText("Encrypted message ready. Decrypt when you are ready."),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Open encrypted message" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("Create or import an identity first."),
+  ).toBeVisible();
+});
+
+test("shows incoming identity import in German", async ({ page }) => {
+  const link = await messageLink(
+    new Uint8Array(32).fill(72),
+    "deutsche Nachricht",
+  );
+  await page.goto("/#/settings");
+  await page.getByLabel("Language").selectOption("de");
+  await page.evaluate((hash) => {
+    window.location.hash = hash;
+  }, new URL(link).hash);
+
+  await expect(
+    page.getByRole("heading", { name: "Verschlüsselte Nachricht öffnen" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("24 Wiederherstellungswörter")).toBeVisible();
 });
 
 test("honors manual mode and parses a foreign-host pasted link without navigation", async ({

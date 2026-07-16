@@ -29,3 +29,14 @@ export function remainingIncomingIntentLifetime(
   if (captured === null) return null;
   return Math.max(0, captured + INCOMING_MESSAGE_INTENT_TTL_MS - now);
 }
+
+export function scheduleIncomingIntentExpiry(
+  intent: IncomingMessageIntent,
+  now: number,
+  onExpire: () => void,
+): () => void {
+  const remaining = remainingIncomingIntentLifetime(intent, now);
+  if (remaining === null) return () => undefined;
+  const timer = window.setTimeout(onExpire, remaining);
+  return () => window.clearTimeout(timer);
+}

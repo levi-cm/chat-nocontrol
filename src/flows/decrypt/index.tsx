@@ -73,18 +73,24 @@ export function DecryptFlow({
   const [copyStatus, setCopyStatus] = useState("");
   const routingGeneration = useRef(0);
   const textJob = useRef<CryptoWorkerJob<DecryptedTextOutput> | null>(null);
+  const fileCancellation = useRef<(() => void) | null>(null);
   const pendingOwnedObject = useRef<
     EncryptedTextObject | EncryptedQrTextObject | null
   >(null);
   const decryptedOutput = useRef<HTMLTextAreaElement | null>(null);
 
   const cancelActiveDecrypt = () => {
+    routingGeneration.current += 1;
     textJob.current?.cancel();
     textJob.current = null;
     pendingOwnedObject.current = null;
     setBusy(false);
     setTextInputObject(null);
     setQrInput(null);
+    fileCancellation.current?.();
+    setFile(null);
+    setFileStartToken(0);
+    setRoutingBusy(false);
     setStatus("");
   };
   useEffect(() => {
@@ -122,6 +128,11 @@ export function DecryptFlow({
 
   useEffect(() => {
     if (!identity || !pendingIncomingIntent) return;
+    routingGeneration.current += 1;
+    fileCancellation.current?.();
+    setFile(null);
+    setFileStartToken(0);
+    setRoutingBusy(false);
     textJob.current?.cancel();
     textJob.current = null;
     setBusy(false);
@@ -787,6 +798,7 @@ export function DecryptFlow({
         file={file}
         startToken={fileStartToken}
         onBusyChange={setFileBusy}
+        cancellationHandle={fileCancellation}
         locale={locale}
       />
     </section>

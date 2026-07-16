@@ -2,6 +2,13 @@ import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import { extname, join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
+import {
+  createSenderSigningCapability,
+  deriveIdentityFromEntropy,
+} from "../../crypto/identity";
+import { encryptText } from "../../crypto/text";
+import { encodeMessageLink } from "../../protocol/message-link";
+import { createPublicContact } from "../../protocol/ppxc";
 
 const contentTypes: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
@@ -78,6 +85,31 @@ async function startEphemeralStaticServer(): Promise<{
 test("versioned app shell reloads after its origin server disappears", async ({
   page,
 }) => {
+  const sender = await deriveIdentityFromEntropy(
+    new Uint8Array(32).fill(101),
+    "Offline sender",
+  );
+  const recipient = await deriveIdentityFromEntropy(
+    new Uint8Array(32).fill(102),
+    "Offline recipient",
+  );
+  const incomingHash = new URL(
+    encodeMessageLink(
+      {
+        kind: "ppxt",
+        object: await encryptText({
+          sender: createPublicContact(sender, "Offline sender", 101n),
+          senderSigningCapability: createSenderSigningCapability(sender),
+          recipient: createPublicContact(recipient, "Offline recipient", 102n),
+          plaintext: "offline encrypted message",
+          messageId: new Uint8Array(16).fill(103),
+          sentAt: 104n,
+          createdAt: 104n,
+        }),
+      },
+      "https://offline.example/",
+    ),
+  ).hash;
   const staticServer = await startEphemeralStaticServer();
   let stopped = false;
   try {
@@ -137,6 +169,14 @@ test("versioned app shell reloads after its origin server disappears", async ({
     await expect(
       page.getByText("You are offline, but this session can keep working."),
     ).toBeVisible();
+    await page.evaluate((hash) => {
+      window.location.hash = hash;
+    }, incomingHash);
+    await expect(page).toHaveURL(/#\/decrypt$/u);
+    await expect(
+      page.getByRole("heading", { name: "Open encrypted message" }),
+    ).toBeVisible();
+    await expect(page.getByLabel("24 recovery words")).toBeVisible();
   } finally {
     if (!stopped) await staticServer.stop();
   }

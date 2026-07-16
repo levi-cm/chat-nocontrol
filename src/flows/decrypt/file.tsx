@@ -65,6 +65,7 @@ export function DecryptFileFlow({
   file,
   startToken,
   onBusyChange,
+  cancellationHandle,
   locale,
 }: {
   t: (key: MessageKey) => string;
@@ -74,6 +75,7 @@ export function DecryptFileFlow({
   file: File | null;
   startToken: number;
   onBusyChange: (busy: boolean) => void;
+  cancellationHandle: { current: (() => void) | null };
   locale: Locale;
 }) {
   const [busy, setBusy] = useState(false);
@@ -85,6 +87,22 @@ export function DecryptFileFlow({
   const [collision, setCollision] = useState("");
   const [savingSender, setSavingSender] = useState(false);
   const job = useRef<FileWorkerJob<DecryptedFileOutput> | null>(null);
+
+  const cancelActiveFile = () => {
+    job.current?.cancel();
+    job.current = null;
+    setBusy(false);
+    onBusyChange(false);
+    setProgress(null);
+  };
+
+  useEffect(() => {
+    cancellationHandle.current = cancelActiveFile;
+    return () => {
+      if (cancellationHandle.current === cancelActiveFile)
+        cancellationHandle.current = null;
+    };
+  });
 
   useEffect(
     () => () => {

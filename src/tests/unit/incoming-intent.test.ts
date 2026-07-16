@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IncomingMessageIntent } from "../../protocol/message-link";
 import {
   consumeExpectedIncomingIntent,
   incomingIntentIsExpired,
   remainingIncomingIntentLifetime,
+  scheduleIncomingIntentExpiry,
 } from "../../app/incoming-intent";
 
 const intent: IncomingMessageIntent = {
@@ -13,6 +14,7 @@ const intent: IncomingMessageIntent = {
 };
 
 describe("incoming message intent lifetime", () => {
+  afterEach(() => vi.useRealTimers());
   it("expires typed intents after exactly fifteen minutes", () => {
     expect(incomingIntentIsExpired(intent, 900_999)).toBe(false);
     expect(incomingIntentIsExpired(intent, 901_000)).toBe(true);
@@ -33,5 +35,16 @@ describe("incoming message intent lifetime", () => {
       replacement,
     );
     expect(consumeExpectedIncomingIntent(intent, intent)).toBeNull();
+  });
+
+  it("fires the real expiry callback at the fifteen-minute boundary", () => {
+    vi.useFakeTimers();
+    const expired = vi.fn();
+    scheduleIncomingIntentExpiry(intent, 1_000, expired);
+
+    vi.advanceTimersByTime(899_999);
+    expect(expired).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(expired).toHaveBeenCalledOnce();
   });
 });
