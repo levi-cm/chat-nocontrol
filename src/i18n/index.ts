@@ -389,8 +389,6 @@ const en = {
   downloadIssueDraft: "Download reviewed issue draft",
   issueTargetUnavailable:
     "No GitHub repository is configured. Download the reviewed draft instead.",
-  newerVersion: "A newer version is available.",
-  reviewLater: "Review later",
   offlineState: "You are offline, but this session can keep working.",
   storageFallback:
     "Persistent storage became unavailable. This session continues in memory.",
@@ -827,8 +825,6 @@ const de: Record<keyof typeof en, string> = {
   downloadIssueDraft: "Geprüften Issue-Entwurf herunterladen",
   issueTargetUnavailable:
     "Kein GitHub-Repository ist konfiguriert. Lade stattdessen den geprüften Entwurf herunter.",
-  newerVersion: "Eine neuere Version ist verfügbar.",
-  reviewLater: "Später ansehen",
   offlineState: "Du bist offline, aber diese Sitzung kann weiterarbeiten.",
   storageFallback:
     "Der dauerhafte Speicher ist nicht mehr verfügbar. Diese Sitzung läuft im Arbeitsspeicher weiter.",

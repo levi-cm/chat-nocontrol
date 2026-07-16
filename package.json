@@ -54,7 +54,7 @@
     "test:accessibility": "playwright test src/tests/accessibility",
     "test:i18n": "vitest run src/tests/unit/i18n.test.ts src/tests/accessibility/i18n.test.ts",
     "test:offline": "playwright test src/tests/release/offline.spec.ts",
-    "test:update-banner": "playwright test src/tests/release/update-banner.spec.ts",
+    "test:pwa-update-policy": "npm run build && playwright test src/tests/release/pwa-update.spec.ts",
     "test:en-de": "playwright test src/tests/e2e/en-de.spec.ts",
     "test:network-denial": "playwright test src/tests/release/network-denial.spec.ts",
     "test:release": "tsx scripts/package-release.ts && tsx scripts/build-sbom.ts --verify && tsx scripts/verify-release.ts",
@@ -65,7 +65,7 @@
     "test:production-artifacts": "tsx scripts/production-artifacts.ts dist",
     "release:record-pages-deployment": "tsx scripts/finalize-pages-deployment.ts",
     "test:evidence": "tsx scripts/write-test-report.ts",
-    "verify:quality": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:provider-contract && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:update-banner && npm run test:network-denial && npm run test:dependency-review && npm run build && npm run test:evidence",
+    "verify:quality": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:provider-contract && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:pwa-update-policy && npm run test:network-denial && npm run test:dependency-review && npm run test:evidence",
     "verify:ci": "npm run verify:quality",
     "verify": "npm run verify:quality && npm run test:release-prerequisites && npm run test:release && npm run test:sbom && npm run test:reproducibility"
   },

@@ -43,6 +43,19 @@ export function inspectProductionArtifacts(root: string): string[] {
       issues.push(`missing production shell file: ${expected}`);
     }
   }
+  const serviceWorkerPath = resolve(absoluteRoot, "sw.js");
+  if (existsSync(serviceWorkerPath)) {
+    const serviceWorker = readFileSync(serviceWorkerPath, "utf8");
+    if (!/\bself\.skipWaiting\(\)/u.test(serviceWorker)) {
+      issues.push("service worker does not activate updates automatically");
+    }
+    if (!/\.clientsClaim\(\)/u.test(serviceWorker)) {
+      issues.push("service worker does not claim clients automatically");
+    }
+    if (/SKIP_WAITING/u.test(serviceWorker)) {
+      issues.push("service worker waits for update approval");
+    }
+  }
   for (const path of filesUnder(absoluteRoot)) {
     const relativePath = normalizedRelative(absoluteRoot, path);
     if (relativePath.endsWith(".map")) {

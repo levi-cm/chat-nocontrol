@@ -22,9 +22,11 @@ export default defineConfig(({ command }) => ({
     },
     VitePWA({
       injectRegister: false,
-      registerType: "prompt",
+      registerType: "autoUpdate",
       manifest: false,
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{html,js,css,svg,png,webmanifest}"],
         manifestTransforms: [

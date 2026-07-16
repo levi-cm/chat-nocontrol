@@ -50,8 +50,6 @@ import {
 } from "../workers/crypto-client";
 import {
   clearStoredLocale,
-  dismissUpdateAvailable,
-  isUpdateAvailable,
   readStoredLocale,
   syncThemeColor,
 } from "./bootstrap";
@@ -138,7 +136,6 @@ export function App() {
   const degradedPersistentDb = useRef<PpxDatabase | null>(null);
   const suppressNextLocalePersistence = useRef(false);
   const settingsWriteQueue = useRef<Promise<void>>(Promise.resolve());
-  const [updateAvailable, setUpdateAvailable] = useState(isUpdateAvailable);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [storageFailure, setStorageFailure] = useState<
     "fallback" | "delete-failed" | null
@@ -371,13 +368,6 @@ export function App() {
     };
     window.addEventListener("hashchange", updateRoute);
     return () => window.removeEventListener("hashchange", updateRoute);
-  }, []);
-
-  useEffect(() => {
-    const showUpdate = () => setUpdateAvailable(true);
-    window.addEventListener("ppx-update-available", showUpdate);
-    if (isUpdateAvailable()) setUpdateAvailable(true);
-    return () => window.removeEventListener("ppx-update-available", showUpdate);
   }, []);
 
   const navigate = (next: RouteName) => {
@@ -713,20 +703,6 @@ export function App() {
       </nav>
 
       <div class="banner-stack">
-        {updateAvailable && !activeIdentity && (
-          <div class="update-banner" role="status">
-            <span>{t("newerVersion")}</span>
-            <button
-              type="button"
-              onClick={() => {
-                dismissUpdateAvailable();
-                setUpdateAvailable(false);
-              }}
-            >
-              {t("reviewLater")}
-            </button>
-          </div>
-        )}
         {offline && (
           <p class="offline-banner" role="status">
             {t("offlineState")}

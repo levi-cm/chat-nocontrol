@@ -18,7 +18,7 @@ async function fixture(): Promise<string> {
   );
   await writeFile(
     join(root, "sw.js"),
-    "self.addEventListener('fetch', () => {});",
+    "self.skipWaiting();workbox.clientsClaim();workbox.precacheAndRoute([]);",
   );
   await writeFile(join(root, "assets", "app.js"), "console.log('ok');");
   return root;
@@ -54,6 +54,28 @@ describe("production artifact inspection", () => {
     await rm(join(root, "sw.js"));
     expect(inspectProductionArtifacts(root)).toEqual([
       "missing production shell file: sw.js",
+    ]);
+  });
+
+  it("rejects an approval-based service-worker update", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "sw.js"),
+      "self.addEventListener('message', event => { if (event.data?.type === 'SKIP_WAITING') self.skipWaiting(); });",
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "service worker does not claim clients automatically",
+      "service worker waits for update approval",
+    ]);
+  });
+
+  it("rejects a service worker that does not activate immediately", async () => {
+    const root = await fixture();
+    await writeFile(join(root, "sw.js"), "workbox.clientsClaim();");
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "service worker does not activate updates automatically",
     ]);
   });
 });

@@ -1,26 +1,10 @@
 import type { Locale } from "../i18n";
 
 const LOCALE_KEY = "ppx-locale";
-const UPDATE_FLAG = "__PPX_UPDATE_AVAILABLE__";
-
-type UpdateWindow = Window & Partial<Record<typeof UPDATE_FLAG, boolean>>;
 type CanvasTheme = "system" | "light" | "dark";
 
 const LIGHT_CANVAS = "#f5f7fb";
 const DARK_CANVAS = "#0e1118";
-
-export function isUpdateAvailable(): boolean {
-  return Boolean((window as UpdateWindow)[UPDATE_FLAG]);
-}
-
-export function notifyUpdateAvailable(): void {
-  (window as UpdateWindow)[UPDATE_FLAG] = true;
-  window.dispatchEvent(new Event("ppx-update-available"));
-}
-
-export function dismissUpdateAvailable(): void {
-  (window as UpdateWindow)[UPDATE_FLAG] = false;
-}
 
 export function readStoredLocale(storage: Storage = localStorage): Locale {
   try {
@@ -77,20 +61,8 @@ export async function registerServiceWorker(
 ): Promise<boolean> {
   if (!("serviceWorker" in navigator)) return false;
   try {
-    const registration = await navigator.serviceWorker.register(scriptUrl, {
+    await navigator.serviceWorker.register(scriptUrl, {
       scope: "./",
-    });
-    if (registration.waiting) notifyUpdateAvailable();
-    registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
-      worker?.addEventListener("statechange", () => {
-        if (
-          worker.state === "installed" &&
-          navigator.serviceWorker.controller
-        ) {
-          notifyUpdateAvailable();
-        }
-      });
     });
     return true;
   } catch {
