@@ -25,15 +25,24 @@ export const MESSAGE_LINK_HASH_PREFIX = "#/m/";
 export const MESSAGE_LINK_MAX_ENCODED_CHARS = Math.ceil(
   (PPXT_MAXIMUM_OBJECT_SIZE * 4) / 3,
 );
+export const LEGACY_QR_LINK_MAX_ENCODED_CHARS = Math.ceil(
+  PPXQ_MAXIMUM_OBJECT_SIZE * (8 / Math.log2(37)),
+);
 
 export interface MessageLinkLocation {
   readonly pathname: string;
   readonly search: string;
   readonly hash: string;
+  readonly username: string;
+  readonly password: string;
 }
 
 export interface MessageLinkHistory {
   replaceState(data: unknown, unused: string, url?: string | URL | null): void;
+}
+
+function sameOriginAbsolutePath(pathname: string): string {
+  return `/${pathname.replace(/^[\\/]+/u, "")}`;
 }
 
 export function encodeMessageLink(
@@ -85,17 +94,30 @@ export function captureIncomingMessageIntent(
   history: MessageLinkHistory,
   capturedAt: number,
 ): IncomingMessageIntent | null {
-  const { pathname, search, hash } = location;
+  const { pathname, search, hash, username, password } = location;
   const isMessageLink = hash.startsWith(MESSAGE_LINK_HASH_PREFIX);
   const isLegacyQrLink = hash.startsWith(PPXQ_LINK_HASH_PREFIX);
   if (!isMessageLink && !isLegacyQrLink) return null;
 
-  history.replaceState(null, "", `${pathname}#/decrypt`);
-  if (search !== "") return { kind: "invalid" };
+  history.replaceState(
+    null,
+    "",
+    `${sameOriginAbsolutePath(pathname)}#/decrypt`,
+  );
+  if (search !== "" || username !== "" || password !== "") {
+    return { kind: "invalid" };
+  }
 
   try {
     if (isMessageLink) {
       return { ...parseMessageLinkHash(hash), capturedAt };
+    }
+    const encodedLength = hash.length - PPXQ_LINK_HASH_PREFIX.length;
+    if (
+      encodedLength <= 0 ||
+      encodedLength > LEGACY_QR_LINK_MAX_ENCODED_CHARS
+    ) {
+      return { kind: "invalid" };
     }
     const encoded = hash.slice(PPXQ_LINK_HASH_PREFIX.length);
     const bytes = decodeBase37Upper(encoded, PPXQ_MAXIMUM_OBJECT_SIZE);

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { routeFromHash } from "../../app/routes";
-import { encodeBase37Upper } from "../../protocol/base37";
+import * as base37 from "../../protocol/base37";
 import { encodeBase64UrlNoPad } from "../../protocol/base64url";
 import {
   captureIncomingMessageIntent,
@@ -10,7 +10,10 @@ import {
   MESSAGE_LINK_MAX_ENCODED_CHARS,
   parseMessageLinkHash,
 } from "../../protocol/message-link";
-import { parseEncryptedQrText } from "../../protocol/ppxq-outer";
+import {
+  parseEncryptedQrText,
+  PPXQ_MAXIMUM_OBJECT_SIZE,
+} from "../../protocol/ppxq-outer";
 import { parseEncryptedText } from "../../protocol/ppxt";
 import {
   canonicalProtocolBytes,
@@ -139,7 +142,13 @@ describe("incoming message-link capture", () => {
     const replaceState = vi.fn();
 
     const intent = captureIncomingMessageIntent(
-      { pathname: "/app/", search: "", hash },
+      {
+        pathname: "/app/",
+        search: "",
+        hash,
+        username: "",
+        password: "",
+      },
       { replaceState },
       1_700_000_000_123,
     );
@@ -158,6 +167,8 @@ describe("incoming message-link capture", () => {
       pathname: "/app/",
       search: "",
       hash: `${MESSAGE_LINK_HASH_PREFIX}${encodeBase64UrlNoPad(bytes)}`,
+      username: "",
+      password: "",
     };
     const replaceState = vi.fn(() => {
       location.search = "";
@@ -178,7 +189,13 @@ describe("incoming message-link capture", () => {
     (hash) => {
       const replaceState = vi.fn();
       const intent = captureIncomingMessageIntent(
-        { pathname: "/app/", search: "", hash },
+        {
+          pathname: "/app/",
+          search: "",
+          hash,
+          username: "",
+          password: "",
+        },
         { replaceState },
         42,
       );
@@ -189,6 +206,29 @@ describe("incoming message-link capture", () => {
     },
   );
 
+  it("scrubs a network-path pathname to a same-origin absolute path", () => {
+    const replaceState = vi.fn();
+
+    expect(() =>
+      captureIncomingMessageIntent(
+        {
+          pathname: "//evil.example/",
+          search: "",
+          hash: "#/m/",
+          username: "",
+          password: "",
+        },
+        { replaceState },
+        42,
+      ),
+    ).not.toThrow();
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      "",
+      "/evil.example/#/decrypt",
+    );
+  });
+
   it("drops query data and invalidates an otherwise valid reserved link", () => {
     const bytes = canonicalQrTextBytes();
     const replaceState = vi.fn();
@@ -197,6 +237,8 @@ describe("incoming message-link capture", () => {
         pathname: "/app/",
         search: "?source=private",
         hash: `${MESSAGE_LINK_HASH_PREFIX}${encodeBase64UrlNoPad(bytes)}`,
+        username: "",
+        password: "",
       },
       { replaceState },
       42,
@@ -206,11 +248,42 @@ describe("incoming message-link capture", () => {
     expect(intent).toEqual({ kind: "invalid" });
   });
 
+  it.each([
+    { username: "alice", password: "" },
+    { username: "", password: "secret" },
+  ])(
+    "scrubs and rejects reserved links with credentials $username:$password",
+    ({ username, password }) => {
+      const bytes = canonicalQrTextBytes();
+      const replaceState = vi.fn();
+      const intent = captureIncomingMessageIntent(
+        {
+          pathname: "/app/",
+          search: "",
+          hash: `${MESSAGE_LINK_HASH_PREFIX}${encodeBase64UrlNoPad(bytes)}`,
+          username,
+          password,
+        },
+        { replaceState },
+        42,
+      );
+
+      expect(replaceState).toHaveBeenCalledWith(null, "", "/app/#/decrypt");
+      expect(intent).toEqual({ kind: "invalid" });
+    },
+  );
+
   it("leaves nonreserved locations untouched", () => {
     const replaceState = vi.fn();
     expect(
       captureIncomingMessageIntent(
-        { pathname: "/app/", search: "?safe=1", hash: "#/encrypt" },
+        {
+          pathname: "/app/",
+          search: "?safe=1",
+          hash: "#/encrypt",
+          username: "",
+          password: "",
+        },
         { replaceState },
         42,
       ),
@@ -225,7 +298,9 @@ describe("incoming message-link capture", () => {
       {
         pathname: "/app/",
         search: "",
-        hash: `#/decrypt/qr/${encodeBase37Upper(bytes)}`,
+        hash: `#/decrypt/qr/${base37.encodeBase37Upper(bytes)}`,
+        username: "",
+        password: "",
       },
       { replaceState },
       73,
@@ -237,6 +312,48 @@ describe("incoming message-link capture", () => {
       object: parseEncryptedQrText(bytes),
       capturedAt: 73,
     });
+  });
+
+  it("rejects oversized legacy payloads before entering base37 decode", () => {
+    const maximumEncodedCharacters = Math.ceil(
+      PPXQ_MAXIMUM_OBJECT_SIZE * (8 / Math.log2(37)),
+    );
+    const decode = vi.spyOn(base37, "decodeBase37Upper");
+    const replaceState = vi.fn();
+    try {
+      const bytes = canonicalQrTextBytes();
+      captureIncomingMessageIntent(
+        {
+          pathname: "/app/",
+          search: "",
+          hash: `#/decrypt/qr/${base37.encodeBase37Upper(bytes)}`,
+          username: "",
+          password: "",
+        },
+        { replaceState },
+        1,
+      );
+      expect(decode).toHaveBeenCalledOnce();
+      decode.mockClear();
+
+      expect(
+        captureIncomingMessageIntent(
+          {
+            pathname: "/app/",
+            search: "",
+            hash: `#/decrypt/qr/${"A".repeat(maximumEncodedCharacters + 1)}`,
+            username: "",
+            password: "",
+          },
+          { replaceState },
+          2,
+        ),
+      ).toEqual({ kind: "invalid" });
+      expect(replaceState).toHaveBeenLastCalledWith(null, "", "/app/#/decrypt");
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+    }
   });
 
   it("maps the new reserved fragment to decrypt", () => {
