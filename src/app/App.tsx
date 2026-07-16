@@ -58,7 +58,10 @@ import {
   readStoredLocale,
   syncThemeColor,
 } from "./bootstrap";
-import { createSerializedContactSaveQueue } from "./contact-save-queue";
+import {
+  createSerializedContactSaveQueue,
+  type ContactSaveMutation,
+} from "./contact-save-queue";
 import { AUTO_LOCK_ACTIVITY_EVENTS, AUTO_LOCK_MS } from "./auto-lock";
 import {
   consumeExpectedIncomingIntent,
@@ -551,11 +554,12 @@ export function App({
     translucent,
   ]);
 
-  const saveContacts = async (next: ManagedContact[]): Promise<boolean> => {
+  const saveContacts = async (
+    mutation: ContactSaveMutation,
+  ): Promise<boolean> => {
     if (!storageReady || !storage) return false;
     return contactsWriteQueue.current.enqueue({
-      base: contacts,
-      next,
+      mutation,
       getCurrent: () => contactsRef.current,
       persist: async (merged, destructive) => {
         if (!sessionOnly && storage.mode === "persistent") {

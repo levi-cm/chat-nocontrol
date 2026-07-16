@@ -12,6 +12,7 @@ import { QrActionIcon } from "../../components/navigation/qr-icon";
 import { PasteButton } from "../../components/forms/paste-button";
 import { copyWithBestEffortClear } from "../identity/clipboard";
 import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import { createSenderSigningCapability } from "../../crypto/identity";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
@@ -57,7 +58,7 @@ export function EncryptTextFlow({
   identity: DerivedIdentity | null;
   sender: PublicContact | null;
   contacts: ManagedContact[];
-  onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
+  onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   locale: Locale;
   messageOutputMode: MessageOutputMode;
   messageQrCreationEnabled: boolean;
@@ -378,11 +379,6 @@ export function EncryptTextFlow({
       return;
     const requestId = contactPreferenceRequest.current + 1;
     contactPreferenceRequest.current = requestId;
-    const next = contacts.map((item) =>
-      item === recipientItem
-        ? { ...item, includeSenderContactInLinks: include }
-        : item,
-    );
     setLinkCopyStatus("");
     setContactPreferenceUpdate({
       recipientId,
@@ -391,7 +387,11 @@ export function EncryptTextFlow({
     });
     let saved = false;
     try {
-      saved = await onContactsChange(next);
+      saved = await onContactsChange({
+        kind: "update",
+        fingerprint: recipientItem.contact.fingerprint,
+        patch: { includeSenderContactInLinks: include },
+      });
     } catch {
       saved = false;
     }

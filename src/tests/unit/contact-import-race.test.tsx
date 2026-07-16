@@ -59,13 +59,11 @@ describe("contact import source ownership", () => {
     );
 
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({
-        contact,
-        nickname: "Old nickname",
-        includeSenderContactInLinks: false,
-      }),
-    ]);
+    expect(onChange).toHaveBeenCalledWith({
+      kind: "update",
+      fingerprint: contact.fingerprint,
+      patch: { contact },
+    });
   });
 
   it("defaults a newly imported contact to including sender contact in links", async () => {
@@ -93,12 +91,14 @@ describe("contact import source ownership", () => {
     );
 
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({
+    expect(onChange).toHaveBeenCalledWith({
+      kind: "add",
+      item: {
         contact,
+        nickname: "",
         includeSenderContactInLinks: true,
-      }),
-    ]);
+      },
+    });
   });
 
   it("ignores a slow file after a newer contact file wins", async () => {

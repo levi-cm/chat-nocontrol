@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
-import type { ManagedContact } from "../../components/cards/contact-management-card";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import { EncryptTextFlow } from "../../flows/encrypt/text";
 import { messages, type Locale } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
@@ -75,7 +75,7 @@ function contactFixture(fill: number, pseudonym: string): PublicContact {
 
 const sender = contactFixture(8, "Alice");
 const recipient = contactFixture(9, "Bob");
-type ContactsChange = (contacts: ManagedContact[]) => Promise<boolean>;
+type ContactsChange = (mutation: ContactSaveMutation) => Promise<boolean>;
 
 async function prepareWorkers({
   compact = "resolve",
@@ -377,9 +377,11 @@ describe("sender message outputs", () => {
       screen.getByRole("checkbox", { name: /include my public contact/i }),
     );
 
-    expect(onContactsChange).toHaveBeenCalledWith([
-      expect.objectContaining({ includeSenderContactInLinks: false }),
-    ]);
+    expect(onContactsChange).toHaveBeenCalledWith({
+      kind: "update",
+      fingerprint: recipient.fingerprint,
+      patch: { includeSenderContactInLinks: false },
+    });
   });
 
   it("keeps committed PPXT visible and disables transport actions until opt-out saves", async () => {

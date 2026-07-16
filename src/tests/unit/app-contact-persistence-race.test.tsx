@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { deriveIdentityFromEntropy } from "../../crypto/identity";
 import { createPublicContact } from "../../protocol/ppxc";
@@ -10,7 +11,7 @@ const harness = vi.hoisted(() => ({
   initialContacts: [] as ManagedContact[],
   latestContacts: [] as ManagedContact[],
   onContactsChange: null as
-    ((contacts: ManagedContact[]) => Promise<boolean>) | null,
+    ((mutation: ContactSaveMutation) => Promise<boolean>) | null,
   replaceContacts: vi.fn(),
 }));
 
@@ -51,7 +52,7 @@ vi.mock("../../storage/settings", async (importOriginal) => {
 vi.mock("../../flows/encrypt/text", () => ({
   EncryptTextFlow: (props: {
     contacts: ManagedContact[];
-    onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
+    onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   }) => {
     harness.latestContacts = props.contacts;
     harness.onContactsChange = props.onContactsChange;
@@ -110,24 +111,32 @@ describe("app contact persistence", () => {
     await screen.findByText("Encrypt harness ready");
     await waitFor(() => expect(harness.latestContacts).toHaveLength(1));
 
-    const staleSnapshot = harness.latestContacts;
-    const toggleSave = harness.onContactsChange?.([
-      { ...staleSnapshot[0]!, includeSenderContactInLinks: false },
-    ]);
+    const staleContact = harness.latestContacts[0]!;
+    const toggleSave = harness.onContactsChange?.({
+      kind: "update",
+      fingerprint: staleContact.contact.fingerprint,
+      patch: { includeSenderContactInLinks: false },
+    });
     await waitFor(() => expect(harness.replaceContacts).toHaveBeenCalledOnce());
 
-    const importSave = harness.onContactsChange?.([
-      { ...staleSnapshot[0]!, nickname: "Edited nickname" },
-      imported,
-    ]);
+    const editSave = harness.onContactsChange?.({
+      kind: "update",
+      fingerprint: staleContact.contact.fingerprint,
+      patch: { nickname: "Edited nickname" },
+    });
+    const importSave = harness.onContactsChange?.({
+      kind: "add",
+      item: imported,
+    });
 
     expect(harness.replaceContacts).toHaveBeenCalledOnce();
     firstWrite.resolve();
     await expect(toggleSave).resolves.toBe(true);
+    await expect(editSave).resolves.toBe(true);
     await expect(importSave).resolves.toBe(true);
 
-    expect(harness.replaceContacts).toHaveBeenCalledTimes(2);
-    expect(harness.replaceContacts.mock.calls[1]?.[1]).toEqual([
+    expect(harness.replaceContacts).toHaveBeenCalledTimes(3);
+    expect(harness.replaceContacts.mock.calls[2]?.[1]).toEqual([
       expect.objectContaining({
         nickname: "Edited nickname",
         includeSenderContactInLinks: false,

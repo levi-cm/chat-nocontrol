@@ -19,6 +19,7 @@ import type {
 import { parseQrMessageText } from "../../protocol/ppxq";
 import type { IncomingMessageIntent } from "../../protocol/message-link";
 import { parseIncomingMessageText } from "../../app/incoming-link-input";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import {
   type CryptoWorkerJob,
   startDecryptTextJob,
@@ -45,7 +46,7 @@ export function DecryptFlow({
   t: (key: MessageKey) => string;
   identity: DerivedIdentity | null;
   contacts: ManagedContact[];
-  onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
+  onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   locale: Locale;
   qrImportControls: QrImportControls;
   autoDecryptIncomingMessages: boolean;
@@ -559,14 +560,14 @@ export function DecryptFlow({
     }
     setSavingSender(true);
     try {
-      const saved = await onContactsChange([
-        ...contacts,
-        {
+      const saved = await onContactsChange({
+        kind: "add",
+        item: {
           contact: result.senderContact,
           nickname: "",
           includeSenderContactInLinks: true,
         },
-      ]);
+      });
       if (saved) {
         setCollisionConfirmation(false);
         setSaveError("");

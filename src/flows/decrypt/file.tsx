@@ -7,6 +7,7 @@ import {
 } from "../../components/media/blob-url";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import type {
   DecryptedFileOutput,
   DerivedIdentity,
@@ -71,7 +72,7 @@ export function DecryptFileFlow({
   t: (key: MessageKey) => string;
   identity: DerivedIdentity;
   contacts: ManagedContact[];
-  onContactsChange: (contacts: ManagedContact[]) => Promise<boolean>;
+  onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   file: File | null;
   startToken: number;
   onBusyChange: (busy: boolean) => void;
@@ -197,14 +198,14 @@ export function DecryptFileFlow({
         !isKnownSender(result.senderContact.fingerprint, [item]),
     );
     try {
-      const saved = await onContactsChange([
-        ...contacts,
-        {
+      const saved = await onContactsChange({
+        kind: "add",
+        item: {
           contact: result.senderContact,
           nickname: "",
           includeSenderContactInLinks: true,
         },
-      ]);
+      });
       if (saved) {
         setCollision(
           hasCollision ? `${t("collisionWarning")}. ${t("collisionNote")}` : "",

@@ -66,12 +66,14 @@ describe("decrypted file sender contact preference", () => {
     );
 
     await waitFor(() => expect(onContactsChange).toHaveBeenCalledTimes(1));
-    expect(onContactsChange).toHaveBeenCalledWith([
-      expect.objectContaining({
+    expect(onContactsChange).toHaveBeenCalledWith({
+      kind: "add",
+      item: {
         contact: senderContact,
+        nickname: "",
         includeSenderContactInLinks: true,
-      }),
-    ]);
+      },
+    });
   });
 
   it("exposes synchronous cancellation for an active file worker", async () => {

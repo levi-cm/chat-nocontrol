@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "preact/hooks";
+import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import {
   ContactManagementCard,
   displayIdentityId,
@@ -27,7 +28,7 @@ export function ContactsManage({
 }: {
   t: (key: MessageKey) => string;
   contacts: ManagedContact[];
-  onChange: (contacts: ManagedContact[]) => Promise<boolean> | boolean;
+  onChange: (mutation: ContactSaveMutation) => Promise<boolean> | boolean;
   readContactFileBytes?: (file: File) => Promise<Uint8Array>;
 }) {
   const [payload, setPayload] = useState("");
@@ -114,24 +115,27 @@ export function ContactsManage({
         (item) => fingerprintId(item.contact.fingerprint) === id,
       );
       if (existingIndex >= 0) {
-        const next = [...contacts];
-        next[existingIndex] = {
-          contact,
-          nickname: nickname || next[existingIndex]?.nickname || "",
-          includeSenderContactInLinks:
-            next[existingIndex]?.includeSenderContactInLinks ?? true,
-        };
-        if (!(await onChange(next))) throw new Error("storage write failed");
+        if (
+          !(await onChange({
+            kind: "update",
+            fingerprint: contact.fingerprint,
+            patch: {
+              contact,
+              ...(nickname ? { nickname } : {}),
+            },
+          }))
+        )
+          throw new Error("storage write failed");
         setStatus(t("mergeNote"));
       } else {
         const collision = contacts.some(
           (item) => item.contact.pseudonym === contact.pseudonym,
         );
         if (
-          !(await onChange([
-            ...contacts,
-            { contact, nickname, includeSenderContactInLinks: true },
-          ]))
+          !(await onChange({
+            kind: "add",
+            item: { contact, nickname, includeSenderContactInLinks: true },
+          }))
         )
           throw new Error("storage write failed");
         if (collision) {
@@ -282,12 +286,17 @@ export function ContactsManage({
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
             if (busy) return;
-            const next = contacts.filter(
-              (candidate) =>
-                fingerprintId(candidate.contact.fingerprint) !== pendingDelete,
-            );
+            if (!pendingDeleteContact) {
+              setPendingDelete(null);
+              return;
+            }
             setBusy(true);
-            void Promise.resolve(onChange(next))
+            void Promise.resolve(
+              onChange({
+                kind: "remove",
+                fingerprint: pendingDeleteContact.contact.fingerprint,
+              }),
+            )
               .then((deleted) => {
                 if (deleted) setPendingDelete(null);
               })
