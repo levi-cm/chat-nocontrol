@@ -49,8 +49,6 @@ function startCryptoJob<T>(
     throw error;
   }
   let settled = false;
-  let cancelRequested = false;
-  let cancellationTimer: number | null = null;
   let resolveJob!: (result: T) => void;
   let rejectJob!: (error: Error) => void;
   const promise = new Promise<T>((resolve, reject) => {
@@ -59,8 +57,6 @@ function startCryptoJob<T>(
   });
   const close = () => {
     settled = true;
-    if (cancellationTimer !== null) window.clearTimeout(cancellationTimer);
-    cancellationTimer = null;
     worker.terminate();
   };
   worker.addEventListener(
@@ -70,9 +66,7 @@ function startCryptoJob<T>(
       if (event.requestId !== request.requestId || settled) return;
       if (event.kind === "progress") return;
       close();
-      if (cancelRequested && event.kind !== "cancelled") {
-        rejectJob(new Error("cancelled"));
-      } else if (event.kind === "completed") resolveJob(event.result as T);
+      if (event.kind === "completed") resolveJob(event.result as T);
       else if (event.kind === "cancelled") rejectJob(new Error("cancelled"));
       else rejectJob(new PPXError(event.code));
     },
@@ -80,11 +74,7 @@ function startCryptoJob<T>(
   const failWorker = () => {
     if (settled) return;
     close();
-    rejectJob(
-      cancelRequested
-        ? new Error("cancelled")
-        : new PPXError("wrong-identity-or-corruption"),
-    );
+    rejectJob(new PPXError("wrong-identity-or-corruption"));
   };
   worker.addEventListener("error", failWorker);
   worker.addEventListener("messageerror", failWorker);
@@ -101,20 +91,9 @@ function startCryptoJob<T>(
     requestId: request.requestId,
     promise,
     cancel() {
-      if (settled || cancelRequested) return;
-      cancelRequested = true;
-      try {
-        worker.postMessage({ kind: "cancel", requestId: request.requestId });
-      } catch {
-        close();
-        rejectJob(new Error("cancelled"));
-        return;
-      }
-      cancellationTimer = window.setTimeout(() => {
-        if (settled) return;
-        close();
-        rejectJob(new Error("cancelled"));
-      }, 5_000);
+      if (settled) return;
+      close();
+      rejectJob(new Error("cancelled"));
     },
   };
 }
