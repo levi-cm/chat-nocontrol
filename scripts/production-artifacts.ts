@@ -49,7 +49,7 @@ export function inspectProductionArtifacts(root: string): string[] {
     if (!/\bself\.skipWaiting\(\)/u.test(serviceWorker)) {
       issues.push("service worker does not activate updates automatically");
     }
-    if (!/\.clientsClaim\(\)/u.test(serviceWorker)) {
+    if (!/(?:\.clientsClaim|\.clients\.claim)\(\)/u.test(serviceWorker)) {
       issues.push("service worker does not claim clients automatically");
     }
     if (/SKIP_WAITING/u.test(serviceWorker)) {

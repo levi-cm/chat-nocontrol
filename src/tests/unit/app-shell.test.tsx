@@ -150,4 +150,28 @@ describe("app shell", () => {
     ).toBe("#0e1118");
     expect(syncThemeColor("light", document, true)).toBe("#f5f7fb");
   });
+
+  it("advertises an optional text-file Web Share target", () => {
+    const manifest = JSON.parse(manifestText) as {
+      share_target?: {
+        action: string;
+        method: string;
+        enctype: string;
+        params: { files: Array<{ name: string; accept: string[] }> };
+      };
+    };
+    expect(manifest.share_target).toEqual({
+      action: "./share-target",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        files: [
+          {
+            name: "message",
+            accept: ["text/plain", ".txt"],
+          },
+        ],
+      },
+    });
+  });
 });

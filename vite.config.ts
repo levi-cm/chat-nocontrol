@@ -25,13 +25,13 @@ export default defineConfig(({ command }) => ({
       },
     },
     VitePWA({
+      srcDir: "src",
+      filename: "sw.ts",
+      strategies: "injectManifest",
       injectRegister: false,
       registerType: "autoUpdate",
       manifest: false,
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
+      injectManifest: {
         globPatterns: ["**/*.{html,js,css,svg,png,webmanifest}"],
         manifestTransforms: [
           (entries) =>
@@ -42,7 +42,6 @@ export default defineConfig(({ command }) => ({
               warnings: [],
             }),
         ],
-        navigateFallback: "index.html",
         sourcemap: false,
       },
     }),
