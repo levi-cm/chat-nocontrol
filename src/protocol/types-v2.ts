@@ -115,3 +115,80 @@ export interface DecryptedTextOutputV2 {
   plaintext: string;
   signatureValid: true;
 }
+
+export interface FileHeaderV2 {
+  magic: "PPXF";
+  formatVersion: typeof PPX_V2_FORMAT_VERSION;
+  suite: typeof PPX_PQ_5_SUITE;
+  flags: 0;
+  recipientId: Uint8Array;
+  mlKemCiphertext: Uint8Array;
+  noncePrefix: Uint8Array;
+  salt: Uint8Array;
+  declaredChunkCount: number;
+  chunkSize: 1_048_576;
+  totalFileLength: bigint;
+}
+
+export interface FileChunkRecordV2 {
+  chunkIndex: number;
+  plaintextLength: number;
+  ciphertext: Uint8Array;
+}
+
+export interface EncryptedFileManifestRecordV2 {
+  chunkIndex: 0xffff_ffff;
+  plaintextLength: number;
+  ciphertext: Uint8Array;
+}
+
+export interface EncryptedFileObjectV2 {
+  header: FileHeaderV2;
+  chunks: FileChunkRecordV2[];
+  manifest: EncryptedFileManifestRecordV2;
+  checksum: Uint8Array;
+}
+
+export interface FileManifestV2 {
+  magic: "PPXF";
+  formatVersion: typeof PPX_V2_FORMAT_VERSION;
+  suite: typeof PPX_PQ_5_SUITE;
+  chunkIndex: 0xffff_ffff;
+  senderContact: PublicContactV2;
+  recipientId: Uint8Array;
+  filename: string;
+  mimeHint: string;
+  caption: string;
+  fileLength: bigint;
+  chunkCount: number;
+  fullPlaintextDigest: Uint8Array;
+  signature: Uint8Array;
+}
+
+export interface EncryptFileInputV2 {
+  sender: PublicContactV2;
+  senderSigningCapability: SenderSigningCapabilityV2;
+  recipient: PublicContactV2;
+  file: Blob;
+  filename: string;
+  mimeHint: string;
+  caption: string;
+  fileLength: bigint;
+}
+
+export interface DecryptFileInputV2 {
+  object: EncryptedFileObjectV2;
+  activeIdentity: DecapsulationCapabilityV2;
+}
+
+export interface DecryptedFileOutputV2 {
+  senderContact: PublicContactV2;
+  recipientId: Uint8Array;
+  filename: string;
+  mimeHint: string;
+  caption: string;
+  fileLength: bigint;
+  blob: Blob;
+  digestValid: true;
+  signatureValid: true;
+}

@@ -43,6 +43,17 @@ describe("Cat-5 foundation golden", () => {
     );
   });
 
+  it("locks PPXF V2 empty size, manifest context, and digest", () => {
+    expect(fixture.file).toMatchObject({
+      magic: "PPXF",
+      headerBytes: 1_651,
+      chunkBytes: 1_048_576,
+      signatureContext: "PPX/FILE/MANIFEST/V2",
+      encodedLength: 15_258,
+    });
+    expect(fixture.file.encodedSha512).toMatch(/^[0-9a-f]{128}$/u);
+  });
+
   it("fails the identity golden when a derivation label changes", () => {
     const salt = sha512Digest(encoder.encode("PPX/IDENTITY/V2/SALT"));
     const mutatedSeed = deriveHkdfSha512(
