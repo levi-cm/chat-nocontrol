@@ -271,13 +271,12 @@ The review record must follow
 and the following two-commit contract:
 
 1. A genuinely independent human reviews one exact frozen candidate commit.
-2. One immediate child commit adds only four new files:
+2. One immediate child commit adds only three new files:
    `docs/independent-security-review.json`, the named Markdown or PDF report
-   under `docs/reviews/`, `<report>.sig`, and
-   `<report>.allowed_signers`.
+   under `docs/reviews/`, and `<report>.sig`.
 3. `reviewedCommit` is the evidence commit's immediate parent and an ancestor
    of release `HEAD`; exactly one commit may exist in between.
-4. The complete `reviewedCommit..HEAD` diff contains only those four paths,
+4. The complete `reviewedCommit..HEAD` diff contains only those three paths,
    each as a newly added non-symlink, non-executable regular file. Renames,
    path traversal, unexpected evidence, and modified application files fail
    closed.
@@ -285,11 +284,13 @@ and the following two-commit contract:
    executable-script change after the frozen candidate invalidates the review
    and requires a new candidate and new independent review.
 
-The gate continues to bind the actual report SHA-256, SSH signature namespace
-`chat-nocontrol-security-review-v1`, signing identity, completion time,
-independence statement, `cleared-for-public-beta` outcome, and zero open
-critical/high findings. A syntactically valid hash, an implementation-team or
-AI attestation, or a review of a different commit is not review evidence.
+The gate verifies the report signature against the repository-controlled
+`.github/allowed_signers` trust root and continues to bind the actual report
+SHA-256, SSH signature namespace `chat-nocontrol-security-review-v1`, signing
+identity, completion time, independence statement, `cleared-for-public-beta`
+outcome, and zero open critical/high findings. A syntactically valid hash, an
+implementation-team or AI attestation, or a review of a different commit is not
+review evidence.
 
 Rollback targets come only from successful prior GitHub Pages deployments
 recorded in [`deployed-releases.json`](deployed-releases.json). A tag that merely

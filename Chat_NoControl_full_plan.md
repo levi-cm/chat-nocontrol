@@ -1230,15 +1230,16 @@ Independent review uses a two-commit contract:
 
 1. Freeze a candidate commit and give that exact commit to a genuinely
    independent human reviewer.
-2. The reviewer returns a real Markdown or PDF report, a signature using SSH
-   namespace `chat-nocontrol-security-review-v1`, and their public
-   allowed-signers entry. The reviewer never shares a private key.
+2. The reviewer returns a real Markdown or PDF report and a signature using SSH
+   namespace `chat-nocontrol-security-review-v1`. Their signing identity and
+   public key must already be trusted by `.github/allowed_signers`. The reviewer
+   never shares a private key.
 3. A single immediate child commit adds only
    `docs/independent-security-review.json`, the named report under
-   `docs/reviews/`, `<report>.sig`, and `<report>.allowed_signers`.
+   `docs/reviews/`, and `<report>.sig`.
 4. `reviewedCommit` is the immediate parent of that evidence commit and an
    ancestor of release `HEAD`. The complete `reviewedCommit..HEAD` diff must be
-   exactly those four newly added, non-symlink, non-executable regular files.
+   exactly those three newly added, non-symlink, non-executable regular files.
 5. Any extra commit or any source, dependency, workflow, configuration,
    protocol, UI, or executable-script change invalidates the review. Freeze a
    new candidate and obtain a new independent review; do not reuse evidence.

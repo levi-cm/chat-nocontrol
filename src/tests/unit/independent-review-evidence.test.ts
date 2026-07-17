@@ -53,23 +53,16 @@ interface ReviewRepository {
   record: ReviewRecord;
 }
 
-function createReviewRepository(): ReviewRepository {
+function createReviewRepository(
+  options: { trustedSigner?: boolean } = {},
+): ReviewRepository {
   const cwd = mkdtempSync(join(tmpdir(), "chat-nocontrol-review-"));
   temporaryDirectories.push(cwd);
   git(cwd, "init", "-q");
   git(cwd, "config", "user.name", "Release test");
   git(cwd, "config", "user.email", "release-test@example.com");
-  write(cwd, "src/app.ts", "export const candidate = true;\n");
-  git(cwd, "add", "src/app.ts");
-  git(cwd, "commit", "-q", "-m", "candidate");
-  const candidate = git(cwd, "rev-parse", "HEAD");
 
-  const reportPath = "docs/reviews/independent-cryptographic-review.md";
-  const signaturePath = `${reportPath}.sig`;
-  const allowedSignersPath = `${reportPath}.allowed_signers`;
-  write(cwd, reportPath, "# Independent review\n\nCleared for public beta.\n");
-
-  const keyPath = join(cwd, "reviewer-key");
+  const trustedKeyPath = join(cwd, "trusted-reviewer-key");
   command(cwd, "ssh-keygen", [
     "-q",
     "-t",
@@ -79,8 +72,44 @@ function createReviewRepository(): ReviewRepository {
     "-C",
     "reviewer@example.com",
     "-f",
-    keyPath,
+    trustedKeyPath,
   ]);
+  const trustedPublicKey = readFileSync(`${trustedKeyPath}.pub`, "utf8")
+    .trim()
+    .split(/\s+/u)
+    .slice(0, 2)
+    .join(" ");
+  write(
+    cwd,
+    ".github/allowed_signers",
+    `reviewer@example.com ${trustedPublicKey}\n`,
+  );
+  write(cwd, "src/app.ts", "export const candidate = true;\n");
+  git(cwd, "add", ".github/allowed_signers", "src/app.ts");
+  git(cwd, "commit", "-q", "-m", "candidate");
+  const candidate = git(cwd, "rev-parse", "HEAD");
+
+  const reportPath = "docs/reviews/independent-cryptographic-review.md";
+  const signaturePath = `${reportPath}.sig`;
+  write(cwd, reportPath, "# Independent review\n\nCleared for public beta.\n");
+
+  const keyPath =
+    options.trustedSigner === false
+      ? join(cwd, "forged-reviewer-key")
+      : trustedKeyPath;
+  if (options.trustedSigner === false) {
+    command(cwd, "ssh-keygen", [
+      "-q",
+      "-t",
+      "ed25519",
+      "-N",
+      "",
+      "-C",
+      "reviewer@example.com",
+      "-f",
+      keyPath,
+    ]);
+  }
   command(cwd, "ssh-keygen", [
     "-Y",
     "sign",
@@ -90,12 +119,6 @@ function createReviewRepository(): ReviewRepository {
     namespace,
     join(cwd, reportPath),
   ]);
-  const publicKey = readFileSync(`${keyPath}.pub`, "utf8")
-    .trim()
-    .split(/\s+/u)
-    .slice(0, 2)
-    .join(" ");
-  write(cwd, allowedSignersPath, `reviewer@example.com ${publicKey}\n`);
 
   const record: ReviewRecord = {
     schemaVersion: 2,
@@ -114,7 +137,6 @@ function createReviewRepository(): ReviewRepository {
       .update(readFileSync(join(cwd, reportPath)))
       .digest("hex"),
     signaturePath,
-    allowedSignersPath,
     signingIdentity: "reviewer@example.com",
     signatureNamespace: namespace,
   };
@@ -144,6 +166,12 @@ afterEach(() => {
 });
 
 describe("independent review evidence", () => {
+  it("rejects a self-forged signature absent from the fixed trust root", () => {
+    expect(
+      validate(createReviewRepository({ trustedSigner: false })),
+    ).toContain("independent review report SSH signature did not verify");
+  });
+
   it("accepts one evidence-only child commit of the reviewed candidate", () => {
     expect(validate(createReviewRepository())).toEqual([]);
   });
@@ -157,7 +185,7 @@ describe("independent review evidence", () => {
     repository.head = git(repository.cwd, "rev-parse", "HEAD");
 
     expect(validate(repository)).toContain(
-      "reviewed commit to release HEAD may add only the four named review evidence files",
+      "reviewed commit to release HEAD may add only the three named review evidence files",
     );
   });
 
@@ -173,7 +201,7 @@ describe("independent review evidence", () => {
     repository.head = git(repository.cwd, "rev-parse", "HEAD");
 
     expect(validate(repository)).toContain(
-      "reviewed commit to release HEAD may add only the four named review evidence files",
+      "reviewed commit to release HEAD may add only the three named review evidence files",
     );
   });
 
@@ -186,7 +214,7 @@ describe("independent review evidence", () => {
     repository.head = git(repository.cwd, "rev-parse", "HEAD");
 
     expect(validate(repository)).toContain(
-      "reviewed commit to release HEAD may add only the four named review evidence files",
+      "reviewed commit to release HEAD may add only the three named review evidence files",
     );
   });
 
@@ -261,10 +289,7 @@ describe("independent review evidence", () => {
 
   it("rejects working-tree evidence that differs from release HEAD", () => {
     const repository = createReviewRepository();
-    appendFileSync(
-      join(repository.cwd, repository.record.allowedSignersPath!),
-      "\n",
-    );
+    appendFileSync(join(repository.cwd, repository.record.reportPath!), "\n");
 
     expect(validate(repository)).toContain(
       "review evidence files must match release HEAD exactly",
