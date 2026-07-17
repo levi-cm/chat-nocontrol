@@ -14,7 +14,6 @@ export interface ReviewRecord {
   reportPath?: string;
   reportSha256?: string;
   signaturePath?: string;
-  allowedSignersPath?: string;
   signingIdentity?: string;
   signatureNamespace?: string;
 }
@@ -27,6 +26,7 @@ export interface ReviewValidationOptions {
 
 const recordPath = "docs/independent-security-review.json";
 const signatureNamespace = "chat-nocontrol-security-review-v1";
+const trustedAllowedSignersPath = ".github/allowed_signers";
 
 interface GitResult {
   status: number | null;
@@ -184,7 +184,7 @@ function validateHistory(
     [...actual].some(([path, status]) => status !== "A" || !expected.has(path))
   ) {
     failures.push(
-      "reviewed commit to release HEAD may add only the four named review evidence files",
+      "reviewed commit to release HEAD may add only the three named review evidence files",
     );
   }
 }
@@ -235,26 +235,13 @@ export function validateIndependentReviewEvidence(
     [".sig"],
     failures,
   );
-  const allowedSignersPath = canonicalEvidencePath(
-    record.allowedSignersPath,
-    "review allowed-signers file",
-    [".allowed_signers"],
-    failures,
-  );
   if (reportPath && signaturePath !== `${reportPath}.sig`) {
     failures.push("review signature must be the report path plus .sig");
   }
-  if (reportPath && allowedSignersPath !== `${reportPath}.allowed_signers`) {
-    failures.push(
-      "review allowed-signers file must be the report path plus .allowed_signers",
-    );
-  }
 
   const namedEvidencePaths =
-    reportPath &&
-    signaturePath === `${reportPath}.sig` &&
-    allowedSignersPath === `${reportPath}.allowed_signers`
-      ? [recordPath, reportPath, signaturePath, allowedSignersPath]
+    reportPath && signaturePath === `${reportPath}.sig`
+      ? [recordPath, reportPath, signaturePath]
       : null;
 
   const recordIsFile = regularEvidenceFile(
@@ -269,14 +256,6 @@ export function validateIndependentReviewEvidence(
   const signatureIsFile = signaturePath
     ? regularEvidenceFile(cwd, signaturePath, "review signature", failures)
     : false;
-  const allowedSignersIsFile = allowedSignersPath
-    ? regularEvidenceFile(
-        cwd,
-        allowedSignersPath,
-        "review allowed-signers file",
-        failures,
-      )
-    : false;
   void recordIsFile;
 
   if (
@@ -290,10 +269,8 @@ export function validateIndependentReviewEvidence(
   if (
     reportPath &&
     signaturePath &&
-    allowedSignersPath &&
     reportIsFile &&
     signatureIsFile &&
-    allowedSignersIsFile &&
     record.signingIdentity?.trim() &&
     record.signatureNamespace === signatureNamespace
   ) {
@@ -303,7 +280,7 @@ export function validateIndependentReviewEvidence(
         "-Y",
         "verify",
         "-f",
-        join(cwd, allowedSignersPath),
+        join(cwd, trustedAllowedSignersPath),
         "-I",
         record.signingIdentity,
         "-n",
