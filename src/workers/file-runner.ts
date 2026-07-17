@@ -114,6 +114,12 @@ export function createFileRunner(
         await runFile(request);
         return;
       }
+      if (
+        request.kind === "decrypt-text" ||
+        request.kind === "decrypt-qr-text"
+      ) {
+        zeroizeDecapsulationCapability(request.input.activeIdentity);
+      }
       emit({
         kind: "error",
         requestId: request.requestId,

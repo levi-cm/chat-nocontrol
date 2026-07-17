@@ -87,6 +87,47 @@ describe("typed PPXF file runner", () => {
     expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
   });
 
+  it.each(["decrypt-text", "decrypt-qr-text"] as const)(
+    "wipes %s authority rejected by the wrong worker",
+    async (kind) => {
+      const events: PPXWorkerEvent[] = [];
+      const capability = {
+        suite: 1 as const,
+        fingerprint: new Uint8Array(32),
+        identityId: new Uint8Array(20),
+        kemSecretKey: new Uint8Array(1632).fill(7),
+        x25519SecretKey: new Uint8Array(32).fill(8),
+      };
+      const runner = createFileRunner((event) => events.push(event));
+
+      const request: PPXWorkerRequest =
+        kind === "decrypt-text"
+          ? {
+              kind,
+              requestId: `wrong-file-worker-${kind}`,
+              input: { object: {} as never, activeIdentity: capability },
+            }
+          : {
+              kind,
+              requestId: `wrong-file-worker-${kind}`,
+              input: {
+                object: {} as never,
+                activeIdentity: capability,
+                knownSenders: [],
+              },
+            };
+      await runner.handle(request);
+
+      expect(events).toContainEqual({
+        kind: "error",
+        requestId: `wrong-file-worker-${kind}`,
+        code: "wrong-identity-or-corruption",
+      });
+      expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+      expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+    },
+  );
+
   it("emits progress and exactly one completed event", async () => {
     const events: PPXWorkerEvent[] = [];
     const runner = createFileRunner((event) => events.push(event));
