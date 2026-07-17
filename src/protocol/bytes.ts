@@ -85,13 +85,23 @@ export class StrictByteReader implements ByteReader {
 export class StrictByteWriter implements ByteWriter {
   readonly #bytes: Uint8Array;
   #offset = 0;
+  #destroyed = false;
 
   constructor(maximumLength: number) {
     requireSafeLength(maximumLength);
     this.#bytes = new Uint8Array(maximumLength);
   }
 
+  get destroyed(): boolean {
+    return this.#destroyed;
+  }
+
+  #requireAlive(): void {
+    if (this.#destroyed) throw new Error("writer-destroyed");
+  }
+
   writeBytes(bytes: Uint8Array): void {
+    this.#requireAlive();
     if (bytes.byteLength > this.remaining()) {
       throw new PPXError("impossible-length");
     }
@@ -136,10 +146,21 @@ export class StrictByteWriter implements ByteWriter {
   }
 
   remaining(): number {
+    this.#requireAlive();
     return this.#bytes.byteLength - this.#offset;
   }
 
   toBytes(): Uint8Array {
+    this.#requireAlive();
     return this.#bytes.slice(0, this.#offset);
+  }
+
+  destroy(): void {
+    // `toBytes()` returns copies. Destroy hidden writer-owned storage and make
+    // accidental reuse fail closed without changing returned output.
+    if (this.#destroyed) return;
+    this.#bytes.fill(0);
+    this.#offset = 0;
+    this.#destroyed = true;
   }
 }
