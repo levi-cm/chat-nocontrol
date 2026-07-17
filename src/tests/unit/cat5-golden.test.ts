@@ -21,6 +21,28 @@ describe("Cat-5 foundation golden", () => {
     await expect(canonicalCat5Foundation()).resolves.toEqual(fixture);
   });
 
+  it("locks PPXT/PPXM V2 empty sizes, families and digests", () => {
+    expect(fixture.text.signatureContexts).toEqual({
+      full: "PPX/TEXT/FULL/V2",
+      compact: "PPX/TEXT/COMPACT/V2",
+    });
+    expect(fixture.text.full).toMatchObject({
+      magic: "PPXT",
+      flags: 0,
+      encodedLength: 15_163,
+    });
+    expect(fixture.text.compact).toMatchObject({
+      magic: "PPXM",
+      flags: 0,
+      encodedLength: 6_370,
+    });
+    expect(fixture.text.full.encodedSha512).toMatch(/^[0-9a-f]{128}$/u);
+    expect(fixture.text.compact.encodedSha512).toMatch(/^[0-9a-f]{128}$/u);
+    expect(fixture.text.full.encodedSha512).not.toBe(
+      fixture.text.compact.encodedSha512,
+    );
+  });
+
   it("fails the identity golden when a derivation label changes", () => {
     const salt = sha512Digest(encoder.encode("PPX/IDENTITY/V2/SALT"));
     const mutatedSeed = deriveHkdfSha512(

@@ -73,3 +73,45 @@ export interface PublicContactV2 {
   fingerprint: Uint8Array;
   identityId: Uint8Array;
 }
+
+export type TextMagicV2 = "PPXT" | "PPXM";
+
+export interface EncryptedTextObjectV2 {
+  magic: TextMagicV2;
+  formatVersion: typeof PPX_V2_FORMAT_VERSION;
+  suite: typeof PPX_PQ_5_SUITE;
+  flags: 0 | 1;
+  mlKemCiphertext: Uint8Array;
+  salt: Uint8Array;
+  nonce: Uint8Array;
+  ciphertextLength: number;
+  ciphertext: Uint8Array;
+  checksum: Uint8Array;
+}
+
+export interface EncryptTextInputV2 {
+  compact: boolean;
+  sender: PublicContactV2;
+  senderSigningCapability: SenderSigningCapabilityV2;
+  recipient: PublicContactV2;
+  plaintext: string;
+  messageId: Uint8Array;
+  sentAt: bigint;
+  createdAt: bigint;
+}
+
+export interface DecryptTextInputV2 {
+  object: EncryptedTextObjectV2;
+  activeIdentity: DecapsulationCapabilityV2;
+  knownSenders: readonly PublicContactV2[];
+}
+
+export interface DecryptedTextOutputV2 {
+  senderContact: PublicContactV2;
+  recipientId: Uint8Array;
+  messageId: Uint8Array;
+  sentAt: bigint;
+  createdAt: bigint;
+  plaintext: string;
+  signatureValid: true;
+}

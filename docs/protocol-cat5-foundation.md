@@ -43,3 +43,38 @@ Binary length is exactly `8819 + pseudonymBytes`, at most 8,867 bytes. Optional
 text transport is `PPX2:CONTACT:` plus canonical uppercase Base45, at most
 13,301 Base45 characters. No QR generation or camera path is part of this
 foundation. Parser accepts only V2 suite/version and canonical bounded fields.
+
+## Encrypted text objects
+
+PPXT is the full-contact form; PPXM is the compact saved-contact form. Both use
+version `0x02`, suite `0x02`, flags `0x00` for raw UTF-8 bytes or `0x01` for
+gzip, a 1,568-byte ML-KEM ciphertext, 32-byte salt, 12-byte AES-GCM nonce,
+four-byte ciphertext length, ciphertext, and 16-byte transfer checksum. No
+X25519 field exists. Their canonical outer header is 1,623 bytes and is the
+AES-GCM AAD. The transfer checksum is not an authentication substitute.
+
+The full signed inner uses `uint32 senderLength || sender PPXC V2 ||
+recipientId20 || uint8 16 || messageId16 || sentAt8 || createdAt8 ||
+originalUtf8Length4 || storedPayload || signature4627`. With a one-byte sender
+pseudonym, its empty size is 13,508 bytes and its encrypted PPXT object is
+exactly 15,163 bytes. ML-DSA context is `PPX/TEXT/FULL/V2`.
+
+The compact signed inner uses `senderFingerprint32 || recipientId20 ||
+messageId16 || sentAt8 || createdAt8 || originalUtf8Length4 || storedPayload ||
+signature4627`. Its empty size is 4,715 bytes and its encrypted PPXM object is
+exactly 6,370 bytes. ML-DSA context is `PPX/TEXT/COMPACT/V2`. PPXM resolves the
+fingerprint only against already-saved validated V2 contacts; unknown senders
+fail closed.
+
+Signatures receive explicit fresh 32-byte entropy and cover canonical metadata
+plus stored payload. ML-KEM KDF object-family binding distinguishes PPXT from
+PPXM. Writers gzip plaintext bytes only when savings meet
+`max(64, ceil(originalLength * 0.10))`. Readers authenticate AES-GCM, validate
+recipient and sender binding, and verify ML-DSA before bounded decompression and
+strict UTF-8 release. Decompressed plaintext is capped at 262,144 bytes and
+must exactly match `originalUtf8Length`.
+
+Full PPXT copy armor declares `Version: 2`, `Suite: PPX-PQ-5`, byte length, and
+SHA-512 digest. Additive `#/m/<BASE64URL>` links accept only PPXT/PPXM V2 and
+are scrubbed from the address bar before parsing. PPXM has no armor. Neither
+format adds PPXQ, Base37, QR generation, or a QR parser.
