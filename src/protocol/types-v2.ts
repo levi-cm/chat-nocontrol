@@ -2,13 +2,24 @@ export const PPX_V2_FORMAT_VERSION = 0x02 as const;
 export const PPX_PQ_5_SUITE = 0x02 as const;
 export const PPX_PQ_5_NAME = "PPX-PQ-5" as const;
 
-export enum ObjectFamilyV2 {
-  Contact = 0x01,
-  Text = 0x02,
-  QrText = 0x03,
-  File = 0x04,
-  Vault = 0x05,
-  Recovery = 0x06,
+export const ObjectFamilyV2 = Object.freeze({
+  Contact: 0x01,
+  Text: 0x02,
+  CompactText: 0x03,
+  File: 0x04,
+  Vault: 0x05,
+  Recovery: 0x06,
+} as const);
+
+export type ObjectFamilyV2 =
+  (typeof ObjectFamilyV2)[keyof typeof ObjectFamilyV2];
+
+const OBJECT_FAMILY_V2_VALUES: ReadonlySet<number> = new Set(
+  Object.values(ObjectFamilyV2),
+);
+
+export function isObjectFamilyV2(value: number): value is ObjectFamilyV2 {
+  return OBJECT_FAMILY_V2_VALUES.has(value);
 }
 
 export interface DerivedIdentityV2 {

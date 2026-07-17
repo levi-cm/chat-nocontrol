@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic PPX-PQ-5 identity, ML-KEM HKDF, and PPXC V2 foundation golden.",
+  "suite": 2,
+  "formatVersion": 2,
+  "identity": {
+    "masterEntropy": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "kemPublicKeySha512": "e68ce825efa58096152c32054d03b6984ab6f84ac91175507afa652d41a26bc305ad4b713f90b78f91a0f1bfbea77cb23b5570bc73eba8da04a408ffaad051c6",
+    "signingPublicKeySha512": "aa7dfa41e7313f77d76e906bec197bc12d28fd2132b6b3660a7919fa5bf0bf3aadf20308bc434a91a80a84bb975b37fa0d0252fdd56048785e9c8f2c4f0524d1",
+    "fingerprint": "0724fa41626e5ccd9b3d2d2194e2681d94128c5c6e0daa0ab196b90b5cac1318",
+    "identityId": "0724fa41626e5ccd9b3d2d2194e2681d94128c5c"
+  },
+  "kem": {
+    "objectFamily": 3,
+    "salt": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "recipientFingerprint": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "ciphertextSha512": "ac586031762a02df74087822003c1a27067412e2207acb4cd694d188e17c8db27a9bb5c6a99c950ea8d1ae64d92f27e6984d4e0106e7b59db98f07cba1230316",
+    "sharedSecret": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+    "aes256Key": "cafcc8b613ba322240b189af6bd6dacafffc73e2f72e1139fb214cb6b5774fac"
+  },
+  "contact": {
+    "pseudonym": "Cat5 Golden",
+    "creationTime": "72623859790382856",
+    "signatureEntropy": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "signatureSha512": "095e25baedef36c32e2f5c8f8a9dbbe32367024cff2448ca7aeee0d482b92fcdc029fceac11e20338db422ea012248c58bc0161a30e0486a64424e9a4c358610",
+    "encodedLength": 8830,
+    "encodedSha512": "f27952e49ee37399b159d8f2ab9a88f723ea820c5034b6e2782ff9759fa9f8c103f660de8fe9c6a157e7942968c078d97c7c567541c4c2860f8073a114dcdbf2"
+  }
+}

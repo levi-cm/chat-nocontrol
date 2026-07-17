@@ -88,6 +88,12 @@ the ordered release gate and must stop on the first real failure.
 - `test:qr-degradation`
 - `test:bip39`
 
+`vectors:nist-verify` is the normal offline integrity gate. It checks pinned
+source commit, URLs, SHA-256 source hashes, selected ACVP case IDs, and field
+sizes from committed fixtures. `vectors:nist-live-verify` explicitly fetches
+the pinned upstream commit and compares regenerated fixtures; it is not part of
+`verify:quality`. `vectors:nist-sync` is the explicit fixture refresh command.
+
 ### 2.3 Product flows
 
 - `test:storage`
@@ -133,9 +139,9 @@ the ordered release gate and must stop on the first real failure.
 
 | Area | Check | Expected result |
 |---|---|---|
-| NIST primitives | `test:primitive-vectors` | AES-256-GCM, SHA-512, HKDF-SHA-512, scrypt, X25519, Ed25519, ML-KEM vectors pass |
+| NIST primitives | `test:primitive-vectors` | AES-256-GCM, SHA-512, HKDF-SHA-512, scrypt, X25519, Ed25519, ML-KEM, and ML-DSA vectors pass; pinned NIST source metadata and hashes verify offline |
 | Provider contract | `test:provider-contract` | Request-owned signing capability and provider-owned encapsulation conform |
-| Protocol goldens | `test:ppx-golden` | Encoded objects match canonical fixtures |
+| Protocol goldens | `test:ppx-golden` | Encoded objects and the additive Cat-5 identity/KEM/contact foundation match canonical fixtures |
 | Parser properties | `test:parser-property` | Round-trip and rejection properties hold |
 | Fuzzing | `test:parser-fuzz` | 100000-case extended fuzz run finds no crashes or unsafe accepts |
 | Mutations | `test:mutations` | Corrupted inputs fail safely |

@@ -26,8 +26,10 @@ ML-KEM-1024 is the only key agreement. HKDF-SHA-512 derives the 32-byte
 AES-256 key from the ML-KEM shared secret and a fresh 32-byte salt. Info is
 `PPX/ENCRYPT/V2/ML-KEM-1024 || objectFamily || 0x02 || 0x02 ||
 recipientFingerprint || SHA-512(mlKemCiphertext)`. Object families have unique
-one-byte discriminators. Owned shared-secret and transcript buffers are erased
-after derivation.
+one-byte discriminators: contact `0x01`, text `0x02`, compact text/PPXM `0x03`,
+file `0x04`, vault `0x05`, and recovery `0x06`. `0x03` does not imply message
+QR transport. Owned shared-secret and transcript buffers are erased after
+derivation.
 
 ## Public contact
 
