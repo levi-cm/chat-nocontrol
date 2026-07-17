@@ -31,6 +31,46 @@ class AuthoritativeCancelWorker extends EventTarget {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("file worker client cancellation", () => {
+  it("sends only decapsulation authority to the decrypt worker", () => {
+    const workers: AuthoritativeCancelWorker[] = [];
+    vi.stubGlobal(
+      "Worker",
+      class extends AuthoritativeCancelWorker {
+        constructor() {
+          super();
+          workers.push(this);
+        }
+      },
+    );
+    const activeIdentity = {
+      masterEntropy: new Uint8Array([1]),
+      signingSecretKey: new Uint8Array([2]),
+      kemSecretKey: new Uint8Array([3]),
+      x25519SecretKey: new Uint8Array([4]),
+      fingerprint: new Uint8Array([5]),
+      identityId: new Uint8Array([6]),
+    };
+
+    const job = startDecryptFileJob({
+      object: {},
+      activeIdentity,
+    } as unknown as DecryptFileInput);
+    const posted = workers[0]?.requests[0];
+    if (posted?.kind !== "decrypt-file") {
+      throw new Error("expected decrypt request");
+    }
+
+    expect(Object.keys(posted.input.activeIdentity).sort()).toEqual([
+      "fingerprint",
+      "identityId",
+      "kemSecretKey",
+      "x25519SecretKey",
+    ]);
+    expect(posted.input.activeIdentity).not.toBe(activeIdentity);
+    job.cancel();
+    void job.promise.catch(() => undefined);
+  });
+
   it("waits for the authoritative cancelled event before termination", async () => {
     const workers: AuthoritativeCancelWorker[] = [];
     vi.stubGlobal(
@@ -42,7 +82,15 @@ describe("file worker client cancellation", () => {
         }
       },
     );
-    const job = startDecryptFileJob({} as DecryptFileInput);
+    const job = startDecryptFileJob({
+      object: {},
+      activeIdentity: {
+        fingerprint: new Uint8Array(32),
+        identityId: new Uint8Array(20),
+        kemSecretKey: new Uint8Array(1632),
+        x25519SecretKey: new Uint8Array(32),
+      },
+    } as DecryptFileInput);
     const worker = workers[0];
     expect(worker).toBeDefined();
 

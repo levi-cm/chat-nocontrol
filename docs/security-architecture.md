@@ -104,7 +104,8 @@ These types are normative.
 ```ts
 export interface DerivedIdentity {
   suite: 0x01;
-  creationTime: bigint;             // preserved by PPXV and PPXR; new local time only for word imports
+  creationTime: bigint;             // preserved by PPXV/PPXR; 0 means unknown after word import
+  importedAt?: bigint;              // local-only word-import time; never signed or serialized
   masterEntropy: Uint8Array;        // 32 bytes; secret
   kemPublicKey: Uint8Array;         // 800 bytes
   kemSecretKey: Uint8Array;         // secret, implementation-defined length
@@ -383,6 +384,7 @@ export type PPXCryptoError =
   | 'invalid-signature'
   | 'invalid-hybrid-encapsulation'
   | 'unsupported-compression'
+  | 'unknown-sender-contact'
   | 'invalid-passphrase'
   | 'corrupted-vault';
 ```
@@ -411,6 +413,15 @@ Recovery-word import flow requirements:
 - Create a new signed `PPXC` for the same fingerprint.
 - Preserve the import timestamp only as local metadata.
 - Never claim the import time is the original creation time.
+
+Words do not contain original creation provenance. Word import therefore uses
+the explicit `0n` unknown sentinel for both `DerivedIdentity.creationTime` and
+the newly signed `PPXC.creationTime`. The local wall-clock import time is carried
+separately as `RecoveryWordsImportOutput.importedAt`; it must never be copied
+into signed contact bytes. The active in-memory identity may retain the same
+value as optional local-only `DerivedIdentity.importedAt`; vault and recovery
+encoders ignore it. PPXR and PPXV imports continue to preserve their embedded
+creation time.
 
 ## 13. Zeroization and side-channel policy
 
@@ -508,6 +519,13 @@ export interface SenderSigningCapability {
   signingSecretKey: Uint8Array; // request-owned 32-byte Ed25519 seed
 }
 
+export interface DecapsulationCapability {
+  fingerprint: Uint8Array; // 32 bytes
+  identityId: Uint8Array; // 20 bytes
+  kemSecretKey: Uint8Array; // ML-KEM-512 secret key
+  x25519SecretKey: Uint8Array; // 32 bytes
+}
+
 export interface EncryptTextInput {
   sender: PublicContact;
   senderSigningCapability: SenderSigningCapability;
@@ -520,14 +538,12 @@ export interface EncryptTextInput {
 
 export interface DecryptTextInput {
   object: EncryptedTextObject;
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
 }
 
-export interface EncryptedTextObject {
+interface EncryptedTextObjectBase {
   magic: 'PPXT';
-  formatVersion: 0x01;
   suite: 0x01;
-  flags: number;
   mlKemCiphertext: Uint8Array; // 768 bytes
   ephemeralX25519PublicKey: Uint8Array; // 32 bytes
   salt: Uint8Array; // 32 bytes
@@ -536,6 +552,9 @@ export interface EncryptedTextObject {
   ciphertext: Uint8Array;
   checksum: Uint8Array; // 16 bytes
 }
+
+export type EncryptedTextObject = EncryptedTextObjectBase &
+  ({ formatVersion: 0x01; flags: 0x00 } | { formatVersion: 0x02; flags: 0x01 });
 
 export interface DecryptedTextOutput {
   senderContact: PublicContact;
@@ -547,6 +566,9 @@ export interface DecryptedTextOutput {
   signatureValid: true;
 }
 ```
+
+See [protocol-v2.md](protocol-v2.md) for the v2 AAD binding and bounded
+decompression rules.
 
 ### 16.3 File contracts
 
@@ -564,7 +586,7 @@ export interface EncryptFileInput {
 
 export interface DecryptFileInput {
   object: EncryptedFileObject | Blob;
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
 }
 
 export interface FileCryptoHooks {
@@ -684,6 +706,16 @@ export type PPXWorkerRequest =
       input: DecryptTextInput;
     }
   | {
+      kind: 'encrypt-qr-text';
+      requestId: string;
+      input: EncryptQrTextInput;
+    }
+  | {
+      kind: 'decrypt-qr-text';
+      requestId: string;
+      input: DecryptQrTextInput;
+    }
+  | {
       kind: 'encrypt-file';
       requestId: string;
       input: EncryptFileInput;
@@ -722,6 +754,7 @@ export type PPXWorkerEvent =
       requestId: string;
       result:
         | EncryptedTextObject
+        | EncryptedQrTextObject
         | EncryptedFileObject
         | EncryptedFileBlobOutput
         | LockedVaultObject
@@ -730,7 +763,7 @@ export type PPXWorkerEvent =
   | {
       kind: 'completed';
       requestId: string;
-      result: DecryptedTextOutput | DecryptedFileOutput;
+      result: DecryptedTextOutput | DecryptedQrTextOutput | DecryptedFileOutput;
     }
   | {
       kind: 'error';
@@ -746,6 +779,12 @@ export type PPXSafeWorkerError = PPXParseError | PPXCryptoError;
 ```
 
 The worker contracts are the only sanctioned message shapes between the main thread and crypto workers. The implementation must not add ad hoc message kinds without updating this section and [protocol-v1.md](protocol-v1.md).
+
+The PPXQ request and result types are defined by
+[protocol-qr-message-v1.md](protocol-qr-message-v1.md). Decrypt clients must
+construct a fresh `DecapsulationCapability` before `postMessage`; workers must
+never receive `masterEntropy` or `signingSecretKey` for text, QR-text, or file
+decryption.
 
 `EncryptedFileBlobOutput` is the bounded-memory worker transport for encrypted
 files. `DecryptFileInput.object` accepts a `Blob` so a worker can perform a

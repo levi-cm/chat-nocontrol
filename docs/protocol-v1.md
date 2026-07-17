@@ -128,6 +128,10 @@ The implementation then creates a new signed `PPXC` for the same fingerprint.
 
 The import time is local metadata only and must not be presented as the original creation time.
 
+Because words do not encode original creation time, word imports place the
+explicit `0n` unknown sentinel in the new identity and signed PPXC creation-time
+fields. Local wall-clock import time remains separate `importedAt` metadata.
+
 ## 4. Object families
 
 Version 1 defines five object families and one suite byte.

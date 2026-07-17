@@ -1,5 +1,6 @@
 import type { PPXWorkerEvent, PPXWorkerRequest } from "../crypto/contracts";
 import { zeroize } from "../crypto/zeroize";
+import { createDecapsulationCapability } from "../crypto/decapsulation-capability";
 import type {
   DecryptedQrTextOutput,
   DecryptedTextOutput,
@@ -114,7 +115,14 @@ export function startDecryptTextJob(
   input: DecryptTextInput,
 ): CryptoWorkerJob<DecryptedTextOutput> {
   const requestId = createRequestId();
-  return startCryptoJob({ kind: "decrypt-text", requestId, input });
+  return startCryptoJob({
+    kind: "decrypt-text",
+    requestId,
+    input: {
+      ...input,
+      activeIdentity: createDecapsulationCapability(input.activeIdentity),
+    },
+  });
 }
 
 export function startEncryptQrTextJob(
@@ -133,7 +141,14 @@ export function startDecryptQrTextJob(
   input: DecryptQrTextInput,
 ): CryptoWorkerJob<DecryptedQrTextOutput> {
   const requestId = createRequestId();
-  return startCryptoJob({ kind: "decrypt-qr-text", requestId, input });
+  return startCryptoJob({
+    kind: "decrypt-qr-text",
+    requestId,
+    input: {
+      ...input,
+      activeIdentity: createDecapsulationCapability(input.activeIdentity),
+    },
+  });
 }
 
 export function startLockVaultJob(

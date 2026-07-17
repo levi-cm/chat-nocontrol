@@ -166,6 +166,7 @@ describe("seven-screen identity wizard", () => {
 
   it("creates the encrypted vault before enabling required digital backups", async () => {
     const user = userEvent.setup();
+    const onReady = vi.fn();
     const lockVaultJobFactory = vi.fn(() => ({
       requestId: "vault-test",
       promise: Promise.resolve(vaultFixture()),
@@ -177,7 +178,7 @@ describe("seven-screen identity wizard", () => {
         locale="en"
         identity={null}
         contact={null}
-        onReady={vi.fn()}
+        onReady={onReady}
         identityProvider={{
           deriveIdentity: vi.fn().mockResolvedValue(identityFixture()),
           createPublicContact: () => contactFixture(),
@@ -207,6 +208,7 @@ describe("seven-screen identity wizard", () => {
     expect(await screen.findByText("Step 3 of 7")).not.toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(lockVaultJobFactory).toHaveBeenCalledOnce();
+    expect(onReady).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Save private QR as PNG" }),
     ).not.toBeNull();

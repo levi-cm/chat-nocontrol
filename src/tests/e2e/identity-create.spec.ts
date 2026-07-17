@@ -182,6 +182,10 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   await expect(
     page.getByRole("img", { name: "Public contact QR code" }),
   ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Create identity or import identity" }),
+  ).toBeVisible();
 });
 
 test("unavailable IndexedDB visibly forces session-only completion", async ({
