@@ -63,6 +63,32 @@ describe("typed text crypto runner", () => {
     expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
   });
 
+  it("wipes decrypt-file authority rejected by the wrong worker", async () => {
+    const events: PPXWorkerEvent[] = [];
+    const capability = {
+      suite: 1 as const,
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      kemSecretKey: new Uint8Array(1632).fill(7),
+      x25519SecretKey: new Uint8Array(32).fill(8),
+    };
+    const runner = createCryptoRunner((event) => events.push(event));
+
+    await runner.handle({
+      kind: "decrypt-file",
+      requestId: "wrong-crypto-worker",
+      input: { object: {} as never, activeIdentity: capability },
+    });
+
+    expect(events).toContainEqual({
+      kind: "error",
+      requestId: "wrong-crypto-worker",
+      code: "wrong-identity-or-corruption",
+    });
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+  });
+
   it("encrypts and decrypts text through authoritative worker requests", async () => {
     const alice = await deriveIdentityFromEntropy(
       new Uint8Array(32).fill(81),

@@ -33,6 +33,9 @@ export function createCryptoRunner(
         return;
       }
       if (request.kind === "encrypt-file" || request.kind === "decrypt-file") {
+        if (request.kind === "decrypt-file") {
+          zeroizeDecapsulationCapability(request.input.activeIdentity);
+        }
         emit({
           kind: "error",
           requestId: request.requestId,
