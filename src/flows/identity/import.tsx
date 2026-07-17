@@ -32,7 +32,8 @@ interface IdentityImportProps {
     identity: DerivedIdentity,
     contact: PublicContact,
     importedAt?: bigint,
-  ) => void;
+    acceptOwnership?: () => boolean,
+  ) => Promise<void> | void;
   readPrivateFileMagic?: (file: File) => Promise<string>;
 }
 
@@ -125,7 +126,7 @@ export function IdentityImport({
     if (error !== "") errorSummary.current?.focus();
   }, [error]);
 
-  const complete = (
+  const complete = async (
     identity: DerivedIdentity,
     publicPseudonym: string,
     creationTime: bigint,
@@ -148,14 +149,14 @@ export function IdentityImport({
         creationTime,
       );
       if (importedAt === undefined) {
-        onReady(relabeledIdentity, contact);
+        await onReady(relabeledIdentity, contact);
       } else {
         const output: RecoveryWordsImportOutput = {
           identity: relabeledIdentity,
           publicContact: contact,
           importedAt,
         };
-        onReady(output.identity, output.publicContact, output.importedAt);
+        await onReady(output.identity, output.publicContact, output.importedAt);
       }
     } catch (caught) {
       zeroizeIdentitySecrets(identity);
@@ -181,7 +182,23 @@ export function IdentityImport({
         zeroizeIdentitySecrets(output.identity);
         return;
       }
-      onReady(output.identity, output.publicContact, output.importedAt);
+      let accepted = false;
+      const acceptOwnership = () => {
+        if (accepted) return false;
+        accepted = true;
+        return true;
+      };
+      try {
+        await onReady(
+          output.identity,
+          output.publicContact,
+          output.importedAt,
+          acceptOwnership,
+        );
+        if (!accepted) acceptOwnership();
+      } finally {
+        if (!accepted) zeroizeIdentitySecrets(output.identity);
+      }
     } catch {
       if (mounted.current) setError(t("importError"));
     } finally {
@@ -207,7 +224,7 @@ export function IdentityImport({
         const identity = await defaultCryptoProvider.deriveIdentity(
           recovery.masterEntropy,
         );
-        complete(identity, recovery.pseudonym, recovery.creationTime);
+        await complete(identity, recovery.pseudonym, recovery.creationTime);
       } else if (magic === "PPXV") {
         operation = startUnlockVaultJob({
           vault: parseLockedVault(bytes),
@@ -219,7 +236,7 @@ export function IdentityImport({
           zeroizeIdentitySecrets(identity);
           return;
         }
-        complete(identity, identity.pseudonym, identity.creationTime);
+        await complete(identity, identity.pseudonym, identity.creationTime);
       } else {
         throw new Error("unsupported private file");
       }
@@ -304,7 +321,7 @@ export function IdentityImport({
         const identity = await defaultCryptoProvider.deriveIdentity(
           recovery.masterEntropy,
         );
-        complete(identity, recovery.pseudonym, recovery.creationTime);
+        await complete(identity, recovery.pseudonym, recovery.creationTime);
       } else if (classified.kind === "private-vault") {
         operation = startUnlockVaultJob({
           vault: parseLockedVault(classified.payload),
@@ -316,7 +333,7 @@ export function IdentityImport({
           zeroizeIdentitySecrets(identity);
           return;
         }
-        complete(identity, identity.pseudonym, identity.creationTime);
+        await complete(identity, identity.pseudonym, identity.creationTime);
       } else {
         throw new Error("public contact is not a private identity");
       }

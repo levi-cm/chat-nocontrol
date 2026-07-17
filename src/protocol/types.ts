@@ -116,6 +116,7 @@ export interface SenderSigningCapability {
 }
 
 export interface DecapsulationCapability {
+  suite: 0x01;
   fingerprint: Uint8Array;
   identityId: Uint8Array;
   kemSecretKey: Uint8Array;

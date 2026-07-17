@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { defaultCryptoProvider } from "../../crypto/default-provider";
 import type { PPXWorkerEvent, PPXWorkerRequest } from "../../crypto/contracts";
 import {
   createSenderSigningCapability,
@@ -33,6 +34,59 @@ async function encryptRequest(size: number): Promise<PPXWorkerRequest> {
 }
 
 describe("typed PPXF file runner", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("wipes worker-owned decapsulation secrets after file decrypt failure", async () => {
+    const capability = {
+      suite: 1 as const,
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      kemSecretKey: new Uint8Array(1632).fill(7),
+      x25519SecretKey: new Uint8Array(32).fill(8),
+    };
+    vi.spyOn(defaultCryptoProvider, "decryptFile").mockRejectedValue(
+      new Error("injected failure"),
+    );
+    const runner = createFileRunner(() => undefined);
+
+    await runner.handle({
+      kind: "decrypt-file",
+      requestId: "wipe-decrypt-file",
+      input: { object: {} as never, activeIdentity: capability },
+    });
+
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+  });
+
+  it("rejects and wipes an unsupported decapsulation suite at the worker boundary", async () => {
+    const events: PPXWorkerEvent[] = [];
+    const capability = {
+      suite: 2,
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      kemSecretKey: new Uint8Array(1632).fill(7),
+      x25519SecretKey: new Uint8Array(32).fill(8),
+    };
+    const decrypt = vi.spyOn(defaultCryptoProvider, "decryptFile");
+    const runner = createFileRunner((event) => events.push(event));
+
+    await runner.handle({
+      kind: "decrypt-file",
+      requestId: "unsupported-file-suite",
+      input: { object: {} as never, activeIdentity: capability as never },
+    });
+
+    expect(decrypt).not.toHaveBeenCalled();
+    expect(events).toContainEqual({
+      kind: "error",
+      requestId: "unsupported-file-suite",
+      code: "unknown-suite",
+    });
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+  });
+
   it("emits progress and exactly one completed event", async () => {
     const events: PPXWorkerEvent[] = [];
     const runner = createFileRunner((event) => events.push(event));
