@@ -1,158 +1,81 @@
 import { describe, expect, it } from "vitest";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../../crypto/identity";
-import { decapsulateHybrid, encapsulateHybrid } from "../../crypto/hybrid";
-import { decryptText, encryptText } from "../../crypto/text";
-import { createPublicContact } from "../../protocol/ppxc";
+  cloneDecapsulationCapabilityV2,
+  cloneSenderSigningCapabilityV2,
+  validateDecapsulationCapabilityV2,
+  validateSenderSigningCapabilityV2,
+  zeroizeDecapsulationCapabilityV2,
+  zeroizeSenderSigningCapabilityV2,
+} from "../../crypto/capability-v2";
+import {
+  createDecapsulationCapabilityV2,
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
 
-describe("request-scoped CryptoProvider capabilities", () => {
-  it("signs text from a request-owned capability and wipes its secret", async () => {
-    const alice = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(11),
-      "Alice",
+describe("Cat-5 request capabilities", () => {
+  it("clones, validates, and wipes ML-KEM-1024 decapsulation authority", async () => {
+    const identity = await deriveIdentityV2FromEntropy(new Uint8Array(32));
+    const source = createDecapsulationCapabilityV2(identity);
+    const clone = cloneDecapsulationCapabilityV2(source);
+
+    expect(() => validateDecapsulationCapabilityV2(clone)).not.toThrow();
+    expect(Object.keys(clone).sort()).toEqual(
+      ["fingerprint", "identityId", "kemSecretKey", "suite"].sort(),
     );
-    const bob = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(12),
-      "Bob",
-    );
-    const sender = createPublicContact(alice, "Alice", 1n);
-    const recipient = createPublicContact(bob, "Bob", 2n);
-    const capability = createSenderSigningCapability(alice);
-
-    const object = await encryptText({
-      sender,
-      senderSigningCapability: capability,
-      recipient,
-      plaintext: "provider boundary",
-      messageId: new Uint8Array(16).fill(9),
-      sentAt: 3n,
-      createdAt: 3n,
-    });
-
-    expect(capability.signingSecretKey).toEqual(new Uint8Array(32));
-    await expect(
-      decryptText({ object, activeIdentity: bob }),
-    ).resolves.toMatchObject({
-      plaintext: "provider boundary",
-      signatureValid: true,
-    });
+    expect(clone.kemSecretKey).not.toBe(source.kemSecretKey);
+    zeroizeDecapsulationCapabilityV2(clone);
+    expect(clone.kemSecretKey).toEqual(new Uint8Array(3168));
+    expect(source.kemSecretKey).not.toEqual(new Uint8Array(3168));
   });
 
-  it("rejects a capability that does not match the public sender", async () => {
-    const alice = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(21),
-      "Alice",
-    );
-    const mallory = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(22),
-      "Mallory",
-    );
-    const bob = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(23),
-      "Bob",
-    );
-    const capability = createSenderSigningCapability(mallory);
+  it("clones, validates, and wipes ML-DSA-87 signing authority", async () => {
+    const identity = await deriveIdentityV2FromEntropy(new Uint8Array(32));
+    const source = createSenderSigningCapabilityV2(identity);
+    const clone = cloneSenderSigningCapabilityV2(source);
 
-    await expect(
-      encryptText({
-        sender: createPublicContact(alice, "Alice", 1n),
-        senderSigningCapability: capability,
-        recipient: createPublicContact(bob, "Bob", 2n),
-        plaintext: "must fail",
-        messageId: new Uint8Array(16),
-        sentAt: 3n,
-        createdAt: 3n,
-      }),
-    ).rejects.toThrow("invalid-signature");
-    expect(capability.signingSecretKey).toEqual(new Uint8Array(32));
+    expect(() => validateSenderSigningCapabilityV2(clone)).not.toThrow();
+    expect(clone.signingSecretKey).not.toBe(source.signingSecretKey);
+    zeroizeSenderSigningCapabilityV2(clone);
+    expect(clone.signingSecretKey).toEqual(new Uint8Array(4896));
+    expect(source.signingSecretKey).not.toEqual(new Uint8Array(4896));
   });
 
-  it("rejects a corrupted recipient contact before encapsulation", async () => {
-    const alice = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(24),
-      "Alice",
-    );
-    const bob = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(25),
-      "Bob",
-    );
-    const recipient = createPublicContact(bob, "Bob", 2n);
-    recipient.identityId[0] = (recipient.identityId[0] as number) ^ 1;
-    const capability = createSenderSigningCapability(alice);
-
-    await expect(
-      encryptText({
-        sender: createPublicContact(alice, "Alice", 1n),
-        senderSigningCapability: capability,
-        recipient,
-        plaintext: "must fail before encapsulation",
-        messageId: new Uint8Array(16),
-        sentAt: 3n,
-        createdAt: 3n,
-      }),
-    ).rejects.toThrow("invalid-signature");
-    expect(capability.signingSecretKey).toEqual(new Uint8Array(32));
+  it("rejects non-Cat-5 suites before length validation", () => {
+    expect(() =>
+      validateDecapsulationCapabilityV2({
+        suite: 1,
+        fingerprint: new Uint8Array(32),
+        identityId: new Uint8Array(20),
+        kemSecretKey: new Uint8Array(3168),
+      } as never),
+    ).toThrow("unknown-suite");
+    expect(() =>
+      validateSenderSigningCapabilityV2({
+        suite: 1,
+        fingerprint: new Uint8Array(32),
+        signingPublicKey: new Uint8Array(2592),
+        signingSecretKey: new Uint8Array(4896),
+      } as never),
+    ).toThrow("unknown-suite");
   });
 
-  it("rejects a substituted signing seed even when public metadata matches", async () => {
-    const alice = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(26),
-      "Alice",
-    );
-    const mallory = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(27),
-      "Mallory",
-    );
-    const bob = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(28),
-      "Bob",
-    );
-    const capability = createSenderSigningCapability(alice);
-    capability.signingSecretKey.set(mallory.signingSecretKey);
-
-    await expect(
-      encryptText({
-        sender: createPublicContact(alice, "Alice", 1n),
-        senderSigningCapability: capability,
-        recipient: createPublicContact(bob, "Bob", 2n),
-        plaintext: "must fail before encryption",
-        messageId: new Uint8Array(16),
-        sentAt: 3n,
-        createdAt: 3n,
+  it("rejects malformed Cat-5 capability lengths", () => {
+    expect(() =>
+      validateDecapsulationCapabilityV2({
+        suite: 2,
+        fingerprint: new Uint8Array(31),
+        identityId: new Uint8Array(20),
+        kemSecretKey: new Uint8Array(3168),
       }),
-    ).rejects.toThrow("invalid-signature");
-    expect(capability.signingSecretKey).toEqual(new Uint8Array(32));
-  });
-
-  it("creates fresh hybrid encapsulation entirely inside crypto", async () => {
-    const bob = await deriveIdentityFromEntropy(
-      new Uint8Array(32).fill(31),
-      "Bob",
-    );
-    const recipient = {
-      recipientFingerprint: bob.fingerprint,
-      recipientKemPublicKey: bob.kemPublicKey,
-      recipientX25519PublicKey: bob.x25519PublicKey,
-    };
-    const first = encapsulateHybrid(recipient);
-    const second = encapsulateHybrid(recipient);
-
-    expect(first.mlKemCiphertext).toHaveLength(768);
-    expect(first.ephemeralX25519PublicKey).toHaveLength(32);
-    expect(first.salt).toHaveLength(32);
-    expect(first.mlKemCiphertext).not.toEqual(second.mlKemCiphertext);
-    expect(first.ephemeralX25519PublicKey).not.toEqual(
-      second.ephemeralX25519PublicKey,
-    );
-    expect(
-      decapsulateHybrid({
-        activeIdentity: bob,
-        mlKemCiphertext: first.mlKemCiphertext,
-        ephemeralX25519PublicKey: first.ephemeralX25519PublicKey,
-        salt: first.salt,
+    ).toThrow("wrong-identity-or-corruption");
+    expect(() =>
+      validateSenderSigningCapabilityV2({
+        suite: 2,
+        fingerprint: new Uint8Array(32),
+        signingPublicKey: new Uint8Array(2592),
+        signingSecretKey: new Uint8Array(4895),
       }),
-    ).toEqual(first.aes256Key);
+    ).toThrow("wrong-identity-or-corruption");
   });
 });
