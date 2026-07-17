@@ -25,5 +25,25 @@
     "signatureSha512": "095e25baedef36c32e2f5c8f8a9dbbe32367024cff2448ca7aeee0d482b92fcdc029fceac11e20338db422ea012248c58bc0161a30e0486a64424e9a4c358610",
     "encodedLength": 8830,
     "encodedSha512": "f27952e49ee37399b159d8f2ab9a88f723ea820c5034b6e2782ff9759fa9f8c103f660de8fe9c6a157e7942968c078d97c7c567541c4c2860f8073a114dcdbf2"
+  },
+  "text": {
+    "signatureContexts": {
+      "full": "PPX/TEXT/FULL/V2",
+      "compact": "PPX/TEXT/COMPACT/V2"
+    },
+    "full": {
+      "magic": "PPXT",
+      "flags": 0,
+      "encodedLength": 15163,
+      "encodedSha512": "ba4d77ceb4f1dbb54dd4ca591f4a92dd7e1392f7fb081c434ea9410c4b40621bdec63cabbf6871248034db67244fd728d858c214a6287f618a5985843fa856e1",
+      "ciphertextSha512": "b9890b6ed7af336be1607f6f00d8049914cb563ff71d9a7adaddbe535e78fc1aadde3fd54b987ce6f63ab1bd5b8d81a6fc44bd2fdaa1f4095b6d5364c497795c"
+    },
+    "compact": {
+      "magic": "PPXM",
+      "flags": 0,
+      "encodedLength": 6370,
+      "encodedSha512": "664d9fca2465e15eb5513808c53ef71894975b1622d401f3912010afa30f28b5f4c717134f4b4a380a00197d8d9cb92f1f3d39432388475b79c40a6b9997beba",
+      "ciphertextSha512": "8254b38cc6c9bad3c5efcb89f5a7734e885057c410add0df7143667f26948cd71f16d4b752f1fb1ddb5a38ac7cb3c1933088e65a58957687ad548ab660ce0b64"
+    }
   }
 }

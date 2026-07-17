@@ -145,7 +145,7 @@ offline quality gate fails.
 |---|---|---|
 | NIST primitives | `test:primitive-vectors` | AES-256-GCM, SHA-512, HKDF-SHA-512, scrypt, X25519, Ed25519, ML-KEM, and ML-DSA vectors pass; pinned NIST source metadata and hashes verify offline |
 | Provider contract | `test:provider-contract` | Request-owned signing capability and provider-owned encapsulation conform |
-| Protocol goldens | `test:ppx-golden` | Encoded objects and the additive Cat-5 identity/KEM/contact foundation match canonical fixtures |
+| Protocol goldens | `test:ppx-golden` | Encoded objects and additive Cat-5 identity, KEM, contact, PPXT, and PPXM fixtures match exact canonical sizes and digests |
 | Parser properties | `test:parser-property` | Round-trip and rejection properties hold |
 | Fuzzing | `test:parser-fuzz` | 100000-case extended fuzz run finds no crashes or unsafe accepts |
 | Mutations | `test:mutations` | Corrupted inputs fail safely |

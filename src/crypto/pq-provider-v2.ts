@@ -58,6 +58,13 @@ export function mlDsa87Keygen(seed?: Uint8Array) {
   return keys;
 }
 
+export function mlDsa87PublicKeyFromSecret(secretKey: Uint8Array): Uint8Array {
+  requireLength(secretKey, ML_DSA_87_SECRET_KEY_BYTES);
+  const publicKey = ml_dsa87.getPublicKey(secretKey);
+  requireLength(publicKey, ML_DSA_87_PUBLIC_KEY_BYTES);
+  return publicKey;
+}
+
 export function mlDsa87Sign(
   message: Uint8Array,
   secretKey: Uint8Array,
