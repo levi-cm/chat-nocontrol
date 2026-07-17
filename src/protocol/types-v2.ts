@@ -192,3 +192,30 @@ export interface DecryptedFileOutputV2 {
   digestValid: true;
   signatureValid: true;
 }
+
+export interface LockedVaultObjectV2 {
+  magic: "PPXV";
+  formatVersion: typeof PPX_V2_FORMAT_VERSION;
+  suite: typeof PPX_PQ_5_SUITE;
+  flags: 1;
+  kdfId: 1;
+  scryptN: 65_536;
+  scryptR: 8;
+  scryptP: 2;
+  salt: Uint8Array;
+  nonce: Uint8Array;
+  ciphertextLength: number;
+  ciphertext: Uint8Array;
+  checksum: Uint8Array;
+}
+
+export interface RecoveryObjectV2 {
+  magic: "PPXR";
+  formatVersion: typeof PPX_V2_FORMAT_VERSION;
+  suite: typeof PPX_PQ_5_SUITE;
+  flags: 0;
+  masterEntropy: Uint8Array;
+  creationTime: bigint;
+  pseudonym: string;
+  checksum: Uint8Array;
+}

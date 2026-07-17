@@ -1,5 +1,6 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { LockedVaultObject, PublicContact } from "../protocol/types";
+import type { LockedVaultObjectV2 } from "../protocol/types-v2";
 import { SessionStorage } from "./session";
 
 export const DATABASE_NAME = "chat-nocontrol-ppx";
@@ -26,13 +27,18 @@ export interface StoredSettings {
   qrAutoDecrypt?: boolean;
 }
 
+export type StoredVaultObject = LockedVaultObject | LockedVaultObjectV2;
+
 export interface PpxDatabaseSchema extends DBSchema {
   contacts: {
     key: string;
     value: StoredContact;
     indexes: { "by-pseudonym": string };
   };
-  vaults: { key: "active"; value: LockedVaultObject };
+  vaults: {
+    key: "active" | "migration-v2";
+    value: StoredVaultObject;
+  };
   settings: { key: "preferences"; value: StoredSettings };
 }
 
