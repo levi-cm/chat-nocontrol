@@ -4,11 +4,13 @@ import {
   createDecapsulationCapabilityV2,
   createSenderSigningCapabilityV2,
 } from "../../crypto/identity-v2";
+import { decapsulateMlKemV2, deriveMlKemKeyV2 } from "../../crypto/kem-v2";
 import {
   mlDsa87Verify,
   mlKem1024Encapsulate,
 } from "../../crypto/pq-provider-v2";
 import { decryptTextV2, encryptTextV2 } from "../../crypto/text-v2";
+import { decryptAesGcm, encryptAesGcm } from "../../crypto/webcrypto";
 import { checksum16 } from "../../protocol/checksum";
 import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 import {
@@ -31,11 +33,35 @@ import {
 } from "../../protocol/text-v2-outer";
 import type {
   DerivedIdentityV2,
+  EncryptedTextObjectV2,
   PublicContactV2,
 } from "../../protocol/types-v2";
+import { ObjectFamilyV2 } from "../../protocol/types-v2";
 
 const bytes = (length: number, value: number) =>
   new Uint8Array(length).fill(value);
+
+function pseudoRandomText(length: number): string {
+  let state = 0x1234_5678;
+  let output = "";
+  for (let index = 0; index < length; index += 1) {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    output += String.fromCharCode(33 + ((state >>> 0) % 94));
+  }
+  return output;
+}
+
+function replaceChecksum(
+  object: Omit<EncryptedTextObjectV2, "checksum">,
+): EncryptedTextObjectV2 {
+  const header = encodeEncryptedTextHeaderV2(object);
+  const payload = new Uint8Array(header.length + object.ciphertext.length);
+  payload.set(header);
+  payload.set(object.ciphertext, header.length);
+  return { ...object, checksum: checksum16(payload) };
+}
 
 describe("Cat-5 PPXT/PPXM V2 wire format", () => {
   it("locks canonical header and exact empty-object sizes", () => {
@@ -199,9 +225,88 @@ describe("Cat-5 signed text V2", () => {
     );
     const tampered = Uint8Array.from(first);
     tampered[88] = (tampered[88] as number) ^ 1;
-    expect(() => parseSignedCompactTextInnerV2(tampered, [sender])).toThrow(
-      "invalid-signature",
-    );
+    const fillSpy = vi.spyOn(Uint8Array.prototype, "fill");
+    try {
+      expect(() => parseSignedCompactTextInnerV2(tampered, [sender])).toThrow(
+        "invalid-signature",
+      );
+      expect(
+        fillSpy.mock.instances.some(
+          (instance, index) =>
+            (instance as Uint8Array).byteLength === 2 &&
+            fillSpy.mock.calls[index]?.[0] === 0,
+        ),
+      ).toBe(true);
+    } finally {
+      fillSpy.mockRestore();
+    }
+  });
+
+  it("wipes request entropy and signing secret when validation fails before signing", () => {
+    const signingSecretKey = Uint8Array.from(senderIdentity.signingSecretKey);
+    const signatureEntropy = bytes(32, 0x63);
+    const fillSpy = vi.spyOn(Uint8Array.prototype, "fill");
+    try {
+      expect(() =>
+        encodeSignedCompactTextInnerV2({
+          senderFingerprint: sender.fingerprint,
+          signingSecretKey,
+          recipientId: recipient.identityId,
+          messageId: bytes(16, 0x64),
+          sentAt: -1n,
+          createdAt: 2n,
+          originalUtf8Length: 0,
+          storedPayload: new Uint8Array(),
+          signatureEntropy,
+        }),
+      ).toThrow("impossible-length");
+      expect(
+        fillSpy.mock.instances.some(
+          (instance, index) =>
+            (instance as Uint8Array).byteLength === 4_715 &&
+            fillSpy.mock.calls[index]?.[0] === 0,
+        ),
+      ).toBe(true);
+    } finally {
+      fillSpy.mockRestore();
+    }
+    expect(signingSecretKey.every((byte) => byte === 0)).toBe(true);
+    expect(signatureEntropy.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("wipes production signature entropy before signing, after signing, and on success", async () => {
+    const deterministicKem = {
+      encapsulate: (publicKey: Uint8Array) =>
+        mlKem1024Encapsulate(publicKey, bytes(32, 0x65)),
+      randomBytes: () => bytes(32, 0x66),
+    };
+    for (const scenario of ["pre-sign", "post-sign", "success"] as const) {
+      const entropy = bytes(32, 0x67);
+      const operation = encryptTextV2(
+        {
+          compact: true,
+          sender,
+          senderSigningCapability:
+            createSenderSigningCapabilityV2(senderIdentity),
+          recipient,
+          plaintext: "entropy ownership",
+          messageId: bytes(16, 0x68),
+          sentAt: scenario === "pre-sign" ? -1n : 1n,
+          createdAt: 2n,
+        },
+        {
+          kem: deterministicKem,
+          randomBytes: (length) =>
+            length === 32
+              ? entropy
+              : bytes(scenario === "post-sign" ? 11 : 12, 0x69),
+        },
+      );
+      if (scenario === "success")
+        await expect(operation).resolves.toBeDefined();
+      else await expect(operation).rejects.toThrow("impossible-length");
+      expect(entropy.every((byte) => byte === 0)).toBe(true);
+    }
   });
 
   it("encrypts/decrypts both families, binds family, and collapses wrong keys", async () => {
@@ -211,6 +316,7 @@ describe("Cat-5 signed text V2", () => {
       randomBytes: () => bytes(32, 0x72),
     };
     for (const compact of [false, true]) {
+      const plaintext = compact ? pseudoRandomText(12_000) : "full hello";
       const object = await encryptTextV2(
         {
           compact,
@@ -218,7 +324,7 @@ describe("Cat-5 signed text V2", () => {
           senderSigningCapability:
             createSenderSigningCapabilityV2(senderIdentity),
           recipient,
-          plaintext: compact ? "compact hello" : "full hello",
+          plaintext,
           messageId: bytes(16, 0x73),
           sentAt: 5n,
           createdAt: 6n,
@@ -236,16 +342,23 @@ describe("Cat-5 signed text V2", () => {
         activeIdentity: decapsulationCapability,
         knownSenders: compact ? [sender] : [],
       });
-      expect(output.plaintext).toBe(compact ? "compact hello" : "full hello");
+      expect(output.plaintext).toBe(plaintext);
       expect(output.senderContact).toEqual(sender);
       expect(
         decapsulationCapability.kemSecretKey.every((byte) => byte === 0),
       ).toBe(true);
 
-      const wrongFamily = {
+      const wrongFamilyBase = {
         ...object,
         magic: compact ? "PPXT" : "PPXM",
-      } as typeof object;
+      } as Omit<EncryptedTextObjectV2, "checksum">;
+      expect(wrongFamilyBase.ciphertextLength).toBeGreaterThanOrEqual(
+        wrongFamilyBase.magic === "PPXT" ? 13_524 : 4_731,
+      );
+      const wrongFamily = replaceChecksum(wrongFamilyBase);
+      expect(
+        parseEncryptedTextOuterV2(encodeEncryptedTextOuterV2(wrongFamily)),
+      ).toMatchObject({ magic: wrongFamilyBase.magic });
       await expect(
         decryptTextV2({
           object: wrongFamily,
@@ -254,6 +367,21 @@ describe("Cat-5 signed text V2", () => {
         }),
       ).rejects.toThrow("wrong-identity-or-corruption");
     }
+
+    const metadata = {
+      recipientFingerprint: recipient.fingerprint,
+      salt: bytes(32, 0x78),
+      mlKemCiphertext: bytes(1568, 0x79),
+      mlKemSharedSecret: bytes(32, 0x7a),
+    };
+    expect(
+      deriveMlKemKeyV2({ ...metadata, objectFamily: ObjectFamilyV2.Text }),
+    ).not.toEqual(
+      deriveMlKemKeyV2({
+        ...metadata,
+        objectFamily: ObjectFamilyV2.CompactText,
+      }),
+    );
 
     const wrong = await deriveIdentityV2FromEntropy(bytes(32, 0x75));
     const object = await encryptTextV2({
@@ -280,6 +408,41 @@ describe("Cat-5 signed text V2", () => {
         knownSenders: [],
       }),
     ).rejects.toThrow("unknown-sender-contact");
+
+    const key = decapsulateMlKemV2({
+      objectFamily: ObjectFamilyV2.CompactText,
+      activeIdentity: createDecapsulationCapabilityV2(recipientIdentity),
+      mlKemCiphertext: object.mlKemCiphertext,
+      salt: object.salt,
+    });
+    const header = encodeEncryptedTextHeaderV2(object);
+    const invalidInner = await decryptAesGcm(
+      key,
+      object.nonce,
+      object.ciphertext,
+      header,
+    );
+    invalidInner[invalidInner.length - 1] =
+      (invalidInner[invalidInner.length - 1] as number) ^ 1;
+    const invalidCiphertext = await encryptAesGcm(
+      key,
+      object.nonce,
+      invalidInner,
+      header,
+    );
+    const invalidSignatureObject = replaceChecksum({
+      ...object,
+      ciphertext: invalidCiphertext,
+    });
+    await expect(
+      decryptTextV2({
+        object: invalidSignatureObject,
+        activeIdentity: createDecapsulationCapabilityV2(recipientIdentity),
+        knownSenders: [sender],
+      }),
+    ).rejects.toThrow("wrong-identity-or-corruption");
+    key.fill(0);
+    invalidInner.fill(0);
   });
 
   it("uses meaningful plaintext gzip and enforces exact original length", async () => {

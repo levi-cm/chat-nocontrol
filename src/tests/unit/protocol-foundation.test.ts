@@ -31,6 +31,17 @@ describe("strict byte codecs", () => {
       "oversize-before-allocation",
     );
   });
+
+  it("destroys hidden writer storage without changing returned copies", () => {
+    const writer = new StrictByteWriter(4);
+    writer.writeUint32BE(0x01020304);
+    const output = writer.toBytes();
+    writer.destroy();
+    expect(writer.destroyed).toBe(true);
+    expect(output).toEqual(Uint8Array.of(1, 2, 3, 4));
+    expect(() => writer.toBytes()).toThrow("writer-destroyed");
+    expect(() => writer.writeUint8(1)).toThrow("writer-destroyed");
+  });
 });
 
 describe("canonical text codecs", () => {

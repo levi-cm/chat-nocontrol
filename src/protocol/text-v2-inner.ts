@@ -29,6 +29,7 @@ export interface ParsedSignedTextInnerV2 {
   sentAt: bigint;
   createdAt: bigint;
   originalUtf8Length: number;
+  /** Newly owned copy. Caller must zeroize after use. */
   storedPayload: Uint8Array;
 }
 
@@ -75,22 +76,29 @@ function appendSignature(
   input: CommonSignedTextInputV2,
   context: Uint8Array,
 ): Uint8Array {
-  const unsigned = writer.toBytes();
-  const entropy = Uint8Array.from(input.signatureEntropy);
+  let unsigned: Uint8Array | undefined;
+  let entropy: Uint8Array | undefined;
   try {
+    unsigned = writer.toBytes();
+    entropy = Uint8Array.from(input.signatureEntropy);
     writer.writeBytes(
       mlDsa87Sign(unsigned, input.signingSecretKey, context, entropy),
     );
     return writer.toBytes();
   } finally {
-    zeroize(unsigned, entropy, input.signatureEntropy, input.signingSecretKey);
+    if (unsigned) zeroize(unsigned);
+    if (entropy) zeroize(entropy);
+    zeroize(input.signatureEntropy, input.signingSecretKey);
+    writer.destroy();
   }
 }
 
 export function encodeSignedFullTextInnerV2(
   input: CommonSignedTextInputV2 & { senderContact: PublicContactV2 },
 ): Uint8Array {
+  // Consume and zeroize signing secret plus entropy on every path.
   let sender: Uint8Array | undefined;
+  let writer: StrictByteWriter | undefined;
   try {
     validateCommon(input);
     sender = encodePublicContactV2(input.senderContact);
@@ -102,7 +110,7 @@ export function encodeSignedFullTextInnerV2(
     ) {
       throw new PPXError("invalid-signature");
     }
-    const writer = new StrictByteWriter(
+    writer = new StrictByteWriter(
       4 +
         sender.byteLength +
         20 +
@@ -125,27 +133,31 @@ export function encodeSignedFullTextInnerV2(
     writer.writeBytes(input.storedPayload);
     return appendSignature(writer, input, FULL_CONTEXT);
   } finally {
+    if (writer) writer.destroy();
     if (sender) zeroize(sender);
-    zeroize(input.signingSecretKey);
+    zeroize(input.signatureEntropy, input.signingSecretKey);
   }
 }
 
 export function encodeSignedCompactTextInnerV2(
   input: CommonSignedTextInputV2 & { senderFingerprint: Uint8Array },
 ): Uint8Array {
+  // Consume and zeroize signing secret plus entropy on every path.
+  let writer: StrictByteWriter | undefined;
   try {
     validateCommon(input);
     if (input.senderFingerprint.byteLength !== 32) {
       throw new PPXError("impossible-length");
     }
-    const writer = new StrictByteWriter(
+    writer = new StrictByteWriter(
       PPXM_V2_EMPTY_INNER_SIZE + input.storedPayload.byteLength,
     );
     writer.writeBytes(input.senderFingerprint);
     writeCommon(writer, input);
     return appendSignature(writer, input, COMPACT_CONTEXT);
   } finally {
-    zeroize(input.signingSecretKey);
+    if (writer) writer.destroy();
+    zeroize(input.signatureEntropy, input.signingSecretKey);
   }
 }
 
@@ -175,6 +187,7 @@ function readPayloadAndVerify(
   const signature = reader.readBytes(PPX_TEXT_V2_SIGNATURE_SIZE);
   reader.requireEnd();
   const unsigned = bytes.slice(0, signatureOffset);
+  let transferred = false;
   try {
     if (
       !mlDsa87Verify(
@@ -186,7 +199,7 @@ function readPayloadAndVerify(
     ) {
       throw new PPXError("invalid-signature");
     }
-    return {
+    const output = {
       senderContact,
       recipientId,
       messageId,
@@ -195,8 +208,11 @@ function readPayloadAndVerify(
       originalUtf8Length,
       storedPayload,
     };
+    transferred = true;
+    return output;
   } finally {
     zeroize(unsigned);
+    if (!transferred) zeroize(storedPayload);
   }
 }
 

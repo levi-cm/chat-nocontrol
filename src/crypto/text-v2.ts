@@ -248,8 +248,7 @@ export async function decryptTextV2(
     if (
       error instanceof PPXError &&
       (error.code === "unknown-sender-contact" ||
-        error.code === "unsupported-compression" ||
-        error.code === "invalid-signature")
+        error.code === "unsupported-compression")
     ) {
       throw new PPXError(error.code);
     }
