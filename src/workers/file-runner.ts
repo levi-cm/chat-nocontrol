@@ -4,6 +4,10 @@ import type {
   PPXWorkerRequest,
 } from "../crypto/contracts";
 import { defaultCryptoProvider } from "../crypto/default-provider";
+import {
+  validateDecapsulationCapability,
+  zeroizeDecapsulationCapability,
+} from "../crypto/decapsulation-capability";
 import { FileOperationCancelled } from "../crypto/file";
 import { PPXError } from "../protocol/types";
 
@@ -30,6 +34,9 @@ export function createFileRunner(
     >,
   ): Promise<void> {
     if (active.has(request.requestId)) {
+      if (request.kind === "decrypt-file") {
+        zeroizeDecapsulationCapability(request.input.activeIdentity);
+      }
       emit({
         kind: "error",
         requestId: request.requestId,
@@ -65,6 +72,7 @@ export function createFileRunner(
         }
         emit({ kind: "completed", requestId: request.requestId, result });
       } else {
+        validateDecapsulationCapability(request.input.activeIdentity);
         const result = await defaultCryptoProvider.decryptFile(
           request.input,
           hooks,
@@ -88,6 +96,9 @@ export function createFileRunner(
         });
       }
     } finally {
+      if (request.kind === "decrypt-file") {
+        zeroizeDecapsulationCapability(request.input.activeIdentity);
+      }
       active.delete(request.requestId);
       cancelled.delete(request.requestId);
     }

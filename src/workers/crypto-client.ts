@@ -1,6 +1,9 @@
 import type { PPXWorkerEvent, PPXWorkerRequest } from "../crypto/contracts";
 import { zeroize } from "../crypto/zeroize";
-import { createDecapsulationCapability } from "../crypto/decapsulation-capability";
+import {
+  createDecapsulationCapability,
+  zeroizeDecapsulationCapability,
+} from "../crypto/decapsulation-capability";
 import type {
   DecryptedQrTextOutput,
   DecryptedTextOutput,
@@ -37,6 +40,10 @@ function startCryptoJob<T>(
     { kind: "cancel" | "encrypt-file" | "decrypt-file" }
   >,
 ): CryptoWorkerJob<T> {
+  const decapsulationCapability =
+    request.kind === "decrypt-text" || request.kind === "decrypt-qr-text"
+      ? request.input.activeIdentity
+      : undefined;
   let worker: Worker;
   try {
     worker = new Worker(new URL("./crypto-worker.ts", import.meta.url), {
@@ -44,6 +51,9 @@ function startCryptoJob<T>(
       name: "ppx-crypto-worker",
     });
   } catch (error) {
+    if (decapsulationCapability) {
+      zeroizeDecapsulationCapability(decapsulationCapability);
+    }
     if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }
@@ -84,6 +94,9 @@ function startCryptoJob<T>(
   } catch {
     failWorker();
   } finally {
+    if (decapsulationCapability) {
+      zeroizeDecapsulationCapability(decapsulationCapability);
+    }
     if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }

@@ -4,6 +4,10 @@ import type {
   PPXWorkerRequest,
 } from "../crypto/contracts";
 import { defaultCryptoProvider } from "../crypto/default-provider";
+import {
+  validateDecapsulationCapability,
+  zeroizeDecapsulationCapability,
+} from "../crypto/decapsulation-capability";
 import { PPXError } from "../protocol/types";
 
 export interface CryptoRunner {
@@ -37,6 +41,12 @@ export function createCryptoRunner(
         return;
       }
       if (active.has(request.requestId)) {
+        if (
+          request.kind === "decrypt-text" ||
+          request.kind === "decrypt-qr-text"
+        ) {
+          zeroizeDecapsulationCapability(request.input.activeIdentity);
+        }
         emit({
           kind: "error",
           requestId: request.requestId,
@@ -60,6 +70,7 @@ export function createCryptoRunner(
             break;
           }
           case "decrypt-text": {
+            validateDecapsulationCapability(request.input.activeIdentity);
             const result = await defaultCryptoProvider.decryptText(
               request.input,
             );
@@ -82,6 +93,7 @@ export function createCryptoRunner(
             break;
           }
           case "decrypt-qr-text": {
+            validateDecapsulationCapability(request.input.activeIdentity);
             const result = await defaultCryptoProvider.decryptQrText(
               request.input,
             );
@@ -124,6 +136,12 @@ export function createCryptoRunner(
           });
         }
       } finally {
+        if (
+          request.kind === "decrypt-text" ||
+          request.kind === "decrypt-qr-text"
+        ) {
+          zeroizeDecapsulationCapability(request.input.activeIdentity);
+        }
         active.delete(request.requestId);
         cancelled.delete(request.requestId);
       }

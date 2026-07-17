@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { defaultCryptoProvider } from "../../crypto/default-provider";
 import type { PPXWorkerEvent } from "../../crypto/contracts";
 import {
   createSenderSigningCapability,
@@ -9,6 +10,59 @@ import type { EncryptedTextObject } from "../../protocol/types";
 import { createCryptoRunner } from "../../workers/crypto-runner";
 
 describe("typed text crypto runner", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("wipes worker-owned decapsulation secrets after decrypt completion", async () => {
+    const capability = {
+      suite: 1 as const,
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      kemSecretKey: new Uint8Array(1632).fill(7),
+      x25519SecretKey: new Uint8Array(32).fill(8),
+    };
+    vi.spyOn(defaultCryptoProvider, "decryptText").mockResolvedValue(
+      {} as never,
+    );
+    const runner = createCryptoRunner(() => undefined);
+
+    await runner.handle({
+      kind: "decrypt-text",
+      requestId: "wipe-decrypt",
+      input: { object: {} as never, activeIdentity: capability },
+    });
+
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+  });
+
+  it("rejects and wipes an unsupported decapsulation suite at the worker boundary", async () => {
+    const events: PPXWorkerEvent[] = [];
+    const capability = {
+      suite: 2,
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      kemSecretKey: new Uint8Array(1632).fill(7),
+      x25519SecretKey: new Uint8Array(32).fill(8),
+    };
+    const decrypt = vi.spyOn(defaultCryptoProvider, "decryptText");
+    const runner = createCryptoRunner((event) => events.push(event));
+
+    await runner.handle({
+      kind: "decrypt-text",
+      requestId: "unsupported-suite",
+      input: { object: {} as never, activeIdentity: capability as never },
+    });
+
+    expect(decrypt).not.toHaveBeenCalled();
+    expect(events).toContainEqual({
+      kind: "error",
+      requestId: "unsupported-suite",
+      code: "unknown-suite",
+    });
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
+    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+  });
+
   it("encrypts and decrypts text through authoritative worker requests", async () => {
     const alice = await deriveIdentityFromEntropy(
       new Uint8Array(32).fill(81),

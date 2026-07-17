@@ -7,7 +7,10 @@ import type {
 } from "../protocol/types";
 import { PPXError } from "../protocol/types";
 import { zeroize } from "../crypto/zeroize";
-import { createDecapsulationCapability } from "../crypto/decapsulation-capability";
+import {
+  createDecapsulationCapability,
+  zeroizeDecapsulationCapability,
+} from "../crypto/decapsulation-capability";
 
 type ProgressEvent = Extract<PPXWorkerEvent, { kind: "progress" }>;
 
@@ -38,6 +41,8 @@ function startFileJob<T>(
     | { kind: "decrypt-file"; requestId: string; input: DecryptFileInput },
   onProgress?: (event: ProgressEvent) => void,
 ): FileWorkerJob<T> {
+  const decapsulationCapability =
+    request.kind === "decrypt-file" ? request.input.activeIdentity : undefined;
   let worker: Worker;
   try {
     worker = new Worker(new URL("./file-worker.ts", import.meta.url), {
@@ -45,6 +50,9 @@ function startFileJob<T>(
       name: "ppx-file-worker",
     });
   } catch (error) {
+    if (decapsulationCapability) {
+      zeroizeDecapsulationCapability(decapsulationCapability);
+    }
     if (request.kind === "encrypt-file") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }
@@ -106,6 +114,9 @@ function startFileJob<T>(
   } catch {
     failWorker();
   } finally {
+    if (decapsulationCapability) {
+      zeroizeDecapsulationCapability(decapsulationCapability);
+    }
     if (request.kind === "encrypt-file") {
       zeroize(request.input.senderSigningCapability.signingSecretKey);
     }

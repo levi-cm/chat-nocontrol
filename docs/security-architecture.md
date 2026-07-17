@@ -525,6 +525,7 @@ export interface SenderSigningCapability {
 }
 
 export interface DecapsulationCapability {
+  suite: 0x01;
   fingerprint: Uint8Array; // 32 bytes
   identityId: Uint8Array; // 20 bytes
   kemSecretKey: Uint8Array; // ML-KEM-512 secret key
@@ -789,7 +790,11 @@ The PPXQ request and result types are defined by
 [protocol-qr-message-v1.md](protocol-qr-message-v1.md). Decrypt clients must
 construct a fresh `DecapsulationCapability` before `postMessage`; workers must
 never receive `masterEntropy` or `signingSecretKey` for text, QR-text, or file
-decryption.
+decryption. Both client and worker boundaries reject any capability whose suite
+is not `0x01`. After the browser synchronously clones a decrypt request, the
+client wipes its request-owned ML-KEM and X25519 secret-key copies, including on
+worker-construction or `postMessage` failure. The worker owns the received clone
+and wipes both secret keys in `finally` after success, error, or cancellation.
 
 `EncryptedFileBlobOutput` is the bounded-memory worker transport for encrypted
 files. `DecryptFileInput.object` accepts a `Blob` so a worker can perform a
