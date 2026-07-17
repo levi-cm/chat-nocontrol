@@ -3,7 +3,10 @@ import {
   createSenderSigningCapabilityV2,
   deriveIdentityV2FromEntropy,
 } from "../../crypto/identity-v2";
-import { createPublicContactV2 } from "../../protocol/ppxc-v2";
+import {
+  createPublicContactV2,
+  encodePublicContactV2,
+} from "../../protocol/ppxc-v2";
 import {
   createFileManifestV2,
   encodeFileManifestV2,
@@ -60,10 +63,11 @@ describe("PPXF Cat-5 signed terminal manifest", () => {
 
   it("rejects signature, version, suite, recipient, and digest mutation", () => {
     const encoded = encodeFileManifestV2(create(0xa8));
+    const recipientOffset = 12 + encodePublicContactV2(contact).byteLength;
     for (const offset of [
       4,
       5,
-      20,
+      recipientOffset,
       encoded.length - 4628,
       encoded.length - 1,
     ]) {

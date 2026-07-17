@@ -1,20 +1,28 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   createDecapsulationCapabilityV2,
   createSenderSigningCapabilityV2,
   deriveIdentityV2FromEntropy,
 } from "../../crypto/identity-v2";
 import {
+  createFileRecordAadV2,
+  createFileRecordNonceV2,
   decryptFileV2,
   encryptFileV2,
   FileOperationCancelledV2,
 } from "../../crypto/file-v2";
+import { deriveMlKemKeyV2 } from "../../crypto/kem-v2";
+import { mlKem1024Encapsulate } from "../../crypto/pq-provider-v2";
+import { decryptAesGcm, encryptAesGcm } from "../../crypto/webcrypto";
+import { zeroize } from "../../crypto/zeroize";
+import { hashFileHeaderV2 } from "../../protocol/ppxf-header-v2";
 import { calculateEncryptedFileChecksumV2 } from "../../protocol/ppxf-v2";
 import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 import type {
   DerivedIdentityV2,
   PublicContactV2,
 } from "../../protocol/types-v2";
+import { ObjectFamilyV2 } from "../../protocol/types-v2";
 
 const fill = (length: number, value: number) =>
   new Uint8Array(length).fill(value);
@@ -36,6 +44,8 @@ describe("PPXF Cat-5 V2 file cryptography", () => {
       fill(32, 0x94),
     );
   });
+
+  afterEach(() => vi.unstubAllGlobals());
 
   const encrypt = (plaintext: Uint8Array, isCancelled?: () => boolean) =>
     encryptFileV2(
@@ -117,6 +127,106 @@ describe("PPXF Cat-5 V2 file cryptography", () => {
     ).rejects.toThrow("wrong-identity-or-corruption");
   });
 
+  it("authenticates the complete header as AES-GCM AAD", async () => {
+    const object = await encrypt(Uint8Array.of(1, 2, 3));
+    object.header.recipientId[0] = (object.header.recipientId[0] as number) ^ 1;
+    object.checksum = calculateEncryptedFileChecksumV2(object);
+    await expect(
+      decryptFileV2({
+        object,
+        activeIdentity: createDecapsulationCapabilityV2(recipientIdentity),
+      }),
+    ).rejects.toThrow("wrong-identity-or-corruption");
+  });
+
+  it("rejects ciphertext derived under a non-File object family", async () => {
+    const kemRandomness = fill(32, 0xd1);
+    const kemSalt = fill(32, 0xd2);
+    let sharedSecret: Uint8Array | undefined;
+    const object = await encryptFileV2(
+      {
+        sender,
+        senderSigningCapability:
+          createSenderSigningCapabilityV2(senderIdentity),
+        recipient,
+        file: new Blob(),
+        filename: "empty.bin",
+        mimeHint: "application/octet-stream",
+        caption: "",
+        fileLength: 0n,
+      },
+      undefined,
+      {
+        kem: {
+          encapsulate: (publicKey) => {
+            const result = mlKem1024Encapsulate(publicKey, kemRandomness);
+            sharedSecret = Uint8Array.from(result.sharedSecret);
+            return result;
+          },
+          randomBytes: () => Uint8Array.from(kemSalt),
+        },
+        randomBytes: (length) => fill(length, length === 8 ? 0xd3 : 0xd4),
+      },
+    );
+    if (!sharedSecret) throw new Error("test KEM did not expose shared secret");
+    const capturedSharedSecret = sharedSecret;
+    const common = {
+      recipientFingerprint: recipient.fingerprint,
+      salt: object.header.salt,
+      mlKemCiphertext: object.header.mlKemCiphertext,
+      mlKemSharedSecret: capturedSharedSecret,
+    };
+    const fileKey = deriveMlKemKeyV2({
+      ...common,
+      objectFamily: ObjectFamilyV2.File,
+    });
+    const textKey = deriveMlKemKeyV2({
+      ...common,
+      objectFamily: ObjectFamilyV2.Text,
+    });
+    const headerHash = hashFileHeaderV2(object.header);
+    const nonce = createFileRecordNonceV2(
+      object.header.noncePrefix,
+      0xffff_ffff,
+    );
+    const aad = createFileRecordAadV2(
+      headerHash,
+      0xffff_ffff,
+      object.manifest.plaintextLength,
+      object.header.declaredChunkCount,
+      object.header.totalFileLength,
+    );
+    const plaintext = await decryptAesGcm(
+      fileKey,
+      nonce,
+      object.manifest.ciphertext,
+      aad,
+    );
+    object.manifest.ciphertext = await encryptAesGcm(
+      textKey,
+      nonce,
+      plaintext,
+      aad,
+    );
+    object.checksum = calculateEncryptedFileChecksumV2(object);
+    zeroize(
+      capturedSharedSecret,
+      fileKey,
+      textKey,
+      headerHash,
+      nonce,
+      aad,
+      plaintext,
+    );
+
+    await expect(
+      decryptFileV2({
+        object,
+        activeIdentity: createDecapsulationCapabilityV2(recipientIdentity),
+      }),
+    ).rejects.toThrow("wrong-identity-or-corruption");
+  });
+
   it("rejects wrong recipient without releasing a file", async () => {
     const object = await encrypt(Uint8Array.of(1, 2, 3));
     const wrong = await deriveIdentityV2FromEntropy(fill(32, 0x96));
@@ -185,5 +295,65 @@ describe("PPXF Cat-5 V2 file cryptography", () => {
       ),
     ).rejects.toBeInstanceOf(FileOperationCancelledV2);
     expect(capability.signingSecretKey).toEqual(new Uint8Array(4896));
+  });
+
+  it("cancels decryption without constructing immutable plaintext", async () => {
+    const object = await encrypt(new Uint8Array(1_048_577).fill(7));
+    const OriginalBlob = Blob;
+    let constructedBlobs = 0;
+    class ObservedBlob extends OriginalBlob {
+      constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        constructedBlobs += 1;
+      }
+    }
+    vi.stubGlobal("Blob", ObservedBlob);
+    let cancelled = false;
+    const retained: number[] = [];
+    const capability = createDecapsulationCapabilityV2(recipientIdentity);
+    await expect(
+      decryptFileV2(
+        { object, activeIdentity: capability },
+        {
+          isCancelled: () => cancelled,
+          onProgress: ({ stage }) => {
+            if (stage === "decrypt") cancelled = true;
+          },
+          onPlaintextRetained: (bytes) => retained.push(bytes),
+        },
+      ),
+    ).rejects.toBeInstanceOf(FileOperationCancelledV2);
+    expect(constructedBlobs).toBe(0);
+    expect(retained.at(-1)).toBe(0);
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(3168));
+  });
+
+  it("uses a private ciphertext snapshot across verify and release passes", async () => {
+    const plaintext = Uint8Array.of(4, 5, 6);
+    const object = await encrypt(plaintext);
+    let firstPassComplete = false;
+    let mutated = false;
+    const outputPromise = decryptFileV2(
+      {
+        object,
+        activeIdentity: createDecapsulationCapabilityV2(recipientIdentity),
+      },
+      {
+        onProgress: ({ stage }) => {
+          if (stage === "decrypt") firstPassComplete = true;
+        },
+        isCancelled: () => {
+          if (firstPassComplete && !mutated) {
+            object.chunks[0]!.ciphertext[0] =
+              (object.chunks[0]!.ciphertext[0] as number) ^ 1;
+            mutated = true;
+          }
+          return false;
+        },
+      },
+    );
+    await expect(outputPromise).resolves.toBeDefined();
+    const output = await outputPromise;
+    expect(new Uint8Array(await output.blob.arrayBuffer())).toEqual(plaintext);
   });
 });
