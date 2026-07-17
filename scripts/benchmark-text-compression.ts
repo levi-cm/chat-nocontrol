@@ -3,12 +3,13 @@ import { performance } from "node:perf_hooks";
 
 import type { PPXWorkerEvent } from "../src/crypto/contracts";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../src/crypto/identity";
+  createDecapsulationCapabilityV2,
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../src/crypto/identity-v2";
 import { gzipBytes, gunzipBytesBounded } from "../src/crypto/text-compression";
-import { createPublicContact } from "../src/protocol/ppxc";
-import type { EncryptedTextObject } from "../src/protocol/types";
+import { createPublicContactV2 } from "../src/protocol/ppxc-v2";
+import type { EncryptedTextObjectV2 } from "../src/protocol/types-v2";
 import { createCryptoRunner } from "../src/workers/crypto-runner";
 
 const encoder = new TextEncoder();
@@ -38,11 +39,11 @@ function percentile95(values: number[]): number {
 }
 
 async function workerRoundTrip(plaintext: string, iteration: number) {
-  const alice = await deriveIdentityFromEntropy(
+  const alice = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(71),
     "Alice",
   );
-  const bob = await deriveIdentityFromEntropy(
+  const bob = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(72),
     "Bob",
   );
@@ -53,9 +54,10 @@ async function workerRoundTrip(plaintext: string, iteration: number) {
     kind: "encrypt-text",
     requestId: `encrypt-${iteration}`,
     input: {
-      sender: createPublicContact(alice, "Alice", 1n),
-      senderSigningCapability: createSenderSigningCapability(alice),
-      recipient: createPublicContact(bob, "Bob", 2n),
+      compact: false,
+      sender: createPublicContactV2(alice, "Alice", 1n),
+      senderSigningCapability: createSenderSigningCapabilityV2(alice),
+      recipient: createPublicContactV2(bob, "Bob", 2n),
       plaintext,
       messageId: new Uint8Array(16).fill(iteration),
       sentAt: 3n,
@@ -73,12 +75,16 @@ async function workerRoundTrip(plaintext: string, iteration: number) {
   ) {
     throw new Error("worker encryption did not complete");
   }
-  const object = encryptedEvent.result as EncryptedTextObject;
+  const object = encryptedEvent.result as EncryptedTextObjectV2;
   const decryptStarted = performance.now();
   await runner.handle({
     kind: "decrypt-text",
     requestId: `decrypt-${iteration}`,
-    input: { object, activeIdentity: bob },
+    input: {
+      object,
+      activeIdentity: createDecapsulationCapabilityV2(bob),
+      knownSenders: [],
+    },
   });
   const decryptMs = performance.now() - decryptStarted;
   const decryptedEvent = events.find(

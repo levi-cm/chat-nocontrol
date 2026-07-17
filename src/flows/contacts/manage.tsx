@@ -8,12 +8,13 @@ import {
 import { TextField } from "../../components/forms/text-field";
 import { PasteButton } from "../../components/forms/paste-button";
 import { ConfirmationDialog } from "../../components/dialogs/confirmation";
-import { QrImport } from "../../components/qr/import";
-import { defaultCryptoProvider } from "../../crypto/default-provider";
-import { zeroize } from "../../crypto/zeroize";
 import type { MessageKey } from "../../i18n";
-import { encodePublicContactQr, PPXC_MAXIMUM_SIZE } from "../../protocol/ppxc";
-import { classifyQrPayload } from "../decrypt/classify";
+import {
+  encodePublicContactV2Text,
+  parsePublicContactV2Text,
+  PPXC_V2_MAXIMUM_BASE45_CHARS,
+  PPXC_V2_TEXT_PREFIX,
+} from "../../protocol/ppxc-v2";
 
 function fingerprintId(value: Uint8Array): string {
   return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -23,13 +24,12 @@ export function ContactsManage({
   t,
   contacts,
   onChange,
-  readContactFileBytes = (file) =>
-    file.arrayBuffer().then((buffer) => new Uint8Array(buffer)),
+  readContactFileText = (file) => file.text(),
 }: {
   t: (key: MessageKey) => string;
   contacts: ManagedContact[];
   onChange: (mutation: ContactSaveMutation) => Promise<boolean> | boolean;
-  readContactFileBytes?: (file: File) => Promise<Uint8Array>;
+  readContactFileText?: (file: File) => Promise<string>;
 }) {
   const [payload, setPayload] = useState("");
   const [nickname, setNickname] = useState("");
@@ -57,29 +57,6 @@ export function ContactsManage({
     setStatus("");
   };
 
-  const acceptScannedPayload = (value: string) => {
-    let classified: ReturnType<typeof classifyQrPayload> | undefined;
-    try {
-      classified = classifyQrPayload(value);
-      if (classified.kind !== "public-contact") {
-        importGeneration.current += 1;
-        setPayload("");
-        setSelectedContactFile("");
-        setStatus("");
-        setError(t("privateQrRejected"));
-        return;
-      }
-      acceptPayload(value);
-    } catch {
-      setPayload("");
-      setSelectedContactFile("");
-      setStatus("");
-      setError(t("invalidContact"));
-    } finally {
-      if (classified) zeroize(classified.payload);
-    }
-  };
-
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return contacts;
@@ -97,19 +74,8 @@ export function ContactsManage({
     setBusy(true);
     setError("");
     setStatus("");
-    let classified: ReturnType<typeof classifyQrPayload> | undefined;
-    let privatePayload = false;
     try {
-      classified = classifyQrPayload(payload.trim());
-      if (classified.kind !== "public-contact") {
-        privatePayload = true;
-        setPayload("");
-        setSelectedContactFile("");
-        throw new Error("not contact");
-      }
-      const contact = defaultCryptoProvider.parsePublicContact(
-        classified.payload,
-      );
+      const contact = parsePublicContactV2Text(payload.trim());
       const id = fingerprintId(contact.fingerprint);
       const existingIndex = contacts.findIndex(
         (item) => fingerprintId(item.contact.fingerprint) === id,
@@ -145,9 +111,8 @@ export function ContactsManage({
       setSelectedContactFile("");
       setNickname("");
     } catch {
-      setError(t(privatePayload ? "privateQrRejected" : "invalidContact"));
+      setError(t("invalidContact"));
     } finally {
-      if (classified) zeroize(classified.payload);
       setBusy(false);
     }
   };
@@ -164,12 +129,17 @@ export function ContactsManage({
     setStatus("");
     setReadingFile(true);
     try {
-      if (file.size > PPXC_MAXIMUM_SIZE) throw new Error("oversize contact");
-      const contact = defaultCryptoProvider.parsePublicContact(
-        await readContactFileBytes(file),
+      if (
+        file.size >
+        PPXC_V2_TEXT_PREFIX.length + PPXC_V2_MAXIMUM_BASE45_CHARS
+      ) {
+        throw new Error("oversize contact");
+      }
+      const contact = parsePublicContactV2Text(
+        (await readContactFileText(file)).trim(),
       );
       if (importGeneration.current !== generation) return;
-      setPayload(encodePublicContactQr(contact));
+      setPayload(encodePublicContactV2Text(contact));
       setSelectedContactFile(file.name);
     } catch {
       if (importGeneration.current === generation) {
@@ -183,7 +153,21 @@ export function ContactsManage({
 
   return (
     <section class="contacts-workspace">
-      <div class="flow-panel contact-import-panel">
+      <div
+        class="flow-panel contact-import-panel"
+        data-testid="contact-import-drop-zone"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          const droppedFile = event.dataTransfer?.files.item(0) ?? null;
+          if (droppedFile) {
+            void importContactFile(droppedFile);
+            return;
+          }
+          const droppedText = event.dataTransfer?.getData("text/plain") ?? "";
+          if (droppedText.trim() !== "") acceptPayload(droppedText);
+        }}
+      >
         <h1>{t("contactsTitle")}</h1>
         <div class="field">
           <div class="field-heading">
@@ -221,13 +205,12 @@ export function ContactsManage({
           <input
             id="contact-file"
             type="file"
-            accept=".ppxcontact,application/x-ppx-contact"
+            accept=".ppxcontact,application/x-ppx-contact,text/plain"
             onChange={(event) =>
               void importContactFile(event.currentTarget.files?.[0])
             }
           />
         </div>
-        <QrImport idPrefix="contact" t={t} onDecoded={acceptScannedPayload} />
         <button
           class="button primary"
           type="button"

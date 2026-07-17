@@ -1,16 +1,12 @@
-import { QrView } from "../qr/qr-view";
-import { downloadBlob, downloadDataUrl } from "../media/blob-url";
-import { generateQrDataUrl } from "../qr/generate";
+import { useRef } from "preact/hooks";
+import { downloadBlob } from "../media/blob-url";
 
 interface PublicContactCardProps {
   pseudonym: string;
-  qrText: string;
+  contactText: string;
   authorityLabel: string;
   title: string;
-  qrLabel: string;
-  qrDownloadLabel: string;
-  enlargeQrLabel?: string;
-  closeQrLabel?: string;
+  copyLabel: string;
   helper?: string;
   formatHint?: string;
   fileBytes?: Uint8Array;
@@ -43,13 +39,10 @@ export function formatIdentityId(identityId: Uint8Array): string {
 
 export function PublicContactCard({
   pseudonym,
-  qrText,
+  contactText,
   authorityLabel,
   title,
-  qrLabel,
-  qrDownloadLabel,
-  enlargeQrLabel,
-  closeQrLabel,
+  copyLabel,
   helper,
   formatHint,
   fileBytes,
@@ -60,6 +53,7 @@ export function PublicContactCard({
   fingerprintLabel,
   fingerprintGuidance,
 }: PublicContactCardProps) {
+  const text = useRef<HTMLTextAreaElement>(null);
   const download = () => {
     if (!fileBytes) return;
     const safeName = pseudonym.replace(/[^\p{L}\p{N}._-]+/gu, "-");
@@ -70,12 +64,13 @@ export function PublicContactCard({
       `chat-nocontrol-${safeName}.ppxcontact`,
     );
   };
-  const downloadQr = async () => {
-    const safeName = pseudonym.replace(/[^\p{L}\p{N}._-]+/gu, "-");
-    downloadDataUrl(
-      await generateQrDataUrl(qrText),
-      `chat-nocontrol-${safeName}-contact-qr.png`,
-    );
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(contactText);
+    } catch {
+      text.current?.focus();
+      text.current?.select();
+    }
   };
 
   return (
@@ -97,20 +92,20 @@ export function PublicContactCard({
         </code>
       </details>
       {formatHint && <p class="card-format">{formatHint}</p>}
-      <QrView
-        text={qrText}
-        label={qrLabel}
-        enlargeLabel={enlargeQrLabel}
-        closeLabel={closeQrLabel}
+      <textarea
+        ref={text}
+        class="field-control mono-output"
+        rows={6}
+        readOnly
+        value={contactText}
       />
       <button
-        class="button secondary qr-download"
+        class="button secondary"
         type="button"
-        onClick={() => void downloadQr()}
+        onClick={() => void copy()}
       >
-        {qrDownloadLabel}
+        {copyLabel}
       </button>
-      <code class="qr-fallback">{qrText}</code>
       {fileBytes && downloadLabel && (
         <button class="button secondary" type="button" onClick={download}>
           {downloadLabel}

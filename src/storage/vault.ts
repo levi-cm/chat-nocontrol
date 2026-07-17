@@ -1,9 +1,9 @@
-import type { LockedVaultObject } from "../protocol/types";
-import type { PpxDatabase } from "./db";
+import type { LockedVaultObjectV2 } from "../protocol/types-v2";
+import type { PpxDatabase, StoredVaultObject } from "./db";
 
 export async function putVault(
   db: PpxDatabase,
-  vault: LockedVaultObject,
+  vault: LockedVaultObjectV2,
 ): Promise<"active"> {
   await db.put("vaults", vault, "active");
   return "active";
@@ -11,9 +11,8 @@ export async function putVault(
 
 export function getVault(
   db: PpxDatabase,
-): Promise<LockedVaultObject | undefined> {
-  // Runtime remains V1 until Cat-5 UI cutover. V2 reads use dedicated APIs.
-  return db.get("vaults", "active") as Promise<LockedVaultObject | undefined>;
+): Promise<StoredVaultObject | undefined> {
+  return db.get("vaults", "active");
 }
 
 export function deleteVault(db: PpxDatabase): Promise<void> {

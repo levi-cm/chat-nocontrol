@@ -2,12 +2,12 @@ import { render } from "preact";
 import { registerServiceWorker } from "./app/bootstrap";
 import { AppRoot } from "./app/root";
 import { runtimeSupportForBuild } from "./app/runtime-support";
-import { captureIncomingMessageIntent } from "./protocol/message-link";
+import { captureIncomingMessageIntentV2 } from "./protocol/message-link-v2";
 import "./styles.css";
 
 const initialIncomingIntent = (() => {
   const url = new URL(window.location.href);
-  return captureIncomingMessageIntent(
+  return captureIncomingMessageIntentV2(
     {
       pathname: url.pathname,
       search: url.search,

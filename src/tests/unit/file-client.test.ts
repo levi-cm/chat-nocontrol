@@ -1,18 +1,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PPXWorkerRequest } from "../../crypto/contracts";
-import type { DecryptFileInput } from "../../protocol/types";
+import * as capabilityModule from "../../crypto/capability-v2";
+import type { PPXFileWorkerRequest } from "../../crypto/contracts";
+import type { DecryptFileSourceInputV2 } from "../../crypto/file-v2";
+import type { DecapsulationCapabilityV2 } from "../../protocol/types-v2";
 import {
   FileWorkerCancelled,
   startDecryptFileJob,
 } from "../../workers/file-client";
-import * as capabilityModule from "../../crypto/decapsulation-capability";
+
+function decapsulationCapability(value = 7): DecapsulationCapabilityV2 {
+  return {
+    suite: 0x02,
+    fingerprint: new Uint8Array(32).fill(1),
+    identityId: new Uint8Array(20).fill(2),
+    kemSecretKey: new Uint8Array(3168).fill(value),
+  };
+}
+
+function decryptInput(
+  activeIdentity: DecapsulationCapabilityV2,
+): DecryptFileSourceInputV2 {
+  return { object: new Blob(), activeIdentity };
+}
 
 class AuthoritativeCancelWorker extends EventTarget {
-  readonly requests: PPXWorkerRequest[] = [];
-  readonly requestCopies: PPXWorkerRequest[] = [];
+  readonly requests: PPXFileWorkerRequest[] = [];
+  readonly requestCopies: PPXFileWorkerRequest[] = [];
   terminated = false;
 
-  postMessage(request: PPXWorkerRequest): void {
+  postMessage(request: PPXFileWorkerRequest): void {
     this.requests.push(request);
     this.requestCopies.push(structuredClone(request));
     if (request.kind === "cancel") {
@@ -36,8 +52,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("file worker client cancellation", () => {
-  it("sends only decapsulation authority to the decrypt worker", () => {
+describe("Cat-5 V2 file worker client", () => {
+  it("clones only ML-KEM decapsulation authority into a PPXF request", () => {
     const workers: AuthoritativeCancelWorker[] = [];
     vi.stubGlobal(
       "Worker",
@@ -49,19 +65,12 @@ describe("file worker client cancellation", () => {
       },
     );
     const activeIdentity = {
-      suite: 1,
-      masterEntropy: new Uint8Array([1]),
-      signingSecretKey: new Uint8Array([2]),
-      kemSecretKey: new Uint8Array([3]),
-      x25519SecretKey: new Uint8Array([4]),
-      fingerprint: new Uint8Array([5]),
-      identityId: new Uint8Array([6]),
+      ...decapsulationCapability(),
+      masterEntropy: new Uint8Array([3]),
+      signingSecretKey: new Uint8Array([4]),
     };
 
-    const job = startDecryptFileJob({
-      object: {},
-      activeIdentity,
-    } as unknown as DecryptFileInput);
+    const job = startDecryptFileJob(decryptInput(activeIdentity));
     const posted = workers[0]?.requestCopies[0];
     if (posted?.kind !== "decrypt-file") {
       throw new Error("expected decrypt request");
@@ -72,22 +81,26 @@ describe("file worker client cancellation", () => {
       "identityId",
       "kemSecretKey",
       "suite",
-      "x25519SecretKey",
     ]);
     expect(posted.input.activeIdentity).not.toBe(activeIdentity);
+    expect(posted.input.activeIdentity).not.toHaveProperty("masterEntropy");
+    expect(posted.input.activeIdentity).not.toHaveProperty("signingSecretKey");
     const requestOwned = workers[0]?.requests[0];
     if (requestOwned?.kind !== "decrypt-file") {
       throw new Error("expected request-owned decrypt authority");
     }
     expect(requestOwned.input.activeIdentity.kemSecretKey).toEqual(
-      new Uint8Array([0]),
+      new Uint8Array(3168),
     );
-    expect([...posted.input.activeIdentity.kemSecretKey]).toEqual([3]);
+    expect([...posted.input.activeIdentity.kemSecretKey]).toEqual(
+      Array(3168).fill(7),
+    );
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
     job.cancel();
     void job.promise.catch(() => undefined);
   });
 
-  it("waits for the authoritative cancelled event before termination", async () => {
+  it("waits for authoritative cancelled event before termination", async () => {
     const workers: AuthoritativeCancelWorker[] = [];
     vi.stubGlobal(
       "Worker",
@@ -98,16 +111,7 @@ describe("file worker client cancellation", () => {
         }
       },
     );
-    const job = startDecryptFileJob({
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array(32),
-        identityId: new Uint8Array(20),
-        kemSecretKey: new Uint8Array(1632),
-        x25519SecretKey: new Uint8Array(32),
-      },
-    } as DecryptFileInput);
+    const job = startDecryptFileJob(decryptInput(decapsulationCapability()));
     const worker = workers[0];
     expect(worker).toBeDefined();
 
@@ -122,11 +126,11 @@ describe("file worker client cancellation", () => {
   });
 
   it("wipes request-owned authority when postMessage fails", async () => {
-    let captured: PPXWorkerRequest | undefined;
+    let captured: PPXFileWorkerRequest | undefined;
     vi.stubGlobal(
       "Worker",
       class extends EventTarget {
-        postMessage(request: PPXWorkerRequest): void {
+        postMessage(request: PPXFileWorkerRequest): void {
           captured = request;
           throw new Error("post failed");
         }
@@ -134,28 +138,16 @@ describe("file worker client cancellation", () => {
       },
     );
 
-    const job = startDecryptFileJob({
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array([1]),
-        identityId: new Uint8Array([2]),
-        kemSecretKey: new Uint8Array([3]),
-        x25519SecretKey: new Uint8Array([4]),
-      },
-    } as DecryptFileInput);
+    const job = startDecryptFileJob(decryptInput(decapsulationCapability()));
     await expect(job.promise).rejects.toThrow("wrong-identity-or-corruption");
     if (captured?.kind !== "decrypt-file") throw new Error("missing request");
     expect(captured.input.activeIdentity.kemSecretKey).toEqual(
-      new Uint8Array([0]),
-    );
-    expect(captured.input.activeIdentity.x25519SecretKey).toEqual(
-      new Uint8Array([0]),
+      new Uint8Array(3168),
     );
   });
 
   it("wipes request-owned authority when Worker construction fails", () => {
-    const wipe = vi.spyOn(capabilityModule, "zeroizeDecapsulationCapability");
+    const wipe = vi.spyOn(capabilityModule, "zeroizeDecapsulationCapabilityV2");
     vi.stubGlobal(
       "Worker",
       class {
@@ -164,28 +156,22 @@ describe("file worker client cancellation", () => {
         }
       },
     );
-    const activeIdentity = {
-      suite: 1 as const,
-      fingerprint: new Uint8Array([1]),
-      identityId: new Uint8Array([2]),
-      kemSecretKey: new Uint8Array([3]),
-      x25519SecretKey: new Uint8Array([4]),
-    };
+    const activeIdentity = decapsulationCapability();
 
-    expect(() =>
-      startDecryptFileJob({ object: {}, activeIdentity } as DecryptFileInput),
-    ).toThrow("constructor failed");
+    expect(() => startDecryptFileJob(decryptInput(activeIdentity))).toThrow(
+      "constructor failed",
+    );
     expect(wipe).toHaveBeenCalledOnce();
-    expect(wipe.mock.calls[0]?.[0].kemSecretKey).toEqual(new Uint8Array([0]));
-    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array([3]));
+    expect(wipe.mock.calls[0]?.[0].kemSecretKey).toEqual(new Uint8Array(3168));
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
   });
 
-  it("wipes request-owned authority after a successful decrypt", async () => {
-    let captured: PPXWorkerRequest | undefined;
+  it("wipes request-owned authority immediately after a successful post", async () => {
+    let captured: PPXFileWorkerRequest | undefined;
     vi.stubGlobal(
       "Worker",
       class extends EventTarget {
-        postMessage(request: PPXWorkerRequest): void {
+        postMessage(request: PPXFileWorkerRequest): void {
           captured = request;
           queueMicrotask(() => {
             this.dispatchEvent(
@@ -203,23 +189,11 @@ describe("file worker client cancellation", () => {
       },
     );
 
-    const job = startDecryptFileJob({
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array([1]),
-        identityId: new Uint8Array([2]),
-        kemSecretKey: new Uint8Array([3]),
-        x25519SecretKey: new Uint8Array([4]),
-      },
-    } as DecryptFileInput);
+    const job = startDecryptFileJob(decryptInput(decapsulationCapability()));
     await expect(job.promise).resolves.toMatchObject({ filename: "done" });
     if (captured?.kind !== "decrypt-file") throw new Error("missing request");
     expect(captured.input.activeIdentity.kemSecretKey).toEqual(
-      new Uint8Array([0]),
-    );
-    expect(captured.input.activeIdentity.x25519SecretKey).toEqual(
-      new Uint8Array([0]),
+      new Uint8Array(3168),
     );
   });
 });

@@ -29,6 +29,30 @@ const labels: Partial<Record<MessageKey, string>> = {
 afterEach(cleanup);
 
 describe("private-file selection ownership", () => {
+  it("rejects a legacy V1 private recovery file before selection", async () => {
+    render(
+      <IdentityImport
+        t={(key) => labels[key] ?? key}
+        onBack={vi.fn()}
+        onReady={vi.fn()}
+      />,
+    );
+
+    await userEvent.upload(
+      screen.getByLabelText("Private recovery file"),
+      new File(
+        [Uint8Array.of(0x50, 0x50, 0x58, 0x52, 0x01)],
+        "v1.ppxrecovery",
+        {
+          type: "application/x-ppx-recovery",
+        },
+      ),
+    );
+
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    expect(screen.queryByText("Selected file: v1.ppxrecovery")).toBeNull();
+  });
+
   it("ignores a slow stale file after a newer file wins", async () => {
     let resolveFirst: ((magic: string) => void) | undefined;
     const readMagic = vi.fn((file: File) => {
@@ -37,7 +61,7 @@ describe("private-file selection ownership", () => {
           resolveFirst = resolve;
         });
       }
-      return Promise.resolve("PPXV");
+      return Promise.resolve("PPXV\u0002\u0002");
     });
     render(
       <IdentityImport
@@ -61,7 +85,7 @@ describe("private-file selection ownership", () => {
       }),
     );
     await screen.findByText("Selected file: second.ppxvault");
-    resolveFirst?.("PPXR");
+    resolveFirst?.("PPXR\u0002\u0002");
     await waitFor(() =>
       expect(screen.queryByText("Selected file: first.ppxrecovery")).toBeNull(),
     );

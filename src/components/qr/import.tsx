@@ -3,7 +3,7 @@ import type { MessageKey } from "../../i18n";
 import { scanQrFile } from "./scan";
 import { loadZxingBrowser, type ScannerControls } from "./zxing";
 import { classifyScannedQrInWorker } from "../../workers/scan-client";
-import type { QrImportControls } from "../../storage/settings";
+type QrImportControls = "camera" | "image" | "both";
 
 interface QrScanner {
   decodeFromConstraints?(

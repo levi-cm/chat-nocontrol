@@ -9,10 +9,9 @@ import { createPublicContact } from "../../protocol/ppxc";
 import { encodeLockedVault } from "../../protocol/ppxv";
 import { encodeLockedVaultV2 } from "../../protocol/ppxv-v2";
 import type { LockedVaultObjectV2 } from "../../protocol/types-v2";
-import { listContacts, putContact } from "../../storage/contacts";
+import { contactStorageId, listContacts } from "../../storage/contacts";
 import { deletePpxDatabase, openPpxDatabase } from "../../storage/db";
 import { migrateV1VaultToV2 } from "../../storage/vault-migration-v2";
-import { putVault } from "../../storage/vault";
 
 const PASSPHRASE = "five random words make safer vaults";
 
@@ -28,6 +27,22 @@ async function legacyFixture(fill = 1) {
   };
 }
 
+async function putExactLegacyFixture(
+  db: Awaited<ReturnType<typeof openPpxDatabase>>,
+  legacy: Awaited<ReturnType<typeof legacyFixture>>,
+  withContact = false,
+) {
+  await db.put("vaults", legacy.vault, "active");
+  if (!withContact) return;
+  const contact = createPublicContact(legacy.identity, "Alice", 1_717_171_717n);
+  await db.put("contacts", {
+    id: contactStorageId(contact.fingerprint),
+    contact,
+    nickname: "Old contact",
+    includeSenderContactInLinks: true,
+  } as never);
+}
+
 describe("one-time stored V1 to V2 vault migration", () => {
   afterEach(async () => {
     await deletePpxDatabase();
@@ -36,12 +51,7 @@ describe("one-time stored V1 to V2 vault migration", () => {
   it("verifies a temporary V2 vault then atomically replaces active and clears contacts", async () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture();
-    await putVault(db, legacy.vault);
-    await putContact(
-      db,
-      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
-      "Old contact",
-    );
+    await putExactLegacyFixture(db, legacy, true);
 
     const migrated = await migrateV1VaultToV2(db, PASSPHRASE);
     const active = (await db.get("vaults", "active")) as LockedVaultObjectV2;
@@ -69,12 +79,7 @@ describe("one-time stored V1 to V2 vault migration", () => {
   it("leaves exact active V1 bytes and contacts untouched after failure", async () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture();
-    await putVault(db, legacy.vault);
-    await putContact(
-      db,
-      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
-      "Old contact",
-    );
+    await putExactLegacyFixture(db, legacy, true);
     const before = encodeLockedVault(legacy.vault);
 
     await expect(migrateV1VaultToV2(db, "wrong password")).rejects.toThrow(
@@ -92,7 +97,7 @@ describe("one-time stored V1 to V2 vault migration", () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture(1);
     const competing = await legacyFixture(2);
-    await putVault(db, legacy.vault);
+    await putExactLegacyFixture(db, legacy);
 
     await expect(
       migrateV1VaultToV2(db, PASSPHRASE, {
@@ -113,12 +118,7 @@ describe("one-time stored V1 to V2 vault migration", () => {
   it("leaves V1 and contacts untouched when the reread V2 identity does not verify", async () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture(5);
-    await putVault(db, legacy.vault);
-    await putContact(
-      db,
-      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
-      "Old contact",
-    );
+    await putExactLegacyFixture(db, legacy, true);
     const before = encodeLockedVault(legacy.vault);
     const wrong = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(9),
@@ -147,7 +147,7 @@ describe("one-time stored V1 to V2 vault migration", () => {
   it("zeroizes legacy and derived V2 secrets when candidate creation fails", async () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture(4);
-    await putVault(db, legacy.vault);
+    await putExactLegacyFixture(db, legacy);
     let derived: Awaited<ReturnType<typeof deriveIdentityV2FromEntropy>>;
 
     await expect(

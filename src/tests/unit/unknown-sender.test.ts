@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { isKnownSender } from "../../flows/decrypt";
-import { createPublicContact } from "../../protocol/ppxc";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 
 describe("unknown sender state", () => {
   it("matches fingerprints, never pseudonyms alone", async () => {
-    const alice = await deriveIdentityFromEntropy(new Uint8Array(32), "Alice");
-    const impostor = await deriveIdentityFromEntropy(
+    const alice = await deriveIdentityV2FromEntropy(
+      new Uint8Array(32),
+      "Alice",
+    );
+    const impostor = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(1),
       "Alice",
     );
-    const saved = createPublicContact(alice, "Alice", 1n);
+    const saved = createPublicContactV2(
+      alice,
+      "Alice",
+      1n,
+      new Uint8Array(32).fill(1),
+    );
     expect(
       isKnownSender(saved.fingerprint, [
         {

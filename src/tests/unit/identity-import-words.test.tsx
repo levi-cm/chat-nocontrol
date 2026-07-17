@@ -6,7 +6,10 @@ import {
   importRecoveryWords,
 } from "../../flows/identity/import";
 import { messages } from "../../i18n";
-import type { DerivedIdentity, PublicContact } from "../../protocol/types";
+import type {
+  DerivedIdentityV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 
 afterEach(() => {
   cleanup();
@@ -32,8 +35,8 @@ describe("recovery-word identity import", () => {
     const onReady =
       vi.fn<
         (
-          identity: DerivedIdentity,
-          contact: PublicContact,
+          identity: DerivedIdentityV2,
+          contact: PublicContactV2,
           importedAt?: bigint,
         ) => void
       >();
@@ -66,11 +69,11 @@ describe("recovery-word identity import", () => {
   });
 
   it("wipes imported identity secrets when handoff rejects before acceptance", async () => {
-    let rejectedIdentity: DerivedIdentity | undefined;
+    let rejectedIdentity: DerivedIdentityV2 | undefined;
     const onReady = vi.fn(
       (
-        identity: DerivedIdentity,
-        _contact: PublicContact,
+        identity: DerivedIdentityV2,
+        _contact: PublicContactV2,
         _importedAt?: bigint,
         acceptOwnership?: () => boolean,
       ) => {
@@ -99,8 +102,7 @@ describe("recovery-word identity import", () => {
 
     await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
     expect(rejectedIdentity?.masterEntropy).toEqual(new Uint8Array(32));
-    expect(rejectedIdentity?.kemSecretKey).toEqual(new Uint8Array(1632));
-    expect(rejectedIdentity?.x25519SecretKey).toEqual(new Uint8Array(32));
-    expect(rejectedIdentity?.signingSecretKey).toEqual(new Uint8Array(32));
+    expect(rejectedIdentity?.kemSecretKey).toEqual(new Uint8Array(3168));
+    expect(rejectedIdentity?.signingSecretKey).toEqual(new Uint8Array(4896));
   });
 });

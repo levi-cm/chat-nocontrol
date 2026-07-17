@@ -1,21 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
-import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+import { encodeBase45Upper } from "../../protocol/base45";
+import { encodeRecoveryObjectV2 } from "../../protocol/ppxr-v2";
 import { classifyScannedText } from "../../workers/scan-runner";
 
 describe("scan worker runner", () => {
-  it("strictly classifies a canonical contact and rejects damaged input", async () => {
-    const identity = await deriveIdentityFromEntropy(
-      new Uint8Array(32),
-      "Worker Alice",
-    );
-    const qr = encodePublicContactQr(
-      createPublicContact(identity, "Worker Alice", 1n),
-    );
-    expect(classifyScannedText(qr)).toBe("public-contact");
+  it("strictly classifies private V2 recovery and rejects damaged input", () => {
+    const bytes = encodeRecoveryObjectV2({
+      magic: "PPXR",
+      formatVersion: 2,
+      suite: 2,
+      flags: 0,
+      masterEntropy: new Uint8Array(32),
+      creationTime: 1n,
+      pseudonym: "Worker Alice",
+      checksum: new Uint8Array(16),
+    });
+    const qr = `PPX2:RECOVERY:${encodeBase45Upper(bytes)}`;
+    expect(classifyScannedText(qr)).toBe("recovery");
     expect(() => classifyScannedText(`${qr.slice(0, -1)}!`)).toThrow();
   });
 });

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { downloadBlob } from "../../components/media/blob-url";
-import { createSenderSigningCapability } from "../../crypto/identity";
+import { PPXF_V2_FILE_MAX_BYTES } from "../../protocol/ppxf-header-v2";
+import { createSenderSigningCapabilityV2 } from "../../crypto/identity-v2";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
-import { PPXF_FILE_MAX_BYTES } from "../../protocol/ppxf-header";
 import type {
-  DerivedIdentity,
-  EncryptedFileBlobOutput,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
+import type { EncryptedFileBlobOutputV2 } from "../../crypto/file-v2";
 import {
   FileWorkerCancelled,
   type FileWorkerJob,
@@ -38,9 +38,9 @@ export function EncryptFileFlow({
   onBusyChange,
 }: {
   t: (key: MessageKey) => string;
-  identity: DerivedIdentity;
-  sender: PublicContact;
-  recipient: PublicContact | null;
+  identity: DerivedIdentityV2;
+  sender: PublicContactV2;
+  recipient: PublicContactV2 | null;
   locale: Locale;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -51,7 +51,7 @@ export function EncryptFileFlow({
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [completed, setCompleted] = useState<CompletedFile | null>(null);
-  const job = useRef<FileWorkerJob<EncryptedFileBlobOutput> | null>(null);
+  const job = useRef<FileWorkerJob<EncryptedFileBlobOutputV2> | null>(null);
   const captionBytes = useMemo(
     () => new TextEncoder().encode(caption).byteLength,
     [caption],
@@ -84,7 +84,7 @@ export function EncryptFileFlow({
     setStatus("");
     setError("");
     setCompleted(null);
-    if (next && BigInt(next.size) > PPXF_FILE_MAX_BYTES) {
+    if (next && BigInt(next.size) > PPXF_V2_FILE_MAX_BYTES) {
       setFile(null);
       setError(t("fileTooLarge"));
       return;
@@ -99,7 +99,7 @@ export function EncryptFileFlow({
 
   const encrypt = async () => {
     if (!file || !recipient) return;
-    let operation: FileWorkerJob<EncryptedFileBlobOutput> | null = null;
+    let operation: FileWorkerJob<EncryptedFileBlobOutputV2> | null = null;
     setBusy(true);
     onBusyChange(true);
     setProgress({ completed: 0, total: file.size });
@@ -110,7 +110,7 @@ export function EncryptFileFlow({
       operation = startEncryptFileJob(
         {
           sender,
-          senderSigningCapability: createSenderSigningCapability(identity),
+          senderSigningCapability: createSenderSigningCapabilityV2(identity),
           recipient,
           file,
           filename: file.name,

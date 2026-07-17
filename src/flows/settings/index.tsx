@@ -2,8 +2,6 @@ import type { Locale, MessageKey } from "../../i18n";
 import type {
   AccentPreference,
   MessageOutputMode,
-  QrExportMode,
-  QrImportControls,
   ThemePreference,
 } from "../../storage/settings";
 
@@ -23,18 +21,12 @@ export function SettingsFlow({
   theme,
   accent,
   translucent,
-  messageQrCreationEnabled,
-  qrExportMode,
-  qrImportControls,
   messageOutputMode,
   autoDecryptIncomingMessages,
   onLocaleChange,
   onThemeChange,
   onAccentChange,
   onTranslucentChange,
-  onMessageQrCreationEnabledChange,
-  onQrExportModeChange,
-  onQrImportControlsChange,
   onMessageOutputModeChange,
   onAutoDecryptIncomingMessagesChange,
 }: {
@@ -43,18 +35,12 @@ export function SettingsFlow({
   theme: ThemePreference;
   accent: AccentPreference;
   translucent: boolean;
-  messageQrCreationEnabled: boolean;
-  qrExportMode: QrExportMode;
-  qrImportControls: QrImportControls;
   messageOutputMode: MessageOutputMode;
   autoDecryptIncomingMessages: boolean;
   onLocaleChange: (locale: Locale) => void;
   onThemeChange: (theme: ThemePreference) => void;
   onAccentChange: (accent: AccentPreference) => void;
   onTranslucentChange: (enabled: boolean) => void;
-  onMessageQrCreationEnabledChange: (enabled: boolean) => void;
-  onQrExportModeChange: (mode: QrExportMode) => void;
-  onQrImportControlsChange: (controls: QrImportControls) => void;
   onMessageOutputModeChange: (mode: MessageOutputMode) => void;
   onAutoDecryptIncomingMessagesChange: (enabled: boolean) => void;
 }) {
@@ -159,55 +145,6 @@ export function SettingsFlow({
               onAutoDecryptIncomingMessagesChange(event.currentTarget.checked)
             }
           />
-        </label>
-      </div>
-      <div class="settings-group">
-        <h2>{t("messageQrSettings")}</h2>
-        <label class="setting-toggle" for="settings-message-qr-creation">
-          <span>
-            <strong>{t("messageQrCreationEnabled")}</strong>
-            <small>{t("messageQrCreationEnabledHint")}</small>
-          </span>
-          <input
-            id="settings-message-qr-creation"
-            type="checkbox"
-            checked={messageQrCreationEnabled}
-            onChange={(event) =>
-              onMessageQrCreationEnabledChange(event.currentTarget.checked)
-            }
-          />
-        </label>
-        {messageQrCreationEnabled && (
-          <label class="setting-row" for="settings-qr-export">
-            <span>{t("qrExportSetting")}</span>
-            <select
-              id="settings-qr-export"
-              value={qrExportMode}
-              onChange={(event) =>
-                onQrExportModeChange(event.currentTarget.value as QrExportMode)
-              }
-            >
-              <option value="app">{t("qrExportApp")}</option>
-              <option value="link">{t("qrExportLink")}</option>
-              <option value="both">{t("qrShowBoth")}</option>
-            </select>
-          </label>
-        )}
-        <label class="setting-row" for="settings-qr-import">
-          <span>{t("qrImportSetting")}</span>
-          <select
-            id="settings-qr-import"
-            value={qrImportControls}
-            onChange={(event) =>
-              onQrImportControlsChange(
-                event.currentTarget.value as QrImportControls,
-              )
-            }
-          >
-            <option value="camera">{t("qrImportCamera")}</option>
-            <option value="image">{t("qrImportImage")}</option>
-            <option value="both">{t("qrShowBoth")}</option>
-          </select>
         </label>
       </div>
     </section>

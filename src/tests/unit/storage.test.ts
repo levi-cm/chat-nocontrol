@@ -1,8 +1,8 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
-import { lockVault } from "../../crypto/vault";
-import { createPublicContact } from "../../protocol/ppxc";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
+import { lockVaultV2 } from "../../crypto/vault-v2";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 import { deleteAllLocalData } from "../../storage/erase";
 import {
   createStorageContext,
@@ -31,14 +31,28 @@ describe("minimal PPX storage", () => {
 
   it("merges repeat keys but keeps same-pseudonym different keys separate", async () => {
     const db = await openPpxDatabase();
-    const first = await deriveIdentityFromEntropy(new Uint8Array(32), "Alice");
-    const second = await deriveIdentityFromEntropy(
+    const first = await deriveIdentityV2FromEntropy(
+      new Uint8Array(32),
+      "Alice",
+    );
+    const second = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(1),
       "Alice",
     );
-    await putContact(db, createPublicContact(first, "Alice", 1n), "Friend");
-    await putContact(db, createPublicContact(first, "Alice", 2n), "Updated");
-    await putContact(db, createPublicContact(second, "Alice", 3n));
+    await putContact(
+      db,
+      createPublicContactV2(first, "Alice", 1n, new Uint8Array(32).fill(1)),
+      "Friend",
+    );
+    await putContact(
+      db,
+      createPublicContactV2(first, "Alice", 2n, new Uint8Array(32).fill(2)),
+      "Updated",
+    );
+    await putContact(
+      db,
+      createPublicContactV2(second, "Alice", 3n, new Uint8Array(32).fill(3)),
+    );
     const contacts = await listContacts(db);
     expect(contacts).toHaveLength(2);
     expect(contacts.find((item) => item.nickname === "Updated")).toBeDefined();
@@ -52,11 +66,11 @@ describe("minimal PPX storage", () => {
       "settings",
       "vaults",
     ]);
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32),
       "Alice",
     );
-    const vault = await lockVault({
+    const vault = await lockVaultV2({
       identity,
       passphrase: "five random words make safer vaults",
     });
@@ -92,27 +106,18 @@ describe("minimal PPX storage", () => {
     expect(context.mode).toBe("session-only");
   });
 
-  it("normalizes incoming-message settings and migrates the legacy QR flag", () => {
+  it("normalizes incoming-message settings and migrates legacy auto-decrypt", () => {
     expect(normalizeSettings(undefined)).toMatchObject({
-      messageQrCreationEnabled: false,
-      qrExportMode: "both",
-      qrImportControls: "both",
       messageOutputMode: "both",
       autoDecryptIncomingMessages: true,
     });
     expect(
       normalizeSettings({
         locale: "en",
-        messageQrCreationEnabled: "invalid" as never,
-        qrExportMode: "invalid" as never,
-        qrImportControls: "invalid" as never,
         messageOutputMode: "invalid" as never,
         qrAutoDecrypt: false,
       }),
     ).toMatchObject({
-      messageQrCreationEnabled: false,
-      qrExportMode: DEFAULT_SETTINGS.qrExportMode,
-      qrImportControls: DEFAULT_SETTINGS.qrImportControls,
       messageOutputMode: DEFAULT_SETTINGS.messageOutputMode,
       autoDecryptIncomingMessages: false,
     });
@@ -141,27 +146,6 @@ describe("minimal PPX storage", () => {
     db.close();
   });
 
-  it("persists an explicit message QR creation opt-in in both storage modes", async () => {
-    const db = await openPpxDatabase();
-    await putSettings(db, {
-      locale: "en",
-      messageQrCreationEnabled: true,
-    });
-    expect(normalizeSettings(await getSettings(db))).toMatchObject({
-      messageQrCreationEnabled: true,
-    });
-    db.close();
-
-    const session = new SessionStorage();
-    session.setSettings({
-      ...DEFAULT_SETTINGS,
-      messageQrCreationEnabled: true,
-    });
-    expect(session.getSettings().messageQrCreationEnabled).toBe(true);
-    session.eraseAll();
-    expect(session.getSettings().messageQrCreationEnabled).toBe(false);
-  });
-
   it("resets incoming-message settings when session data is erased", () => {
     const session = new SessionStorage();
     session.setSettings({
@@ -180,11 +164,16 @@ describe("minimal PPX storage", () => {
 
   it("normalizes legacy IndexedDB contacts to include sender contact", async () => {
     const db = await openPpxDatabase();
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32),
       "Alice",
     );
-    const contact = createPublicContact(identity, "Alice", 1n);
+    const contact = createPublicContactV2(
+      identity,
+      "Alice",
+      1n,
+      new Uint8Array(32).fill(4),
+    );
     await db.put("contacts", {
       id: contactStorageId(contact.fingerprint),
       contact,
@@ -200,11 +189,16 @@ describe("minimal PPX storage", () => {
 
   it("defaults contact link inclusion on and persists an explicit opt-out", async () => {
     const db = await openPpxDatabase();
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32),
       "Alice",
     );
-    const contact = createPublicContact(identity, "Alice", 1n);
+    const contact = createPublicContactV2(
+      identity,
+      "Alice",
+      1n,
+      new Uint8Array(32).fill(5),
+    );
 
     const initial = await putContact(db, contact);
     expect(initial.includeSenderContactInLinks).toBe(true);

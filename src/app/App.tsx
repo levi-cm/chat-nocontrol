@@ -12,25 +12,26 @@ import { PassphraseMeter } from "../components/forms/passphrase-meter";
 import { BrandLogo, NavigationIcon } from "../components/navigation/icons";
 import type { ManagedContact } from "../components/cards/contact-management-card";
 import { defaultCryptoProvider } from "../crypto/default-provider";
-import { zeroizeIdentitySecrets } from "../crypto/zeroize";
+import { zeroizeIdentitySecretsV2 } from "../crypto/zeroize";
 import { messages, type Locale, type MessageKey } from "../i18n";
 import type {
-  DerivedIdentity,
-  LockedVaultObject,
-  PublicContact,
-} from "../protocol/types";
+  DerivedIdentityV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../protocol/types-v2";
 import {
-  captureIncomingMessageIntent,
-  type IncomingMessageIntent,
-} from "../protocol/message-link";
+  captureIncomingMessageIntentV2,
+  type IncomingMessageIntentV2,
+} from "../protocol/message-link-v2";
 import { encodeBase45Upper } from "../protocol/base45";
 import { equalBytes } from "../protocol/checksum";
-import { encodePublicContact } from "../protocol/ppxc";
-import { encodeLockedVault } from "../protocol/ppxv";
+import { encodePublicContactV2 } from "../protocol/ppxc-v2";
+import { encodeLockedVaultV2 } from "../protocol/ppxv-v2";
 import { listContacts, replaceContacts } from "../storage/contacts";
 import {
   createStorageContext,
   type PpxDatabase,
+  type StoredVaultObject,
   type StorageContext,
 } from "../storage/db";
 import { deleteAllLocalData } from "../storage/erase";
@@ -44,8 +45,6 @@ import {
   type AccentPreference,
   type AppSettings,
   type MessageOutputMode,
-  type QrExportMode,
-  type QrImportControls,
   type ThemePreference,
 } from "../storage/settings";
 import { SessionStorage } from "../storage/session";
@@ -53,6 +52,7 @@ import {
   type CryptoWorkerJob,
   startUnlockVaultJob,
 } from "../workers/crypto-client";
+import { migrateV1VaultToV2 } from "../storage/vault-migration-v2";
 import {
   clearStoredLocale,
   readStoredLocale,
@@ -94,7 +94,7 @@ function canonicalContacts(
     try {
       valid.push({
         contact: defaultCryptoProvider.parsePublicContact(
-          encodePublicContact(record.contact),
+          encodePublicContactV2(record.contact),
         ),
         nickname: typeof record.nickname === "string" ? record.nickname : "",
         includeSenderContactInLinks:
@@ -109,8 +109,12 @@ function canonicalContacts(
 
 export function App({
   initialIncomingIntent = null,
+  incomingSharedText = null,
+  onIncomingSharedTextConsumed,
 }: {
-  initialIncomingIntent?: IncomingMessageIntent | null;
+  initialIncomingIntent?: IncomingMessageIntentV2 | null;
+  incomingSharedText?: string | null;
+  onIncomingSharedTextConsumed?: () => void;
 }) {
   const [locale, setLocale] = useState<Locale>(readStoredLocale);
   const [theme, setTheme] = useState<ThemePreference>(DEFAULT_SETTINGS.theme);
@@ -118,15 +122,6 @@ export function App({
     DEFAULT_SETTINGS.accent,
   );
   const [translucent, setTranslucent] = useState(DEFAULT_SETTINGS.translucent);
-  const [messageQrCreationEnabled, setMessageQrCreationEnabled] = useState(
-    DEFAULT_SETTINGS.messageQrCreationEnabled,
-  );
-  const [qrExportMode, setQrExportMode] = useState<QrExportMode>(
-    DEFAULT_SETTINGS.qrExportMode,
-  );
-  const [qrImportControls, setQrImportControls] = useState<QrImportControls>(
-    DEFAULT_SETTINGS.qrImportControls,
-  );
   const [messageOutputMode, setMessageOutputMode] = useState<MessageOutputMode>(
     DEFAULT_SETTINGS.messageOutputMode,
   );
@@ -136,17 +131,16 @@ export function App({
     routeFromHash(window.location.hash),
   );
   const [pendingIncomingIntent, setPendingIncomingIntent] =
-    useState<IncomingMessageIntent | null>(initialIncomingIntent);
-  const [activeIdentity, setActiveIdentity] = useState<DerivedIdentity | null>(
-    null,
-  );
-  const [publicContact, setPublicContact] = useState<PublicContact | null>(
+    useState<IncomingMessageIntentV2 | null>(initialIncomingIntent);
+  const [activeIdentity, setActiveIdentity] =
+    useState<DerivedIdentityV2 | null>(null);
+  const [publicContact, setPublicContact] = useState<PublicContactV2 | null>(
     null,
   );
   const [contacts, setContacts] = useState<ManagedContact[]>([]);
   const [storage, setStorage] = useState<StorageContext | null>(null);
   const [storageReady, setStorageReady] = useState(false);
-  const [storedVault, setStoredVault] = useState<LockedVaultObject | null>(
+  const [storedVault, setStoredVault] = useState<StoredVaultObject | null>(
     null,
   );
   const [sessionOnly, setSessionOnly] = useState(false);
@@ -171,14 +165,14 @@ export function App({
     decryptCancellation.current?.();
     setPendingIncomingIntent(null);
     if (activeIdentity) writeLastUnlockedRoute(route);
-    if (activeIdentity) zeroizeIdentitySecrets(activeIdentity);
+    if (activeIdentity) zeroizeIdentitySecretsV2(activeIdentity);
     setActiveIdentity(null);
     setPublicContact(null);
   };
 
   useEffect(
     () => () => {
-      if (activeIdentity) zeroizeIdentitySecrets(activeIdentity);
+      if (activeIdentity) zeroizeIdentitySecretsV2(activeIdentity);
     },
     [activeIdentity],
   );
@@ -195,7 +189,7 @@ export function App({
       setStorage(context);
       if (context.mode === "persistent") {
         let loaded: ManagedContact[] = [];
-        let loadedVault: LockedVaultObject | null = null;
+        let loadedVault: StoredVaultObject | null = null;
         const [contactsResult, vaultResult, settingsResult] =
           await Promise.allSettled([
             listContacts(context.db),
@@ -255,7 +249,7 @@ export function App({
           const session = sessionMemory.current;
           session.replaceContacts(loaded);
           session.setSettings(loadedSettings);
-          if (loadedVault) session.putVault(loadedVault);
+          if (loadedVault?.formatVersion === 2) session.putVault(loadedVault);
           if (!cancelled) {
             setStorage({ mode: "session-only", session });
             commitContacts(loaded);
@@ -264,11 +258,6 @@ export function App({
             setTheme(loadedSettings.theme);
             setAccent(loadedSettings.accent);
             setTranslucent(loadedSettings.translucent);
-            setMessageQrCreationEnabled(
-              loadedSettings.messageQrCreationEnabled,
-            );
-            setQrExportMode(loadedSettings.qrExportMode);
-            setQrImportControls(loadedSettings.qrImportControls);
             setMessageOutputMode(loadedSettings.messageOutputMode);
             setAutoDecryptIncomingMessages(
               loadedSettings.autoDecryptIncomingMessages,
@@ -284,9 +273,6 @@ export function App({
           setTheme(loadedSettings.theme);
           setAccent(loadedSettings.accent);
           setTranslucent(loadedSettings.translucent);
-          setMessageQrCreationEnabled(loadedSettings.messageQrCreationEnabled);
-          setQrExportMode(loadedSettings.qrExportMode);
-          setQrImportControls(loadedSettings.qrImportControls);
           setMessageOutputMode(loadedSettings.messageOutputMode);
           setAutoDecryptIncomingMessages(
             loadedSettings.autoDecryptIncomingMessages,
@@ -298,9 +284,6 @@ export function App({
           theme,
           accent,
           translucent,
-          messageQrCreationEnabled,
-          qrExportMode,
-          qrImportControls,
           messageOutputMode,
           autoDecryptIncomingMessages,
         });
@@ -329,6 +312,16 @@ export function App({
   useEffect(() => {
     if (activeIdentity) writeLastUnlockedRoute(route);
   }, [activeIdentity, route]);
+
+  useEffect(() => {
+    if (!incomingSharedText) return;
+    decryptCancellation.current?.();
+    setPendingIncomingIntent(null);
+    setRoute("decrypt");
+    if (window.location.hash !== ROUTES.decrypt) {
+      window.location.hash = ROUTES.decrypt;
+    }
+  }, [incomingSharedText]);
 
   useEffect(() => {
     const wentOffline = () => setOffline(true);
@@ -416,7 +409,7 @@ export function App({
   useEffect(() => {
     const updateRoute = () => {
       const currentUrl = new URL(window.location.href);
-      const captured = captureIncomingMessageIntent(
+      const captured = captureIncomingMessageIntentV2(
         {
           pathname: currentUrl.pathname,
           search: currentUrl.search,
@@ -458,7 +451,7 @@ export function App({
 
   const fallBackToSession = (
     nextContacts: ManagedContact[],
-    vault: LockedVaultObject | null,
+    vault: StoredVaultObject | null,
   ) => {
     const session = sessionMemory.current;
     session.replaceContacts(nextContacts);
@@ -467,13 +460,10 @@ export function App({
       theme,
       accent,
       translucent,
-      messageQrCreationEnabled,
-      qrExportMode,
-      qrImportControls,
       messageOutputMode,
       autoDecryptIncomingMessages,
     });
-    if (vault) session.putVault(vault);
+    if (vault?.formatVersion === 2) session.putVault(vault);
     else session.deleteVault();
     if (storage?.mode === "persistent") {
       degradedPersistentDb.current = storage.db;
@@ -500,9 +490,6 @@ export function App({
         theme,
         accent,
         translucent,
-        messageQrCreationEnabled,
-        qrExportMode,
-        qrImportControls,
         messageOutputMode,
         autoDecryptIncomingMessages,
       });
@@ -516,9 +503,6 @@ export function App({
         theme,
         accent,
         translucent,
-        messageQrCreationEnabled,
-        qrExportMode,
-        qrImportControls,
         messageOutputMode,
         autoDecryptIncomingMessages,
       }),
@@ -543,10 +527,7 @@ export function App({
     accent,
     autoDecryptIncomingMessages,
     locale,
-    messageQrCreationEnabled,
     messageOutputMode,
-    qrExportMode,
-    qrImportControls,
     sessionOnly,
     storage,
     storageReady,
@@ -586,9 +567,9 @@ export function App({
   };
 
   const identityReady = async (
-    identity: DerivedIdentity,
-    contact: PublicContact,
-    vault?: LockedVaultObject,
+    identity: DerivedIdentityV2,
+    contact: PublicContactV2,
+    vault?: LockedVaultObjectV2,
     existingRememberedVault = false,
     signal?: AbortSignal,
     acceptOwnership?: () => boolean,
@@ -662,6 +643,35 @@ export function App({
     );
   };
 
+  const migrateLegacyVault = async (passphrase: string): Promise<void> => {
+    if (
+      storage?.mode !== "persistent" ||
+      storedVault?.formatVersion !== 1 ||
+      storedVault.suite !== 1
+    ) {
+      throw new Error("vault-migration-unavailable");
+    }
+    const migrated = await migrateV1VaultToV2(storage.db, passphrase);
+    let transferred = false;
+    try {
+      commitContacts([]);
+      setStoredVault(migrated.vault);
+      await identityReady(
+        migrated.identity,
+        defaultCryptoProvider.createPublicContact(
+          migrated.identity,
+          migrated.identity.pseudonym,
+          migrated.identity.creationTime,
+        ),
+        undefined,
+        true,
+      );
+      transferred = true;
+    } finally {
+      if (!transferred) zeroizeIdentitySecretsV2(migrated.identity);
+    }
+  };
+
   const removeStoredVault = async (): Promise<boolean> => {
     decryptCancellation.current?.();
     const persistentDb =
@@ -713,9 +723,6 @@ export function App({
     setTheme(DEFAULT_SETTINGS.theme);
     setAccent(DEFAULT_SETTINGS.accent);
     setTranslucent(DEFAULT_SETTINGS.translucent);
-    setMessageQrCreationEnabled(DEFAULT_SETTINGS.messageQrCreationEnabled);
-    setQrExportMode(DEFAULT_SETTINGS.qrExportMode);
-    setQrImportControls(DEFAULT_SETTINGS.qrImportControls);
     setMessageOutputMode(DEFAULT_SETTINGS.messageOutputMode);
     setAutoDecryptIncomingMessages(
       DEFAULT_SETTINGS.autoDecryptIncomingMessages,
@@ -818,18 +825,12 @@ export function App({
             theme={theme}
             accent={accent}
             translucent={translucent}
-            messageQrCreationEnabled={messageQrCreationEnabled}
-            qrExportMode={qrExportMode}
-            qrImportControls={qrImportControls}
             messageOutputMode={messageOutputMode}
             autoDecryptIncomingMessages={autoDecryptIncomingMessages}
             onLocaleChange={setLocale}
             onThemeChange={setTheme}
             onAccentChange={setAccent}
             onTranslucentChange={setTranslucent}
-            onMessageQrCreationEnabledChange={setMessageQrCreationEnabled}
-            onQrExportModeChange={setQrExportMode}
-            onQrImportControlsChange={setQrImportControls}
             onMessageOutputModeChange={setMessageOutputMode}
             onAutoDecryptIncomingMessagesChange={setAutoDecryptIncomingMessages}
           />
@@ -849,8 +850,6 @@ export function App({
             onContactsChange={saveContacts}
             locale={locale}
             messageOutputMode={messageOutputMode}
-            messageQrCreationEnabled={messageQrCreationEnabled}
-            qrExportMode={qrExportMode}
           />
         ) : route === "decrypt" && pendingIncomingIntent?.kind === "invalid" ? (
           <section class="flow-panel incoming-message-context">
@@ -892,6 +891,7 @@ export function App({
               sessionOnly={sessionOnly}
               hasLocalData={storedVault !== null || contacts.length > 0}
               onReady={identityReady}
+              onMigrateLegacyVault={migrateLegacyVault}
               onDeleteVault={removeStoredVault}
               onEraseAll={eraseAll}
               preferImport
@@ -905,7 +905,6 @@ export function App({
             contacts={contacts}
             onContactsChange={saveContacts}
             locale={locale}
-            qrImportControls={qrImportControls}
             autoDecryptIncomingMessages={autoDecryptIncomingMessages}
             pendingIncomingIntent={pendingIncomingIntent}
             onPendingIncomingConsumed={(expected) =>
@@ -914,6 +913,8 @@ export function App({
               )
             }
             cancellationHandle={decryptCancellation}
+            incomingSharedText={incomingSharedText}
+            onIncomingSharedTextConsumed={onIncomingSharedTextConsumed}
           />
         ) : route === "contacts" ? (
           <ContactsManage t={t} contacts={contacts} onChange={saveContacts} />
@@ -928,6 +929,7 @@ export function App({
             sessionOnly={sessionOnly}
             hasLocalData={storedVault !== null || contacts.length > 0}
             onReady={identityReady}
+            onMigrateLegacyVault={migrateLegacyVault}
             onDeleteVault={removeStoredVault}
             onEraseAll={eraseAll}
           />
@@ -949,26 +951,28 @@ function IdentityHome({
   sessionOnly,
   hasLocalData,
   onReady,
+  onMigrateLegacyVault,
   onDeleteVault,
   onEraseAll,
   preferImport = false,
 }: {
   t: (key: MessageKey) => string;
   locale: Locale;
-  identity: DerivedIdentity | null;
-  contact: PublicContact | null;
-  storedVault: LockedVaultObject | null;
+  identity: DerivedIdentityV2 | null;
+  contact: PublicContactV2 | null;
+  storedVault: StoredVaultObject | null;
   storageMode: "persistent" | "session-only";
   sessionOnly: boolean;
   hasLocalData: boolean;
   onReady: (
-    identity: DerivedIdentity,
-    contact: PublicContact,
-    vault?: LockedVaultObject,
+    identity: DerivedIdentityV2,
+    contact: PublicContactV2,
+    vault?: LockedVaultObjectV2,
     existingRememberedVault?: boolean,
     signal?: AbortSignal,
     acceptOwnership?: () => boolean,
   ) => Promise<void> | void;
+  onMigrateLegacyVault: (passphrase: string) => Promise<void>;
   onDeleteVault: () => Promise<boolean>;
   onEraseAll: () => Promise<boolean>;
   preferImport?: boolean;
@@ -977,21 +981,27 @@ function IdentityHome({
   const passphraseBytes = new TextEncoder().encode(passphrase).byteLength;
   const [unlockError, setUnlockError] = useState("");
   const [busy, setBusy] = useState(false);
-  const unlockJob = useRef<CryptoWorkerJob<DerivedIdentity> | null>(null);
+  const unlockJob = useRef<CryptoWorkerJob<DerivedIdentityV2> | null>(null);
   const [confirming, setConfirming] = useState<"vault" | "all" | null>(null);
 
   const verifyPrivateExport = async (
     candidatePassphrase: string,
     signal: AbortSignal,
   ): Promise<boolean> => {
-    if (!identity || !storedVault || signal.aborted) return false;
+    if (
+      !identity ||
+      !storedVault ||
+      storedVault.formatVersion !== 2 ||
+      signal.aborted
+    )
+      return false;
     const operation = startUnlockVaultJob({
       vault: storedVault,
       passphrase: candidatePassphrase,
     });
     const cancel = () => operation.cancel();
     signal.addEventListener("abort", cancel, { once: true });
-    let verifiedIdentity: DerivedIdentity | undefined;
+    let verifiedIdentity: DerivedIdentityV2 | undefined;
     try {
       verifiedIdentity = await operation.promise;
       return (
@@ -1002,18 +1012,23 @@ function IdentityHome({
       return false;
     } finally {
       signal.removeEventListener("abort", cancel);
-      if (verifiedIdentity) zeroizeIdentitySecrets(verifiedIdentity);
+      if (verifiedIdentity) zeroizeIdentitySecretsV2(verifiedIdentity);
     }
   };
 
   const unlock = async (candidatePassphrase = passphrase) => {
     if (!storedVault) return;
-    let operation: CryptoWorkerJob<DerivedIdentity> | null = null;
-    let unlocked: DerivedIdentity | undefined;
+    let operation: CryptoWorkerJob<DerivedIdentityV2> | null = null;
+    let unlocked: DerivedIdentityV2 | undefined;
     let transferred = false;
     setBusy(true);
     setUnlockError("");
     try {
+      if (storedVault.formatVersion === 1) {
+        await onMigrateLegacyVault(candidatePassphrase);
+        setPassphrase("");
+        return;
+      }
       operation = startUnlockVaultJob({
         vault: storedVault,
         passphrase: candidatePassphrase,
@@ -1021,7 +1036,7 @@ function IdentityHome({
       unlockJob.current = operation;
       unlocked = await operation.promise;
       if (unlockJob.current !== operation) {
-        zeroizeIdentitySecrets(unlocked);
+        zeroizeIdentitySecretsV2(unlocked);
         unlocked = undefined;
         return;
       }
@@ -1041,7 +1056,7 @@ function IdentityHome({
       if (!operation || unlockJob.current === operation)
         setUnlockError(t("unlockError"));
     } finally {
-      if (unlocked && !transferred) zeroizeIdentitySecrets(unlocked);
+      if (unlocked && !transferred) zeroizeIdentitySecretsV2(unlocked);
       if (!operation || unlockJob.current === operation) {
         unlockJob.current = null;
         setBusy(false);
@@ -1127,7 +1142,8 @@ function IdentityHome({
     );
   }
 
-  const encodedVault = storedVault ? encodeLockedVault(storedVault) : null;
+  const encodedVault =
+    storedVault?.formatVersion === 2 ? encodeLockedVaultV2(storedVault) : null;
 
   return (
     <div class={identity ? "identity-page" : "identity-layout"}>
@@ -1161,7 +1177,7 @@ function IdentityHome({
             <PrivateExportCard
               title={t("vaultTitle")}
               warning={t("vaultWarning")}
-              qrText={`PPX1:PRIVATE:${encodeBase45Upper(encodedVault)}`}
+              qrText={`PPX2:PRIVATE:${encodeBase45Upper(encodedVault)}`}
               authorityLabel={t("privateAuthority")}
               qrLabel={t("vaultQrAlt")}
               qrDownloadLabel={t("saveVaultQr")}

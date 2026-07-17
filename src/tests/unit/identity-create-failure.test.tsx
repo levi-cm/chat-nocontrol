@@ -6,10 +6,10 @@ import { IdentityCreate } from "../../flows/identity/create";
 import type { MessageKey } from "../../i18n";
 import { messages } from "../../i18n";
 import type {
-  DerivedIdentity,
-  LockedVaultObject,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 
 const labels: Partial<Record<MessageKey, string>> = {
   createIdentity: "Create new identity",
@@ -20,45 +20,42 @@ const labels: Partial<Record<MessageKey, string>> = {
   recoveryWordsTitle: "24 recovery words",
 };
 
-function identityFixture(): DerivedIdentity {
+function identityFixture(): DerivedIdentityV2 {
   return {
-    suite: 1,
+    suite: 2,
     creationTime: 0n,
     masterEntropy: new Uint8Array(32).fill(3),
-    kemPublicKey: new Uint8Array(800),
-    kemSecretKey: new Uint8Array(1632).fill(4),
-    x25519PublicKey: new Uint8Array(32),
-    x25519SecretKey: new Uint8Array(32).fill(5),
-    signingPublicKey: new Uint8Array(32),
-    signingSecretKey: new Uint8Array(32).fill(6),
+    kemPublicKey: new Uint8Array(1568),
+    kemSecretKey: new Uint8Array(3168).fill(4),
+    signingPublicKey: new Uint8Array(2592),
+    signingSecretKey: new Uint8Array(4896).fill(6),
     fingerprint: new Uint8Array(32),
     identityId: new Uint8Array(20),
     pseudonym: "",
   };
 }
 
-function contactFixture(): PublicContact {
+function contactFixture(): PublicContactV2 {
   return {
     magic: "PPXC",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     creationTime: 0n,
     pseudonym: "Alice",
-    kemPublicKey: new Uint8Array(800),
-    x25519PublicKey: new Uint8Array(32),
-    signingPublicKey: new Uint8Array(32),
-    selfSignature: new Uint8Array(64),
+    kemPublicKey: new Uint8Array(1568),
+    signingPublicKey: new Uint8Array(2592),
+    selfSignature: new Uint8Array(4627),
     checksum: new Uint8Array(16),
     fingerprint: new Uint8Array(32),
     identityId: new Uint8Array(20),
   };
 }
 
-function vaultFixture(): LockedVaultObject {
+function vaultFixture(): LockedVaultObjectV2 {
   return {
     magic: "PPXV",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     flags: 1,
     kdfId: 1,
     scryptN: 65_536,
@@ -66,8 +63,8 @@ function vaultFixture(): LockedVaultObject {
     scryptP: 2,
     salt: new Uint8Array(16),
     nonce: new Uint8Array(12),
-    ciphertextLength: 16,
-    ciphertext: new Uint8Array(16),
+    ciphertextLength: 58,
+    ciphertext: new Uint8Array(58),
     checksum: new Uint8Array(16),
   };
 }
@@ -76,8 +73,8 @@ function renderCreate(overrides: {
   randomBytes: (length: number) => Uint8Array;
   autoLockMs?: number;
   onReady?: (
-    identity: DerivedIdentity,
-    contact: PublicContact,
+    identity: DerivedIdentityV2,
+    contact: PublicContactV2,
     vault?: unknown,
     signal?: AbortSignal,
   ) => Promise<void> | void;
@@ -87,7 +84,7 @@ function renderCreate(overrides: {
   >;
   lockVaultJobFactory?: () => {
     requestId: string;
-    promise: Promise<LockedVaultObject>;
+    promise: Promise<LockedVaultObjectV2>;
     cancel: () => void;
   };
   privateCardGenerator?: () => Promise<string>;
@@ -260,9 +257,8 @@ describe("identity creation failure ownership", () => {
       await screen.findByRole("button", { name: "Create new identity" });
       expect(screen.queryAllByRole("listitem")).toHaveLength(0);
       expect(identity.masterEntropy).toEqual(new Uint8Array(32).fill(3));
-      expect(identity.kemSecretKey).toEqual(new Uint8Array(1632).fill(4));
-      expect(identity.x25519SecretKey).toEqual(new Uint8Array(32).fill(5));
-      expect(identity.signingSecretKey).toEqual(new Uint8Array(32).fill(6));
+      expect(identity.kemSecretKey).toEqual(new Uint8Array(3168).fill(4));
+      expect(identity.signingSecretKey).toEqual(new Uint8Array(4896).fill(6));
     } finally {
       createObjectUrl.mockRestore();
       revokeObjectUrl.mockRestore();
@@ -291,9 +287,8 @@ describe("identity creation failure ownership", () => {
 
       await screen.findByRole("button", { name: "Create new identity" });
       expect(identity.masterEntropy).toEqual(new Uint8Array(32));
-      expect(identity.kemSecretKey).toEqual(new Uint8Array(1632));
-      expect(identity.x25519SecretKey).toEqual(new Uint8Array(32));
-      expect(identity.signingSecretKey).toEqual(new Uint8Array(32));
+      expect(identity.kemSecretKey).toEqual(new Uint8Array(3168));
+      expect(identity.signingSecretKey).toEqual(new Uint8Array(4896));
       expect(screen.queryByLabelText("Browser-vault password")).toBeNull();
     } finally {
       clock.mockRestore();
@@ -341,9 +336,8 @@ describe("identity creation failure ownership", () => {
 
     await waitFor(() => expect(deriveIdentity).toHaveBeenCalledOnce());
     expect(identity.masterEntropy).toEqual(new Uint8Array(32));
-    expect(identity.kemSecretKey).toEqual(new Uint8Array(1632));
-    expect(identity.x25519SecretKey).toEqual(new Uint8Array(32));
-    expect(identity.signingSecretKey).toEqual(new Uint8Array(32));
+    expect(identity.kemSecretKey).toEqual(new Uint8Array(3168));
+    expect(identity.signingSecretKey).toEqual(new Uint8Array(4896));
     expect(screen.queryByText("24 recovery words")).toBeNull();
   });
 });

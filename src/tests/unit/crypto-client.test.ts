@@ -1,18 +1,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PPXWorkerRequest } from "../../crypto/contracts";
+import type { PPXCryptoWorkerRequest } from "../../crypto/contracts";
+import * as capabilityModule from "../../crypto/capability-v2";
 import type {
-  DecryptQrTextInput,
-  DecryptTextInput,
-} from "../../protocol/types";
-import {
-  startDecryptQrTextJob,
-  startDecryptTextJob,
-} from "../../workers/crypto-client";
-import * as capabilityModule from "../../crypto/decapsulation-capability";
+  DecapsulationCapabilityV2,
+  DecryptTextInputV2,
+} from "../../protocol/types-v2";
+import { startDecryptTextJob } from "../../workers/crypto-client";
+
+function decapsulationCapability(value = 7): DecapsulationCapabilityV2 {
+  return {
+    suite: 0x02,
+    fingerprint: new Uint8Array(32).fill(1),
+    identityId: new Uint8Array(20).fill(2),
+    kemSecretKey: new Uint8Array(3168).fill(value),
+  };
+}
+
+function decryptInput(
+  activeIdentity: DecapsulationCapabilityV2,
+): DecryptTextInputV2 {
+  return {
+    object: { magic: "PPXT" } as never,
+    activeIdentity,
+    knownSenders: [],
+  };
+}
 
 class TrackedCryptoWorker extends EventTarget {
-  readonly requests: PPXWorkerRequest[] = [];
-  readonly requestCopies: PPXWorkerRequest[] = [];
+  readonly requests: PPXCryptoWorkerRequest[] = [];
+  readonly requestCopies: PPXCryptoWorkerRequest[] = [];
   terminated = false;
 
   constructor(
@@ -23,7 +39,7 @@ class TrackedCryptoWorker extends EventTarget {
     this.onStart();
   }
 
-  postMessage(request: PPXWorkerRequest): void {
+  postMessage(request: PPXCryptoWorkerRequest): void {
     this.requests.push(request);
     this.requestCopies.push(structuredClone(request));
   }
@@ -41,74 +57,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("crypto worker client cancellation", () => {
-  it.each([
-    ["text", startDecryptTextJob, { object: {} }],
-    ["QR text", startDecryptQrTextJob, { object: {}, knownSenders: [] }],
-  ] as const)(
-    "sends only decapsulation authority to the %s decrypt worker",
-    (_label, startJob, requestFields) => {
-      const workers: TrackedCryptoWorker[] = [];
-      vi.stubGlobal(
-        "Worker",
-        class extends TrackedCryptoWorker {
-          constructor() {
-            super(
-              () => undefined,
-              () => undefined,
-            );
-            workers.push(this);
-          }
-        },
-      );
-      const activeIdentity = {
-        suite: 1,
-        masterEntropy: new Uint8Array([1]),
-        signingSecretKey: new Uint8Array([2]),
-        kemSecretKey: new Uint8Array([3]),
-        x25519SecretKey: new Uint8Array([4]),
-        fingerprint: new Uint8Array([5]),
-        identityId: new Uint8Array([6]),
-      };
+describe("Cat-5 V2 crypto worker client", () => {
+  it("clones only ML-KEM decapsulation authority into a decrypt request", () => {
+    const workers: TrackedCryptoWorker[] = [];
+    vi.stubGlobal(
+      "Worker",
+      class extends TrackedCryptoWorker {
+        constructor() {
+          super(
+            () => undefined,
+            () => undefined,
+          );
+          workers.push(this);
+        }
+      },
+    );
+    const activeIdentity = {
+      ...decapsulationCapability(),
+      masterEntropy: new Uint8Array([3]),
+      signingSecretKey: new Uint8Array([4]),
+    };
 
-      const job = startJob({
-        ...requestFields,
-        activeIdentity,
-      } as unknown as DecryptTextInput & DecryptQrTextInput);
-      const posted = workers[0]?.requestCopies[0];
-      if (
-        posted?.kind !== "decrypt-text" &&
-        posted?.kind !== "decrypt-qr-text"
-      ) {
-        throw new Error("expected decrypt request");
-      }
+    const job = startDecryptTextJob(decryptInput(activeIdentity));
+    const posted = workers[0]?.requestCopies[0];
+    if (posted?.kind !== "decrypt-text") {
+      throw new Error("expected decrypt request");
+    }
 
-      expect(Object.keys(posted.input.activeIdentity).sort()).toEqual([
-        "fingerprint",
-        "identityId",
-        "kemSecretKey",
-        "suite",
-        "x25519SecretKey",
-      ]);
-      expect(posted.input.activeIdentity).not.toBe(activeIdentity);
-      const requestOwned = workers[0]?.requests[0];
-      if (
-        requestOwned?.kind !== "decrypt-text" &&
-        requestOwned?.kind !== "decrypt-qr-text"
-      ) {
-        throw new Error("expected request-owned decrypt authority");
-      }
-      expect(requestOwned.input.activeIdentity.kemSecretKey).toEqual(
-        new Uint8Array([0]),
-      );
-      expect(requestOwned.input.activeIdentity.x25519SecretKey).toEqual(
-        new Uint8Array([0]),
-      );
-      expect([...posted.input.activeIdentity.kemSecretKey]).toEqual([3]);
-      job.cancel();
-      void job.promise.catch(() => undefined);
-    },
-  );
+    expect(Object.keys(posted.input.activeIdentity).sort()).toEqual([
+      "fingerprint",
+      "identityId",
+      "kemSecretKey",
+      "suite",
+    ]);
+    expect(posted.input.activeIdentity).not.toBe(activeIdentity);
+    expect(posted.input.activeIdentity).not.toHaveProperty("masterEntropy");
+    expect(posted.input.activeIdentity).not.toHaveProperty("signingSecretKey");
+    const requestOwned = workers[0]?.requests[0];
+    if (requestOwned?.kind !== "decrypt-text") {
+      throw new Error("expected request-owned decrypt authority");
+    }
+    expect(requestOwned.input.activeIdentity.kemSecretKey).toEqual(
+      new Uint8Array(3168),
+    );
+    expect([...posted.input.activeIdentity.kemSecretKey]).toEqual(
+      Array(3168).fill(7),
+    );
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
+    job.cancel();
+    void job.promise.catch(() => undefined);
+  });
 
   it("terminates a cancelled decrypt worker before starting its replacement", async () => {
     vi.useFakeTimers();
@@ -133,21 +131,12 @@ describe("crypto worker client cancellation", () => {
       },
     );
 
-    const decryptInput = {
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array(32),
-        identityId: new Uint8Array(20),
-        kemSecretKey: new Uint8Array(1632),
-        x25519SecretKey: new Uint8Array(32),
-      },
-    } as DecryptTextInput;
-    const first = startDecryptTextJob(decryptInput);
+    const input = decryptInput(decapsulationCapability());
+    const first = startDecryptTextJob(input);
     const firstResult = first.promise.catch((error: unknown) => error);
     first.cancel();
     const liveWorkersAfterCancel = liveWorkers;
-    const replacement = startDecryptTextJob(decryptInput);
+    const replacement = startDecryptTextJob(input);
     const replacementResult = replacement.promise.catch(
       (error: unknown) => error,
     );
@@ -167,7 +156,7 @@ describe("crypto worker client cancellation", () => {
   });
 
   it("wipes request-owned authority when Worker construction fails", () => {
-    const wipe = vi.spyOn(capabilityModule, "zeroizeDecapsulationCapability");
+    const wipe = vi.spyOn(capabilityModule, "zeroizeDecapsulationCapabilityV2");
     vi.stubGlobal(
       "Worker",
       class {
@@ -176,28 +165,22 @@ describe("crypto worker client cancellation", () => {
         }
       },
     );
-    const activeIdentity = {
-      suite: 1 as const,
-      fingerprint: new Uint8Array([1]),
-      identityId: new Uint8Array([2]),
-      kemSecretKey: new Uint8Array([3]),
-      x25519SecretKey: new Uint8Array([4]),
-    };
+    const activeIdentity = decapsulationCapability();
 
-    expect(() =>
-      startDecryptTextJob({ object: {}, activeIdentity } as DecryptTextInput),
-    ).toThrow("constructor failed");
+    expect(() => startDecryptTextJob(decryptInput(activeIdentity))).toThrow(
+      "constructor failed",
+    );
     expect(wipe).toHaveBeenCalledOnce();
-    expect(wipe.mock.calls[0]?.[0].kemSecretKey).toEqual(new Uint8Array([0]));
-    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array([3]));
+    expect(wipe.mock.calls[0]?.[0].kemSecretKey).toEqual(new Uint8Array(3168));
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
   });
 
   it("wipes request-owned authority when postMessage fails", async () => {
-    let captured: PPXWorkerRequest | undefined;
+    let captured: PPXCryptoWorkerRequest | undefined;
     vi.stubGlobal(
       "Worker",
       class extends EventTarget {
-        postMessage(request: PPXWorkerRequest): void {
+        postMessage(request: PPXCryptoWorkerRequest): void {
           captured = request;
           throw new Error("post failed");
         }
@@ -205,32 +188,20 @@ describe("crypto worker client cancellation", () => {
       },
     );
 
-    const job = startDecryptTextJob({
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array([1]),
-        identityId: new Uint8Array([2]),
-        kemSecretKey: new Uint8Array([3]),
-        x25519SecretKey: new Uint8Array([4]),
-      },
-    } as DecryptTextInput);
+    const job = startDecryptTextJob(decryptInput(decapsulationCapability()));
     await expect(job.promise).rejects.toThrow("wrong-identity-or-corruption");
     if (captured?.kind !== "decrypt-text") throw new Error("missing request");
     expect(captured.input.activeIdentity.kemSecretKey).toEqual(
-      new Uint8Array([0]),
-    );
-    expect(captured.input.activeIdentity.x25519SecretKey).toEqual(
-      new Uint8Array([0]),
+      new Uint8Array(3168),
     );
   });
 
-  it("wipes request-owned authority after a successful decrypt", async () => {
-    let captured: PPXWorkerRequest | undefined;
+  it("wipes request-owned authority immediately after a successful post", async () => {
+    let captured: PPXCryptoWorkerRequest | undefined;
     vi.stubGlobal(
       "Worker",
       class extends EventTarget {
-        postMessage(request: PPXWorkerRequest): void {
+        postMessage(request: PPXCryptoWorkerRequest): void {
           captured = request;
           queueMicrotask(() => {
             this.dispatchEvent(
@@ -248,23 +219,11 @@ describe("crypto worker client cancellation", () => {
       },
     );
 
-    const job = startDecryptTextJob({
-      object: {},
-      activeIdentity: {
-        suite: 1,
-        fingerprint: new Uint8Array([1]),
-        identityId: new Uint8Array([2]),
-        kemSecretKey: new Uint8Array([3]),
-        x25519SecretKey: new Uint8Array([4]),
-      },
-    } as DecryptTextInput);
+    const job = startDecryptTextJob(decryptInput(decapsulationCapability()));
     await expect(job.promise).resolves.toMatchObject({ plaintext: "done" });
     if (captured?.kind !== "decrypt-text") throw new Error("missing request");
     expect(captured.input.activeIdentity.kemSecretKey).toEqual(
-      new Uint8Array([0]),
-    );
-    expect(captured.input.activeIdentity.x25519SecretKey).toEqual(
-      new Uint8Array([0]),
+      new Uint8Array(3168),
     );
   });
 });

@@ -14,21 +14,26 @@ import { createRecoveryWordCodec } from "../../crypto/recovery-words";
 import {
   estimatePassphraseBits,
   passphraseStrengthBand,
-} from "../../crypto/vault";
-import { zeroize, zeroizeIdentitySecrets } from "../../crypto/zeroize";
+} from "../../crypto/passphrase-strength";
+import { zeroize, zeroizeIdentitySecretsV2 } from "../../crypto/zeroize";
 import type { Locale, MessageKey } from "../../i18n";
 import { encodeBase45Upper } from "../../protocol/base45";
 import {
-  encodePublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
-import { encodeRecoveryObject, PPXR_MAXIMUM_SIZE } from "../../protocol/ppxr";
+  encodePublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
+import {
+  encodeRecoveryObjectV2,
+  PPXR_V2_MAXIMUM_SIZE,
+  PPXR_V2_TEXT_PREFIX,
+} from "../../protocol/ppxr-v2";
 import { normalizePseudonym } from "../../protocol/text";
 import type {
-  DerivedIdentity,
-  LockedVaultObject,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
+import { PPX_PQ_5_SUITE, PPX_V2_FORMAT_VERSION } from "../../protocol/types-v2";
 import {
   type CryptoWorkerJob,
   startLockVaultJob,
@@ -64,13 +69,13 @@ import {
 interface IdentityCreateProps {
   t: (key: MessageKey) => string;
   locale?: Locale;
-  identity: DerivedIdentity | null;
-  contact: PublicContact | null;
+  identity: DerivedIdentityV2 | null;
+  contact: PublicContactV2 | null;
   persistentStorageAvailable?: boolean;
   onReady: (
-    identity: DerivedIdentity,
-    contact: PublicContact,
-    vault?: LockedVaultObject,
+    identity: DerivedIdentityV2,
+    contact: PublicContactV2,
+    vault?: LockedVaultObjectV2,
     signal?: AbortSignal,
     acceptOwnership?: () => boolean,
   ) => Promise<void> | void;
@@ -171,11 +176,11 @@ export function IdentityCreate({
   const [step, setStep] = useState<Step>(initialStep);
   const [username, setUsername] = useState("");
   const [pendingIdentity, setPendingIdentity] =
-    useState<DerivedIdentity | null>(null);
-  const [pendingContact, setPendingContact] = useState<PublicContact | null>(
+    useState<DerivedIdentityV2 | null>(null);
+  const [pendingContact, setPendingContact] = useState<PublicContactV2 | null>(
     null,
   );
-  const [pendingVault, setPendingVault] = useState<LockedVaultObject | null>(
+  const [pendingVault, setPendingVault] = useState<LockedVaultObjectV2 | null>(
     null,
   );
   const [recoveryBytes, setRecoveryBytes] = useState<Uint8Array | null>(null);
@@ -220,9 +225,9 @@ export function IdentityCreate({
   >(null);
 
   const mounted = useRef(true);
-  const vaultJob = useRef<CryptoWorkerJob<LockedVaultObject> | null>(null);
+  const vaultJob = useRef<CryptoWorkerJob<LockedVaultObjectV2> | null>(null);
   const readyTransfer = useRef<AbortController | null>(null);
-  const pendingIdentityOwner = useRef<DerivedIdentity | null>(null);
+  const pendingIdentityOwner = useRef<DerivedIdentityV2 | null>(null);
   const recoveryBytesOwner = useRef<Uint8Array | null>(null);
   const artifactOperation = useRef(0);
   const wizardPanel = useRef<HTMLElement | null>(null);
@@ -268,9 +273,9 @@ export function IdentityCreate({
     failedWordSubmissions: wordAttempts,
   };
 
-  const ownPendingIdentity = (next: DerivedIdentity) => {
+  const ownPendingIdentity = (next: DerivedIdentityV2) => {
     if (pendingIdentityOwner.current && pendingIdentityOwner.current !== next) {
-      zeroizeIdentitySecrets(pendingIdentityOwner.current);
+      zeroizeIdentitySecretsV2(pendingIdentityOwner.current);
     }
     pendingIdentityOwner.current = next;
     setPendingIdentity(next);
@@ -349,7 +354,7 @@ export function IdentityCreate({
     vaultJob.current?.cancel();
     vaultJob.current = null;
     if (pendingIdentityOwner.current) {
-      zeroizeIdentitySecrets(pendingIdentityOwner.current);
+      zeroizeIdentitySecretsV2(pendingIdentityOwner.current);
       pendingIdentityOwner.current = null;
     }
     if (recoveryBytesOwner.current) {
@@ -366,7 +371,7 @@ export function IdentityCreate({
       vaultJob.current?.cancel();
       readyTransfer.current?.abort();
       if (pendingIdentityOwner.current) {
-        zeroizeIdentitySecrets(pendingIdentityOwner.current);
+        zeroizeIdentitySecretsV2(pendingIdentityOwner.current);
         pendingIdentityOwner.current = null;
       }
       if (recoveryBytesOwner.current) {
@@ -429,9 +434,9 @@ export function IdentityCreate({
   }, [pendingIdentity, autoLockMs]);
 
   const transferReady = async (
-    readyIdentity: DerivedIdentity,
-    readyContact: PublicContact,
-    vault?: LockedVaultObject,
+    readyIdentity: DerivedIdentityV2,
+    readyContact: PublicContactV2,
+    vault?: LockedVaultObjectV2,
   ) => {
     if (pendingIdentityOwner.current !== readyIdentity) return;
     const controller = new AbortController();
@@ -473,7 +478,7 @@ export function IdentityCreate({
         return;
       }
       pendingIdentityOwner.current = null;
-      zeroizeIdentitySecrets(readyIdentity);
+      zeroizeIdentitySecretsV2(readyIdentity);
       if (recoveryBytesOwner.current) {
         zeroize(recoveryBytesOwner.current);
         recoveryBytesOwner.current = null;
@@ -489,27 +494,27 @@ export function IdentityCreate({
     setBusy(true);
     setError("");
     let entropy: Uint8Array | undefined;
-    let derived: DerivedIdentity | undefined;
+    let derived: DerivedIdentityV2 | undefined;
     let recovery: Uint8Array | undefined;
     let transferred = false;
     try {
       entropy = randomBytes(32);
       const validUsername = normalizePseudonym(username);
       const createdAt = BigInt(Math.floor(Date.now() / 1000));
-      derived = {
-        ...(await identityProvider.deriveIdentity(entropy)),
-        pseudonym: validUsername,
-        creationTime: createdAt,
-      };
+      derived = await identityProvider.deriveIdentity(
+        entropy,
+        validUsername,
+        createdAt,
+      );
       const publicContact = identityProvider.createPublicContact(
         derived,
         validUsername,
         createdAt,
       );
-      recovery = encodeRecoveryObject({
+      recovery = encodeRecoveryObjectV2({
         magic: "PPXR",
-        formatVersion: 1,
-        suite: 1,
+        formatVersion: PPX_V2_FORMAT_VERSION,
+        suite: PPX_PQ_5_SUITE,
         flags: 0,
         masterEntropy: entropy,
         creationTime: createdAt,
@@ -531,7 +536,7 @@ export function IdentityCreate({
     } finally {
       if (entropy) zeroize(entropy);
       if (!transferred) {
-        if (derived) zeroizeIdentitySecrets(derived);
+        if (derived) zeroizeIdentitySecretsV2(derived);
         if (recovery) zeroize(recovery);
       }
       if (mounted.current) setBusy(false);
@@ -540,7 +545,7 @@ export function IdentityCreate({
 
   const createPendingVault = async (nextStep: Step = "digital-backups") => {
     if (!pendingIdentity) return;
-    let operation: CryptoWorkerJob<LockedVaultObject> | null = null;
+    let operation: CryptoWorkerJob<LockedVaultObjectV2> | null = null;
     setBusy(true);
     setError("");
     setVaultCreationError(false);
@@ -567,7 +572,7 @@ export function IdentityCreate({
   };
 
   const recoveryCode = recoveryBytes
-    ? `PPX1:RECOVERY:${encodeBase45Upper(recoveryBytes)}`
+    ? `${PPXR_V2_TEXT_PREFIX}${encodeBase45Upper(recoveryBytes)}`
     : "";
   const recoveryIsoDate = pendingIdentity
     ? new Date(Number(pendingIdentity.creationTime) * 1000)
@@ -723,7 +728,7 @@ export function IdentityCreate({
     setBusy(true);
     setError("");
     try {
-      if (practiceFile.size < 1 || practiceFile.size > PPXR_MAXIMUM_SIZE) {
+      if (practiceFile.size < 1 || practiceFile.size > PPXR_V2_MAXIMUM_SIZE) {
         throw new Error("invalid recovery file size");
       }
       const bytes = new Uint8Array(await practiceFile.arrayBuffer());
@@ -813,7 +818,7 @@ export function IdentityCreate({
 
   const finishImportedVault = async () => {
     if (!pendingIdentity || !pendingContact) return;
-    let operation: CryptoWorkerJob<LockedVaultObject> | null = null;
+    let operation: CryptoWorkerJob<LockedVaultObjectV2> | null = null;
     setBusy(true);
     setError("");
     try {
@@ -879,16 +884,13 @@ export function IdentityCreate({
     return (
       <PublicContactCard
         pseudonym={contact.pseudonym}
-        qrText={encodePublicContactQr(contact)}
+        contactText={encodePublicContactV2Text(contact)}
         authorityLabel={t("publicAuthority")}
         title={t("publicLabel")}
-        qrLabel={t("publicQrAlt")}
-        qrDownloadLabel={t("saveContactQr")}
-        enlargeQrLabel={t("showLargerQr")}
-        closeQrLabel={t("closeLargerQr")}
+        copyLabel={t("copyOutput")}
         helper={t("publicContactHelper")}
         formatHint={t("publicContactHint")}
-        fileBytes={encodePublicContact(contact)}
+        fileBytes={encodePublicContactV2(contact)}
         downloadLabel={t("downloadContact")}
         identityId={contact.identityId}
         fingerprint={contact.fingerprint}

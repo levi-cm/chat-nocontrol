@@ -1,32 +1,23 @@
 import { readFileSync } from "node:fs";
 
 const files = {
-  types: readFileSync("src/protocol/types.ts", "utf8"),
+  types: readFileSync("src/protocol/types-v2.ts", "utf8"),
   provider: readFileSync("src/crypto/provider.ts", "utf8"),
   defaultProvider: readFileSync("src/crypto/default-provider.ts", "utf8"),
-  hybrid: readFileSync("src/crypto/hybrid.ts", "utf8"),
+  text: readFileSync("src/crypto/text-v2.ts", "utf8"),
+  file: readFileSync("src/crypto/file-v2.ts", "utf8"),
   encryptFlow: readFileSync("src/flows/encrypt/text.tsx", "utf8"),
   decryptFlow: readFileSync("src/flows/decrypt/index.tsx", "utf8"),
   cryptoRunner: readFileSync("src/workers/crypto-runner.ts", "utf8"),
   fileRunner: readFileSync("src/workers/file-runner.ts", "utf8"),
   contactsFlow: readFileSync("src/flows/contacts/manage.tsx", "utf8"),
-  architecture: readFileSync("docs/security-architecture.md", "utf8"),
-  implementation: readFileSync("docs/implementation-plan.md", "utf8"),
 };
-
-function interfaceBody(source: string, name: string): string {
-  const match = source.match(
-    new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`, "u"),
-  );
-  if (!match?.[1]) throw new Error(`Missing ${name}`);
-  return match[1];
-}
 
 function requireAll(
   failures: string[],
   label: string,
   source: string,
-  required: string[],
+  required: readonly string[],
 ): void {
   const missing = required.filter((value) => !source.includes(value));
   if (missing.length > 0)
@@ -34,102 +25,91 @@ function requireAll(
 }
 
 const failures: string[] = [];
-const capability = interfaceBody(files.types, "SenderSigningCapability");
-const textInput = interfaceBody(files.types, "EncryptTextInput");
-const fileInput = interfaceBody(files.types, "EncryptFileInput");
-requireAll(failures, "SenderSigningCapability", capability, [
-  "fingerprint: Uint8Array",
+requireAll(failures, "V2 wire types", files.types, [
+  "PPX_V2_FORMAT_VERSION = 0x02",
+  "PPX_PQ_5_SUITE = 0x02",
+  'PPX_PQ_5_NAME = "PPX-PQ-5"',
+  "kemPublicKey: Uint8Array",
+  "kemSecretKey: Uint8Array",
   "signingPublicKey: Uint8Array",
   "signingSecretKey: Uint8Array",
+  "mlKemCiphertext: Uint8Array",
+  "senderSigningCapability: SenderSigningCapabilityV2",
+  "activeIdentity: DecapsulationCapabilityV2",
+  "knownSenders: readonly PublicContactV2[]",
 ]);
-requireAll(failures, "EncryptTextInput", textInput, [
-  "sender: PublicContact",
-  "senderSigningCapability: SenderSigningCapability",
-  "recipient: PublicContact",
-]);
-requireAll(failures, "EncryptFileInput", fileInput, [
-  "sender: PublicContact",
-  "senderSigningCapability: SenderSigningCapability",
-  "recipient: PublicContact",
-]);
-
-for (const [label, source] of [
-  ["provider source", files.provider],
-  ["security architecture", files.architecture],
-  ["implementation plan", files.implementation],
-] as const) {
-  requireAll(failures, label, source, [
-    "recipientFingerprint: Uint8Array",
-    "recipientKemPublicKey: Uint8Array",
-    "recipientX25519PublicKey: Uint8Array",
-    "encryptText(input: EncryptTextInput)",
-    "encryptFile(",
-    "encryptFileToBlob(",
-  ]);
-  const providerBlock = source.slice(
-    source.indexOf("createHybridEncapsulation(params:"),
-    source.indexOf(
-      "encryptText(input:",
-      source.indexOf("createHybridEncapsulation(params:"),
-    ),
-  );
-  for (const forbidden of [
-    "ephemeralX25519SecretKey",
-    "ephemeralX25519PublicKey",
-    "mlKemCiphertext",
-    "mlKemSharedSecret",
-    "x25519SharedSecret",
-    "salt:",
-  ]) {
-    if (providerBlock.includes(forbidden)) {
-      failures.push(`${label}: caller supplies forbidden ${forbidden}`);
-    }
-  }
-}
-
-requireAll(failures, "hybrid implementation", files.hybrid, [
-  "crypto.getRandomValues(new Uint8Array(32))",
-  "encapsulate: mlKem512Encapsulate",
-  "sharedSecret: x25519SharedSecret",
-  "primitives.encapsulate(recipient.recipientKemPublicKey)",
-  "primitives.sharedSecret(",
-  "zeroize(ephemeralSecret)",
+requireAll(failures, "provider", files.provider, [
+  "deriveIdentity(",
+  "createPublicContact(",
+  "parsePublicContact(",
+  "encryptText(input: EncryptTextInputV2)",
+  "decryptText(input: DecryptTextInputV2)",
+  "lockVault(input: LockVaultInputV2)",
+  "unlockVault(input: UnlockVaultInputV2)",
 ]);
 requireAll(failures, "default provider", files.defaultProvider, [
-  "class DefaultCryptoProvider implements CryptoProvider",
-  "createNobleCryptoProvider(): CryptoProvider",
-  "createWebCryptoAdapter(): CryptoProvider | null",
-  "return encapsulateHybrid(params)",
-  "return encryptText(input)",
-  "return decryptText(input)",
-  "return encryptFile(input, hooks)",
-  "return encryptFileToBlob(input, hooks)",
-  "return decryptFile(input, hooks)",
+  "deriveIdentityV2FromEntropy",
+  "createPublicContactV2",
+  "parsePublicContactV2",
+  "encryptTextV2",
+  "decryptTextV2",
+  "lockVaultV2",
+  "unlockVaultV2",
 ]);
-requireAll(failures, "encrypt UI worker use", files.encryptFlow, [
+requireAll(failures, "text cryptography", files.text, [
+  "ObjectFamilyV2.Text",
+  "ObjectFamilyV2.CompactText",
+  "encryptAesGcm",
+  "decryptAesGcm",
+]);
+requireAll(failures, "file cryptography", files.file, [
+  "ObjectFamilyV2.File",
+  "PPX_PQ_5_SUITE",
+  "aes256Key",
+  "encryptAesGcm",
+  "decryptAesGcm",
+]);
+requireAll(failures, "encrypt UI", files.encryptFlow, [
   "startEncryptTextJob",
+  "createSenderSigningCapabilityV2",
+  "encodeTextArmorV2",
+  "encodeMessageLinkV2",
 ]);
-requireAll(failures, "decrypt UI worker use", files.decryptFlow, [
+requireAll(failures, "decrypt UI", files.decryptFlow, [
   "startDecryptTextJob",
+  "createDecapsulationCapabilityV2",
 ]);
-requireAll(failures, "crypto worker provider use", files.cryptoRunner, [
+requireAll(failures, "crypto runner", files.cryptoRunner, [
+  "validateSenderSigningCapabilityV2",
+  "validateDecapsulationCapabilityV2",
   "defaultCryptoProvider.encryptText",
   "defaultCryptoProvider.decryptText",
   "defaultCryptoProvider.lockVault",
   "defaultCryptoProvider.unlockVault",
 ]);
-requireAll(failures, "file worker provider use", files.fileRunner, [
-  "defaultCryptoProvider.encryptFileToBlob",
-  "defaultCryptoProvider.decryptFile",
+requireAll(failures, "file runner", files.fileRunner, [
+  "encryptFileToBlobV2",
+  "decryptFileV2",
+  "validateSenderSigningCapabilityV2",
+  "validateDecapsulationCapabilityV2",
 ]);
-requireAll(failures, "contact import provider use", files.contactsFlow, [
-  "defaultCryptoProvider.parsePublicContact",
+requireAll(failures, "contact import", files.contactsFlow, [
+  "parsePublicContactV2",
+  "encodePublicContactV2",
 ]);
-if (
-  files.encryptFlow.includes('from "../../crypto/text"') ||
-  files.decryptFlow.includes('from "../../crypto/text"')
-) {
-  failures.push("text UI bypasses CryptoProvider");
+
+for (const [label, source] of Object.entries(files)) {
+  for (const forbidden of [
+    "createHybridEncapsulation",
+    "x25519",
+    "X25519",
+    "PPXQ",
+    "startEncryptQrTextJob",
+    "startDecryptQrTextJob",
+  ]) {
+    if (source.includes(forbidden))
+      failures.push(`${label}: forbidden ${forbidden}`);
+  }
 }
 
 if (failures.length > 0) {
@@ -137,4 +117,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log("CryptoProvider contract OK");
+console.log("Cat-5 CryptoProvider contract OK");

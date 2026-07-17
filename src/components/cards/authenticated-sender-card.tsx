@@ -1,5 +1,5 @@
 import type { MessageKey } from "../../i18n";
-import type { PublicContact } from "../../protocol/types";
+import type { PublicContactV2 } from "../../protocol/types-v2";
 import {
   displayIdentityId,
   type ManagedContact,
@@ -18,7 +18,7 @@ export function AuthenticatedSenderCard({
   contacts,
   t,
 }: {
-  sender: PublicContact;
+  sender: PublicContactV2;
   contacts: ManagedContact[];
   t: (key: MessageKey) => string;
 }) {

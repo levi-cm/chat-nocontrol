@@ -1,16 +1,19 @@
-import type { PPXWorkerEvent } from "../crypto/contracts";
-import type {
-  DecryptedFileOutput,
-  DecryptFileInput,
-  EncryptedFileBlobOutput,
-  EncryptFileInput,
-} from "../protocol/types";
-import { PPXError } from "../protocol/types";
-import { zeroize } from "../crypto/zeroize";
 import {
-  createDecapsulationCapability,
-  zeroizeDecapsulationCapability,
-} from "../crypto/decapsulation-capability";
+  cloneDecapsulationCapabilityV2,
+  validateSenderSigningCapabilityV2,
+  zeroizeDecapsulationCapabilityV2,
+  zeroizeSenderSigningCapabilityV2,
+} from "../crypto/capability-v2";
+import type { PPXFileWorkerRequest, PPXWorkerEvent } from "../crypto/contracts";
+import type {
+  DecryptFileSourceInputV2,
+  EncryptedFileBlobOutputV2,
+} from "../crypto/file-v2";
+import type {
+  DecryptedFileOutputV2,
+  EncryptFileInputV2,
+} from "../protocol/types-v2";
+import { PPXError } from "../protocol/types";
 
 type ProgressEvent = Extract<PPXWorkerEvent, { kind: "progress" }>;
 
@@ -35,14 +38,20 @@ function createRequestId(): string {
         .join("");
 }
 
+function releaseRequestAuthority(
+  request: Exclude<PPXFileWorkerRequest, { kind: "cancel" }>,
+): void {
+  if (request.kind === "decrypt-file") {
+    zeroizeDecapsulationCapabilityV2(request.input.activeIdentity);
+  } else {
+    zeroizeSenderSigningCapabilityV2(request.input.senderSigningCapability);
+  }
+}
+
 function startFileJob<T>(
-  request:
-    | { kind: "encrypt-file"; requestId: string; input: EncryptFileInput }
-    | { kind: "decrypt-file"; requestId: string; input: DecryptFileInput },
+  request: Exclude<PPXFileWorkerRequest, { kind: "cancel" }>,
   onProgress?: (event: ProgressEvent) => void,
 ): FileWorkerJob<T> {
-  const decapsulationCapability =
-    request.kind === "decrypt-file" ? request.input.activeIdentity : undefined;
   let worker: Worker;
   try {
     worker = new Worker(new URL("./file-worker.ts", import.meta.url), {
@@ -50,12 +59,7 @@ function startFileJob<T>(
       name: "ppx-file-worker",
     });
   } catch (error) {
-    if (decapsulationCapability) {
-      zeroizeDecapsulationCapability(decapsulationCapability);
-    }
-    if (request.kind === "encrypt-file") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
     throw error;
   }
   let settled = false;
@@ -73,7 +77,6 @@ function startFileJob<T>(
     cancellationTimer = null;
     worker.terminate();
   };
-
   worker.addEventListener(
     "message",
     (message: MessageEvent<PPXWorkerEvent>) => {
@@ -86,9 +89,7 @@ function startFileJob<T>(
       close();
       if (cancelRequested && event.kind !== "cancelled") {
         rejectJob(new FileWorkerCancelled());
-        return;
-      }
-      if (event.kind === "completed") {
+      } else if (event.kind === "completed") {
         resolveJob(event.result as T);
       } else if (event.kind === "cancelled") {
         rejectJob(new FileWorkerCancelled());
@@ -108,20 +109,13 @@ function startFileJob<T>(
   };
   worker.addEventListener("error", failWorker);
   worker.addEventListener("messageerror", failWorker);
-
   try {
     worker.postMessage(request);
   } catch {
     failWorker();
   } finally {
-    if (decapsulationCapability) {
-      zeroizeDecapsulationCapability(decapsulationCapability);
-    }
-    if (request.kind === "encrypt-file") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
   }
-
   return {
     requestId: request.requestId,
     promise,
@@ -145,30 +139,32 @@ function startFileJob<T>(
 }
 
 export function startEncryptFileJob(
-  input: EncryptFileInput,
+  input: EncryptFileInputV2,
   onProgress?: (event: ProgressEvent) => void,
-): FileWorkerJob<EncryptedFileBlobOutput> {
+): FileWorkerJob<EncryptedFileBlobOutputV2> {
   try {
-    const requestId = createRequestId();
-    return startFileJob({ kind: "encrypt-file", requestId, input }, onProgress);
+    validateSenderSigningCapabilityV2(input.senderSigningCapability);
+    return startFileJob(
+      { kind: "encrypt-file", requestId: createRequestId(), input },
+      onProgress,
+    );
   } catch (error) {
-    zeroize(input.senderSigningCapability.signingSecretKey);
+    zeroizeSenderSigningCapabilityV2(input.senderSigningCapability);
     throw error;
   }
 }
 
 export function startDecryptFileJob(
-  input: DecryptFileInput,
+  input: DecryptFileSourceInputV2,
   onProgress?: (event: ProgressEvent) => void,
-): FileWorkerJob<DecryptedFileOutput> {
-  const requestId = createRequestId();
+): FileWorkerJob<DecryptedFileOutputV2> {
   return startFileJob(
     {
       kind: "decrypt-file",
-      requestId,
+      requestId: createRequestId(),
       input: {
         ...input,
-        activeIdentity: createDecapsulationCapability(input.activeIdentity),
+        activeIdentity: cloneDecapsulationCapabilityV2(input.activeIdentity),
       },
     },
     onProgress,
