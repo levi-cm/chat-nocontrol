@@ -13,7 +13,11 @@ import { parseRecoveryObject } from "../../protocol/ppxr";
 import type { RecoveryObject } from "../../protocol/types";
 import { parseLockedVault, PPXV_MAXIMUM_SIZE } from "../../protocol/ppxv";
 import { normalizePseudonym } from "../../protocol/text";
-import type { DerivedIdentity, PublicContact } from "../../protocol/types";
+import type {
+  DerivedIdentity,
+  PublicContact,
+  RecoveryWordsImportOutput,
+} from "../../protocol/types";
 import {
   type CryptoWorkerJob,
   startUnlockVaultJob,
@@ -22,7 +26,11 @@ import {
 interface IdentityImportProps {
   t: (key: MessageKey) => string;
   onBack: () => void;
-  onReady: (identity: DerivedIdentity, contact: PublicContact) => void;
+  onReady: (
+    identity: DerivedIdentity,
+    contact: PublicContact,
+    importedAt?: bigint,
+  ) => void;
   readPrivateFileMagic?: (file: File) => Promise<string>;
 }
 
@@ -80,7 +88,8 @@ export function IdentityImport({
   const complete = (
     identity: DerivedIdentity,
     publicPseudonym: string,
-    creationTime = BigInt(Math.floor(Date.now() / 1000)),
+    creationTime: bigint,
+    importedAt?: bigint,
   ) => {
     if (!mounted.current) {
       zeroizeIdentitySecrets(identity);
@@ -91,13 +100,23 @@ export function IdentityImport({
         ...identity,
         pseudonym: normalizePseudonym(publicPseudonym),
         creationTime,
+        ...(importedAt === undefined ? {} : { importedAt }),
       };
       const contact = defaultCryptoProvider.createPublicContact(
         relabeledIdentity,
         publicPseudonym,
         creationTime,
       );
-      onReady(relabeledIdentity, contact);
+      if (importedAt === undefined) {
+        onReady(relabeledIdentity, contact);
+      } else {
+        const output: RecoveryWordsImportOutput = {
+          identity: relabeledIdentity,
+          publicContact: contact,
+          importedAt,
+        };
+        onReady(output.identity, output.publicContact, output.importedAt);
+      }
     } catch (caught) {
       zeroizeIdentitySecrets(identity);
       throw caught;
@@ -117,7 +136,8 @@ export function IdentityImport({
       entropy =
         createRecoveryWordCodec().recoveryWordsToEntropy(normalizedWords);
       const identity = await defaultCryptoProvider.deriveIdentity(entropy);
-      complete(identity, pseudonym);
+      const importedAt = BigInt(Math.floor(Date.now() / 1000));
+      complete(identity, pseudonym, 0n, importedAt);
     } catch {
       if (mounted.current) setError(t("importError"));
     } finally {

@@ -32,8 +32,8 @@ import {
   PPXError,
   type ChunkRecord,
   type DecryptedFileOutput,
+  type DecapsulationCapability,
   type DecryptFileInput,
-  type DerivedIdentity,
   type EncryptedFileObject,
   type EncryptedFileBlobOutput,
   type EncryptFileInput,
@@ -768,7 +768,7 @@ async function inspectEncodedFileBlob(
 
 async function decryptEncodedFileBlob(
   file: Blob,
-  activeIdentity: DerivedIdentity,
+  activeIdentity: DecapsulationCapability,
   hooks?: FileCryptoHooks,
 ): Promise<DecryptedFileOutput> {
   let key: Uint8Array | undefined;

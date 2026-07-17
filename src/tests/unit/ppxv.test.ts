@@ -1,9 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { deriveIdentityFromEntropy } from "../../crypto/identity";
 import { lockVault, unlockVault } from "../../crypto/vault";
+import { checksum16 } from "../../protocol/checksum";
 import { encodeLockedVault, parseLockedVault } from "../../protocol/ppxv";
 
 describe("PPXV vault", () => {
+  it("rejects a checksum-valid scrypt cost downgrade", async () => {
+    const identity = await deriveIdentityFromEntropy(
+      new Uint8Array(32),
+      "Alice",
+    );
+    const encoded = encodeLockedVault(
+      await lockVault({
+        identity,
+        passphrase: "five random words make safer vaults",
+      }),
+    );
+    encoded.fill(0, 8, 16);
+    encoded[14] = 0x04;
+    encoded.set(checksum16(encoded.subarray(0, -16)), encoded.length - 16);
+
+    expect(() => parseLockedVault(encoded)).toThrow("noncanonical-text");
+  });
+
   it("locks and unlocks with exact PPX parameters", async () => {
     const identity = await deriveIdentityFromEntropy(
       Uint8Array.from({ length: 32 }, (_, index) => index),

@@ -7,6 +7,7 @@ import type {
 } from "../protocol/types";
 import { PPXError } from "../protocol/types";
 import { zeroize } from "../crypto/zeroize";
+import { createDecapsulationCapability } from "../crypto/decapsulation-capability";
 
 type ProgressEvent = Extract<PPXWorkerEvent, { kind: "progress" }>;
 
@@ -150,5 +151,15 @@ export function startDecryptFileJob(
   onProgress?: (event: ProgressEvent) => void,
 ): FileWorkerJob<DecryptedFileOutput> {
   const requestId = createRequestId();
-  return startFileJob({ kind: "decrypt-file", requestId, input }, onProgress);
+  return startFileJob(
+    {
+      kind: "decrypt-file",
+      requestId,
+      input: {
+        ...input,
+        activeIdentity: createDecapsulationCapability(input.activeIdentity),
+      },
+    },
+    onProgress,
+  );
 }
