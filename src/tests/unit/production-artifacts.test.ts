@@ -35,6 +35,15 @@ describe("production artifact inspection", () => {
     expect(inspectProductionArtifacts(await fixture())).toEqual([]);
   });
 
+  it("accepts the injectManifest clients.claim activation shape", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "sw.js"),
+      "self.skipWaiting();self.addEventListener('activate',()=>self.clients.claim());",
+    );
+    expect(inspectProductionArtifacts(root)).toEqual([]);
+  });
+
   it("rejects source maps and sourceMappingURL references recursively", async () => {
     const root = await fixture();
     await writeFile(join(root, "assets", "app.js.map"), "{}");

@@ -7,6 +7,19 @@
   "display": "standalone",
   "background_color": "#f5f7fb",
   "theme_color": "#f5f7fb",
+  "share_target": {
+    "action": "./share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "message",
+          "accept": ["text/plain", ".txt"]
+        }
+      ]
+    }
+  },
   "icons": [
     {
       "src": "./icons/app-logo-192.png",
