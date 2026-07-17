@@ -5,6 +5,7 @@ import { PassphraseMeter } from "../../components/forms/passphrase-meter";
 import { PasteButton } from "../../components/forms/paste-button";
 import { QrImport } from "../../components/qr/import";
 import { defaultCryptoProvider } from "../../crypto/default-provider";
+import type { CryptoProvider, RecoveryWordCodec } from "../../crypto/provider";
 import { createRecoveryWordCodec } from "../../crypto/recovery-words";
 import { zeroize, zeroizeIdentitySecrets } from "../../crypto/zeroize";
 import type { MessageKey } from "../../i18n";
@@ -16,6 +17,7 @@ import { normalizePseudonym } from "../../protocol/text";
 import type {
   DerivedIdentity,
   PublicContact,
+  RecoveryWordsImportInput,
   RecoveryWordsImportOutput,
 } from "../../protocol/types";
 import {
@@ -38,6 +40,44 @@ async function defaultReadPrivateFileMagic(file: File): Promise<string> {
   return new TextDecoder().decode(
     new Uint8Array(await file.slice(0, 4).arrayBuffer()),
   );
+}
+
+export async function importRecoveryWords(
+  input: RecoveryWordsImportInput,
+  provider: Pick<
+    CryptoProvider,
+    "deriveIdentity" | "createPublicContact"
+  > = defaultCryptoProvider,
+  codec: RecoveryWordCodec = createRecoveryWordCodec(),
+): Promise<RecoveryWordsImportOutput> {
+  let entropy: Uint8Array | undefined;
+  let identity: DerivedIdentity | undefined;
+  let transferred = false;
+  try {
+    entropy = codec.recoveryWordsToEntropy(input.words);
+    identity = await provider.deriveIdentity(entropy);
+    const pseudonym = normalizePseudonym(input.pseudonym);
+    const importedIdentity: DerivedIdentity = {
+      ...identity,
+      pseudonym,
+      creationTime: 0n,
+      importedAt: input.importedAt,
+    };
+    const output: RecoveryWordsImportOutput = {
+      identity: importedIdentity,
+      publicContact: provider.createPublicContact(
+        importedIdentity,
+        pseudonym,
+        0n,
+      ),
+      importedAt: input.importedAt,
+    };
+    transferred = true;
+    return output;
+  } finally {
+    if (entropy) zeroize(entropy);
+    if (identity && !transferred) zeroizeIdentitySecrets(identity);
+  }
 }
 
 export function IdentityImport({
@@ -126,22 +166,25 @@ export function IdentityImport({
   const importWords = async () => {
     setBusy(true);
     setError("");
-    let entropy: Uint8Array | undefined;
     try {
       const normalizedWords = words
         .normalize("NFKD")
         .trim()
         .toLowerCase()
         .split(/\s+/u);
-      entropy =
-        createRecoveryWordCodec().recoveryWordsToEntropy(normalizedWords);
-      const identity = await defaultCryptoProvider.deriveIdentity(entropy);
-      const importedAt = BigInt(Math.floor(Date.now() / 1000));
-      complete(identity, pseudonym, 0n, importedAt);
+      const output = await importRecoveryWords({
+        words: normalizedWords,
+        pseudonym,
+        importedAt: BigInt(Math.floor(Date.now() / 1000)),
+      });
+      if (!mounted.current) {
+        zeroizeIdentitySecrets(output.identity);
+        return;
+      }
+      onReady(output.identity, output.publicContact, output.importedAt);
     } catch {
       if (mounted.current) setError(t("importError"));
     } finally {
-      if (entropy) zeroize(entropy);
       if (mounted.current) setBusy(false);
     }
   };

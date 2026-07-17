@@ -423,6 +423,11 @@ value as optional local-only `DerivedIdentity.importedAt`; vault and recovery
 encoders ignore it. PPXR and PPXV imports continue to preserve their embedded
 creation time.
 
+Re-importing a public contact with an already-known fingerprint must preserve
+the existing signed `PPXC`, including its creation time. Without a defined
+genuinely-newer and user-informed replacement rule, only explicit local fields
+such as a newly entered nickname may change.
+
 ## 13. Zeroization and side-channel policy
 
 Zeroization must be best effort only.
