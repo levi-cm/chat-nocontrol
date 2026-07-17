@@ -1232,8 +1232,9 @@ Independent review uses a two-commit contract:
    independent human reviewer.
 2. The reviewer returns a real Markdown or PDF report and a signature using SSH
    namespace `chat-nocontrol-security-review-v1`. Their signing identity and
-   public key must already be trusted by `.github/allowed_signers`. The reviewer
-   never shares a private key.
+   public key must already be trusted by `.github/allowed_signers` before the
+   candidate commit; the candidate must not change that root. The reviewer never
+   shares a private key.
 3. A single immediate child commit adds only
    `docs/independent-security-review.json`, the named report under
    `docs/reviews/`, and `<report>.sig`.

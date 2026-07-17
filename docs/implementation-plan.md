@@ -1561,7 +1561,8 @@ Key release contract:
 - Freeze one candidate commit for a genuinely independent human review.
 - Permit exactly one immediate child commit that adds only the schema-v2 review
   record, its named Markdown/PDF report, and `<report>.sig`. Verify the signature
-  against the repository-controlled `.github/allowed_signers` trust root.
+  against the repository-controlled `.github/allowed_signers` trust root, which
+  must predate and remain unchanged by the reviewed candidate.
 - Require `reviewedCommit` to be the evidence commit's immediate parent and an
   ancestor of release `HEAD`; reject extra commits, non-add diffs, renames,
   symlinks, path traversal, executable files, and every other changed path.

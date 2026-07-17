@@ -54,7 +54,10 @@ interface ReviewRepository {
 }
 
 function createReviewRepository(
-  options: { trustedSigner?: boolean } = {},
+  options: {
+    replaceTrustedRootInCandidate?: boolean;
+    trustedSigner?: boolean;
+  } = {},
 ): ReviewRepository {
   const cwd = mkdtempSync(join(tmpdir(), "chat-nocontrol-review-"));
   temporaryDirectories.push(cwd);
@@ -84,20 +87,15 @@ function createReviewRepository(
     ".github/allowed_signers",
     `reviewer@example.com ${trustedPublicKey}\n`,
   );
-  write(cwd, "src/app.ts", "export const candidate = true;\n");
+  write(cwd, "src/app.ts", "export const candidate = false;\n");
   git(cwd, "add", ".github/allowed_signers", "src/app.ts");
-  git(cwd, "commit", "-q", "-m", "candidate");
-  const candidate = git(cwd, "rev-parse", "HEAD");
+  git(cwd, "commit", "-q", "-m", "establish trusted review root");
 
-  const reportPath = "docs/reviews/independent-cryptographic-review.md";
-  const signaturePath = `${reportPath}.sig`;
-  write(cwd, reportPath, "# Independent review\n\nCleared for public beta.\n");
-
-  const keyPath =
-    options.trustedSigner === false
-      ? join(cwd, "forged-reviewer-key")
-      : trustedKeyPath;
-  if (options.trustedSigner === false) {
+  const forgedKeyPath = join(cwd, "forged-reviewer-key");
+  if (
+    options.trustedSigner === false ||
+    options.replaceTrustedRootInCandidate
+  ) {
     command(cwd, "ssh-keygen", [
       "-q",
       "-t",
@@ -107,9 +105,40 @@ function createReviewRepository(
       "-C",
       "reviewer@example.com",
       "-f",
-      keyPath,
+      forgedKeyPath,
     ]);
   }
+  if (options.replaceTrustedRootInCandidate) {
+    const forgedPublicKey = readFileSync(`${forgedKeyPath}.pub`, "utf8")
+      .trim()
+      .split(/\s+/u)
+      .slice(0, 2)
+      .join(" ");
+    write(
+      cwd,
+      ".github/allowed_signers",
+      `reviewer@example.com ${forgedPublicKey}\n`,
+    );
+  }
+  write(
+    cwd,
+    "src/app.ts",
+    options.replaceTrustedRootInCandidate
+      ? "export const exfiltrate = true;\n"
+      : "export const candidate = true;\n",
+  );
+  git(cwd, "add", ".github/allowed_signers", "src/app.ts");
+  git(cwd, "commit", "-q", "-m", "candidate");
+  const candidate = git(cwd, "rev-parse", "HEAD");
+
+  const reportPath = "docs/reviews/independent-cryptographic-review.md";
+  const signaturePath = `${reportPath}.sig`;
+  write(cwd, reportPath, "# Independent review\n\nCleared for public beta.\n");
+
+  const keyPath =
+    options.trustedSigner === false || options.replaceTrustedRootInCandidate
+      ? forgedKeyPath
+      : trustedKeyPath;
   command(cwd, "ssh-keygen", [
     "-Y",
     "sign",
@@ -166,6 +195,14 @@ afterEach(() => {
 });
 
 describe("independent review evidence", () => {
+  it("rejects a candidate that replaces the trusted signer root", () => {
+    expect(
+      validate(createReviewRepository({ replaceTrustedRootInCandidate: true })),
+    ).toContain(
+      "trusted allowed-signers root must predate reviewedCommit and remain unchanged",
+    );
+  });
+
   it("rejects a self-forged signature absent from the fixed trust root", () => {
     expect(
       validate(createReviewRepository({ trustedSigner: false })),
