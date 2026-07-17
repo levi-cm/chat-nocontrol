@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "authority": "NIST Cryptographic Algorithm Validation Program (ACVP)",
   "sourceCommit": "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0",
+  "parameterSet": "ML-KEM-512",
   "sources": {
     "keyGen": {
       "url": "https://raw.githubusercontent.com/usnistgov/ACVP-Server/15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0/gen-val/json-files/ML-KEM-keyGen-FIPS203/internalProjection.json",
