@@ -285,10 +285,12 @@ and the following two-commit contract:
    and requires a new candidate and new independent review.
 
 The gate verifies the report signature against the repository-controlled
-`.github/allowed_signers` trust root and continues to bind the actual report
-SHA-256, SSH signature namespace `chat-nocontrol-security-review-v1`, signing
-identity, completion time, independence statement, `cleared-for-public-beta`
-outcome, and zero open critical/high findings. A syntactically valid hash, an
+`.github/allowed_signers` trust root. That root must already exist in the parent
+of `reviewedCommit` and remain byte-for-byte unchanged in the candidate and
+release checkout. The gate continues to bind the actual report SHA-256, SSH
+signature namespace `chat-nocontrol-security-review-v1`, signing identity,
+completion time, independence statement, `cleared-for-public-beta` outcome, and
+zero open critical/high findings. A syntactically valid hash, an
 implementation-team or AI attestation, or a review of a different commit is not
 review evidence.
 

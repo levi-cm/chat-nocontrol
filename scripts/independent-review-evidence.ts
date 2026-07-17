@@ -87,6 +87,51 @@ function sha256(cwd: string, path: string): string {
     .digest("hex");
 }
 
+function validateTrustedAllowedSigners(
+  record: ReviewRecord,
+  cwd: string,
+  failures: string[],
+): boolean {
+  const reviewedCommit = record.reviewedCommit ?? "";
+  if (!/^[0-9a-f]{40}$/u.test(reviewedCommit)) return false;
+
+  const parentRoot = git(cwd, [
+    "rev-parse",
+    `${reviewedCommit}^:${trustedAllowedSignersPath}`,
+  ]);
+  const candidateRoot = git(cwd, [
+    "rev-parse",
+    `${reviewedCommit}:${trustedAllowedSignersPath}`,
+  ]);
+  const workingRoot = git(cwd, [
+    "hash-object",
+    "--",
+    trustedAllowedSignersPath,
+  ]);
+  const stagedRoot = git(cwd, [
+    "diff",
+    "--cached",
+    "--quiet",
+    reviewedCommit,
+    "--",
+    trustedAllowedSignersPath,
+  ]);
+  if (
+    parentRoot.status !== 0 ||
+    candidateRoot.status !== 0 ||
+    workingRoot.status !== 0 ||
+    stagedRoot.status !== 0 ||
+    parentRoot.stdout.trim() !== candidateRoot.stdout.trim() ||
+    parentRoot.stdout.trim() !== workingRoot.stdout.trim()
+  ) {
+    failures.push(
+      "trusted allowed-signers root must predate reviewedCommit and remain unchanged",
+    );
+    return false;
+  }
+  return true;
+}
+
 function validateHistory(
   record: ReviewRecord,
   options: Required<Pick<ReviewValidationOptions, "cwd" | "head">>,
@@ -266,11 +311,18 @@ export function validateIndependentReviewEvidence(
     failures.push("independent review report SHA-256 does not match its file");
   }
 
+  const trustedAllowedSignersIsValid = validateTrustedAllowedSigners(
+    record,
+    cwd,
+    failures,
+  );
+
   if (
     reportPath &&
     signaturePath &&
     reportIsFile &&
     signatureIsFile &&
+    trustedAllowedSignersIsValid &&
     record.signingIdentity?.trim() &&
     record.signatureNamespace === signatureNamespace
   ) {
