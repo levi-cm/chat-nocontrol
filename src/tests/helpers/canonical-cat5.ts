@@ -6,12 +6,14 @@ import {
 import { deriveMlKemKeyV2 } from "../../crypto/kem-v2";
 import { mlKem1024Encapsulate } from "../../crypto/pq-provider-v2";
 import { encryptTextV2 } from "../../crypto/text-v2";
+import { encryptFileV2 } from "../../crypto/file-v2";
 import {
   createPublicContactV2,
   encodePublicContactV2,
 } from "../../protocol/ppxc-v2";
 import { ObjectFamilyV2 } from "../../protocol/types-v2";
 import { encodeEncryptedTextOuterV2 } from "../../protocol/text-v2-outer";
+import { encodeEncryptedFileObjectV2 } from "../../protocol/ppxf-v2";
 
 const hex = (value: Uint8Array) =>
   [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -121,10 +123,32 @@ export async function canonicalCat5Foundation() {
   };
   const fullText = await encryptEmpty(false);
   const compactText = await encryptEmpty(true);
+  const fileObject = await encryptFileV2(
+    {
+      sender: textSenderContact,
+      senderSigningCapability: createSenderSigningCapabilityV2(identity),
+      recipient: recipientContact,
+      file: new Blob(),
+      filename: "x",
+      mimeHint: "",
+      caption: "",
+      fileLength: 0n,
+    },
+    undefined,
+    {
+      kem: deterministicKem,
+      randomBytes: (length) =>
+        Uint8Array.from(
+          { length },
+          (_, index) => (length === 32 ? 0xd8 : 0xf0) + index,
+        ),
+    },
+  );
+  const fileBytes = encodeEncryptedFileObjectV2(fileObject);
   return {
     schemaVersion: 1,
     description:
-      "Deterministic PPX-PQ-5 identity, ML-KEM HKDF, and PPXC V2 foundation golden.",
+      "Deterministic PPX-PQ-5 identity, KEM, contact, text, and file golden.",
     suite: 0x02,
     formatVersion: 0x02,
     identity: {
@@ -157,6 +181,16 @@ export async function canonicalCat5Foundation() {
       },
       full: fullText,
       compact: compactText,
+    },
+    file: {
+      magic: fileObject.header.magic,
+      objectFamily: ObjectFamilyV2.File,
+      headerBytes: 1_651,
+      chunkBytes: 1_048_576,
+      signatureContext: "PPX/FILE/MANIFEST/V2",
+      encodedLength: fileBytes.byteLength,
+      encodedSha512: hex(sha512(fileBytes)),
+      manifestCiphertextSha512: hex(sha512(fileObject.manifest.ciphertext)),
     },
   };
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Deterministic PPX-PQ-5 identity, ML-KEM HKDF, and PPXC V2 foundation golden.",
+  "description": "Deterministic PPX-PQ-5 identity, KEM, contact, text, and file golden.",
   "suite": 2,
   "formatVersion": 2,
   "identity": {
@@ -45,5 +45,15 @@
       "encodedSha512": "664d9fca2465e15eb5513808c53ef71894975b1622d401f3912010afa30f28b5f4c717134f4b4a380a00197d8d9cb92f1f3d39432388475b79c40a6b9997beba",
       "ciphertextSha512": "8254b38cc6c9bad3c5efcb89f5a7734e885057c410add0df7143667f26948cd71f16d4b752f1fb1ddb5a38ac7cb3c1933088e65a58957687ad548ab660ce0b64"
     }
+  },
+  "file": {
+    "magic": "PPXF",
+    "objectFamily": 4,
+    "headerBytes": 1651,
+    "chunkBytes": 1048576,
+    "signatureContext": "PPX/FILE/MANIFEST/V2",
+    "encodedLength": 15258,
+    "encodedSha512": "413ab6cd95a1c1b50091e2da40e2359d8e66f4b439bb25fb4fb999d0682196d5274235d47d953b40d38412644233e3ff92dd16eef7fbdfe72a23b1a915ca469c",
+    "manifestCiphertextSha512": "e84243b71bbabf5121c923a390ed332118fcca3e45e3c49bfdd56d4c5b1323e00389ca2d3421c016592b0f938bb737cdffc5659796f92d2846adc12ee908140a"
   }
 }
