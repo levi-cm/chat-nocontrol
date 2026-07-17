@@ -3,8 +3,9 @@ import {
   PPX_PQ_5_SUITE,
   PPX_V2_FORMAT_VERSION,
   type DecapsulationCapabilityV2,
+  isObjectFamilyV2,
   type MlKemEncapsulationV2,
-  ObjectFamilyV2,
+  type ObjectFamilyV2,
 } from "../protocol/types-v2";
 import { deriveHkdfSha512, sha512Digest } from "./noble-provider";
 import { mlKem1024Decapsulate, mlKem1024Encapsulate } from "./pq-provider-v2";
@@ -41,15 +42,8 @@ function validateMetadata(input: {
   salt: Uint8Array;
   mlKemCiphertext: Uint8Array;
 }): void {
-  const validObjectFamily =
-    input.objectFamily === ObjectFamilyV2.Contact ||
-    input.objectFamily === ObjectFamilyV2.Text ||
-    input.objectFamily === ObjectFamilyV2.QrText ||
-    input.objectFamily === ObjectFamilyV2.File ||
-    input.objectFamily === ObjectFamilyV2.Vault ||
-    input.objectFamily === ObjectFamilyV2.Recovery;
   if (
-    !validObjectFamily ||
+    !isObjectFamilyV2(input.objectFamily) ||
     input.recipientFingerprint.byteLength !== 32 ||
     input.salt.byteLength !== 32 ||
     input.mlKemCiphertext.byteLength !== 1568
