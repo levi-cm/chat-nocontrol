@@ -1,3 +1,5 @@
+import { sha256 } from "@noble/hashes/sha2.js";
+
 const SOURCE_COMMIT = "15c0f3deeefbfa8cb6cd32a99e1ca3b738c66bf0";
 const BASE = `https://raw.githubusercontent.com/usnistgov/ACVP-Server/${SOURCE_COMMIT}/gen-val/json-files`;
 const SOURCES = Object.freeze({
@@ -22,8 +24,29 @@ const SOURCES = Object.freeze({
     sha256: "85827fd9f058d617b956301d342f2792d66ff188987ccce87f014f0bdb282457",
   },
 });
+const FIXTURE_SHA256 = Object.freeze({
+  kem512: "85d905c671308adc296dc97ef19181e7764e922a2d6efcffb63f47f4df3c801f",
+  kem1024: "3f3608771a7ebe89f672ffe7d2818759757f3ed9d4f8d9c073ca6bbaf3fedeea",
+  dsa: "c05e4d1b4cc25852882560e7a1f0f5006ffa3869700e150a5e2aa6da8a665787",
+});
+const encoder = new TextEncoder();
 
 type JsonRecord = Record<string, unknown>;
+
+function lowerHex(value: Uint8Array): string {
+  return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function verifyCanonicalFixtureDigest(
+  value: unknown,
+  expected: string,
+  label: string,
+): void {
+  const canonicalBytes = encoder.encode(`${JSON.stringify(value, null, 2)}\n`);
+  if (lowerHex(sha256(canonicalBytes)) !== expected) {
+    throw new Error(`Invalid NIST fixture canonical SHA-256: ${label}`);
+  }
+}
 
 function record(value: unknown, label: string): JsonRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -225,6 +248,17 @@ export function verifyNistFixtureIntegrity(input: {
   kem1024: unknown;
   dsa: unknown;
 }): void {
+  verifyCanonicalFixtureDigest(
+    input.kem512,
+    FIXTURE_SHA256.kem512,
+    "ML-KEM-512",
+  );
+  verifyCanonicalFixtureDigest(
+    input.kem1024,
+    FIXTURE_SHA256.kem1024,
+    "ML-KEM-1024",
+  );
+  verifyCanonicalFixtureDigest(input.dsa, FIXTURE_SHA256.dsa, "ML-DSA-87");
   verifyKem(input.kem512, {
     parameterSet: "ML-KEM-512",
     publicKeyBytes: 800,

@@ -90,9 +90,13 @@ the ordered release gate and must stop on the first real failure.
 
 `vectors:nist-verify` is the normal offline integrity gate. It checks pinned
 source commit, URLs, SHA-256 source hashes, selected ACVP case IDs, and field
-sizes from committed fixtures. `vectors:nist-live-verify` explicitly fetches
-the pinned upstream commit and compares regenerated fixtures; it is not part of
-`verify:quality`. `vectors:nist-sync` is the explicit fixture refresh command.
+sizes from committed fixtures. Hard-coded SHA-256 values also bind the complete
+canonical bytes of all three selected-vector fixtures. `vectors:nist-live-verify`
+explicitly fetches the pinned upstream commit and compares regenerated fixtures;
+it is not part of `verify:quality`. `vectors:nist-sync` is the explicit fixture
+refresh command. A deliberate refresh that changes fixture bytes must include a
+reviewed update to the hard-coded canonical fixture digests; otherwise the
+offline quality gate fails.
 
 ### 2.3 Product flows
 

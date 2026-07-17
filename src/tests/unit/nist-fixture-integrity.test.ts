@@ -43,4 +43,48 @@ describe("offline pinned NIST fixture integrity", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects one-nibble vector payload mutation", () => {
+    const flipNibble = (value: string) =>
+      `${value[0] === "0" ? "1" : "0"}${value.slice(1)}`;
+    expect(() =>
+      verifyNistFixtureIntegrity({
+        kem512: {
+          ...kem512,
+          encapsulation: {
+            ...kem512.encapsulation,
+            k: flipNibble(kem512.encapsulation.k),
+          },
+        },
+        kem1024,
+        dsa,
+      }),
+    ).toThrow();
+    expect(() =>
+      verifyNistFixtureIntegrity({
+        kem512,
+        kem1024: {
+          ...kem1024,
+          keyGen: {
+            ...kem1024.keyGen,
+            ek: flipNibble(kem1024.keyGen.ek),
+          },
+        },
+        dsa,
+      }),
+    ).toThrow();
+    expect(() =>
+      verifyNistFixtureIntegrity({
+        kem512,
+        kem1024,
+        dsa: {
+          ...dsa,
+          signatureGeneration: {
+            ...dsa.signatureGeneration,
+            signature: flipNibble(dsa.signatureGeneration.signature),
+          },
+        },
+      }),
+    ).toThrow();
+  });
 });
