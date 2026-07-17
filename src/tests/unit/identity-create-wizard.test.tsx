@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/preact";
+import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentityCreate } from "../../flows/identity/create";
@@ -61,12 +61,148 @@ function vaultFixture(): LockedVaultObject {
   };
 }
 
+type ReadyCallback = (
+  identity: DerivedIdentity,
+  contact: PublicContact,
+  vault?: LockedVaultObject,
+  signal?: AbortSignal,
+  acceptOwnership?: () => boolean,
+) => void;
+
+async function advanceNewIdentityThroughStepSix(onReady: ReadyCallback) {
+  const user = userEvent.setup();
+  let recoveryCode = "";
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+    () => undefined,
+  );
+  render(
+    <IdentityCreate
+      t={(key) => messages.en[key]}
+      locale="en"
+      identity={null}
+      contact={null}
+      onReady={onReady}
+      identityProvider={{
+        deriveIdentity: vi.fn().mockResolvedValue(identityFixture()),
+        createPublicContact: () => contactFixture(),
+      }}
+      lockVaultJobFactory={() => ({
+        requestId: "persistence-boundary",
+        promise: Promise.resolve(vaultFixture()),
+        cancel: vi.fn(),
+      })}
+      privateCardGenerator={(_locale, _pseudonym, code) => {
+        recoveryCode = code;
+        return Promise.resolve("data:image/png;base64,AA==");
+      }}
+      recoveryQrGenerator={() => Promise.resolve("data:image/png;base64,AA==")}
+      pdfGenerator={() => Promise.resolve(new Uint8Array([37, 80, 68, 70]))}
+      randomBytes={(length) => new Uint8Array(length).fill(7)}
+    />,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Create new identity" }));
+  await user.type(screen.getByLabelText("Username"), "Alice");
+  await user.click(screen.getByRole("button", { name: "Generate identity" }));
+  await user.type(
+    screen.getByLabelText("Browser-vault password"),
+    "Vault pass 123!",
+  );
+  await user.type(
+    screen.getByLabelText("Confirm browser-vault password"),
+    "Vault pass 123!",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Create encrypted vault" }),
+  );
+
+  expect(await screen.findByText("Step 3 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    await screen.findByRole("button", { name: "Save private QR as PNG" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", { name: "I stored the private QR safely" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Download .ppxrecovery file" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "I stored the .ppxrecovery file safely",
+    }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Continue to recovery words" }),
+  );
+
+  expect(await screen.findByText("Step 4 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("checkbox", { name: "I wrote down all 24 words" }),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Download recovery PDF" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", { name: "I safely stored the recovery PDF" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Continue to restore practice" }),
+  );
+
+  expect(await screen.findByText("Step 5 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText("Private recovery code"), recoveryCode);
+  await user.click(
+    screen.getByRole("button", { name: "Verify private QR recovery" }),
+  );
+
+  expect(await screen.findByText("Step 6 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "I know what I’m doing" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Skip practice" }));
+  expect(await screen.findByText("Step 7 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+
+  return user;
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
 describe("seven-screen identity wizard", () => {
+  it("discards the prepared vault only after final session-only confirmation", async () => {
+    const onReady = vi.fn<ReadyCallback>();
+    const user = await advanceNewIdentityThroughStepSix(onReady);
+
+    await user.click(
+      screen.getByRole("radio", { name: /No, use session only/u }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Finish identity setup" }),
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onReady.mock.calls[0]?.[2]).toBeUndefined();
+  });
+
+  it("passes the verified vault only after final remembered confirmation", async () => {
+    const onReady = vi.fn<ReadyCallback>();
+    const user = await advanceNewIdentityThroughStepSix(onReady);
+
+    await user.click(
+      screen.getByRole("button", { name: "Finish identity setup" }),
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onReady.mock.calls[0]?.[2]).toEqual(vaultFixture());
+  });
+
   it("uses calm username guidance without a danger panel", async () => {
     const user = userEvent.setup();
     render(

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentityImport } from "../../flows/identity/import";
 import { messages } from "../../i18n";
 import type { DerivedIdentity, PublicContact } from "../../protocol/types";
+import identityImportSource from "../../flows/identity/import.tsx?raw";
 
 afterEach(() => {
   cleanup();
@@ -11,6 +12,13 @@ afterEach(() => {
 });
 
 describe("recovery-word identity import", () => {
+  it("consumes the explicit recovery-word import contract in the live path", () => {
+    expect(identityImportSource).toContain("input: RecoveryWordsImportInput");
+    expect(identityImportSource).toContain(
+      "Promise<RecoveryWordsImportOutput>",
+    );
+  });
+
   it("keeps importedAt local and signs unknown original creation time as zero", async () => {
     const importedAt = 1_800_000_000n;
     vi.spyOn(Date, "now").mockReturnValue(Number(importedAt) * 1000);

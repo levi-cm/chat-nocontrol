@@ -120,7 +120,6 @@ export function ContactsManage({
             kind: "update",
             fingerprint: contact.fingerprint,
             patch: {
-              contact,
               ...(nickname ? { nickname } : {}),
             },
           }))

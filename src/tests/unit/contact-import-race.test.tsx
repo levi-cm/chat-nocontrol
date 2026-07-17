@@ -62,7 +62,47 @@ describe("contact import source ownership", () => {
     expect(onChange).toHaveBeenCalledWith({
       kind: "update",
       fingerprint: contact.fingerprint,
-      patch: { contact },
+      patch: {},
+    });
+  });
+
+  it("preserves the signed contact on zero-time re-import while applying an explicit nickname", async () => {
+    const identity = await deriveIdentityFromEntropy(
+      new Uint8Array(32).fill(5),
+      "Existing",
+    );
+    const existing = createPublicContact(identity, "Existing", 5n);
+    const reimported = createPublicContact(identity, "Re-imported", 0n);
+    const onChange = vi.fn(() => true);
+
+    render(
+      <ContactsManage
+        t={(key) => labels[key] ?? key}
+        contacts={[
+          {
+            contact: existing,
+            nickname: "Old nickname",
+            includeSenderContactInLinks: false,
+          },
+        ]}
+        onChange={onChange}
+      />,
+    );
+
+    await userEvent.type(
+      screen.getByLabelText("Public contact payload"),
+      encodePublicContactQr(reimported),
+    );
+    await userEvent.type(screen.getByLabelText("Nickname"), "New nickname");
+    await userEvent.click(
+      screen.getByRole("button", { name: "Save public contact" }),
+    );
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce());
+    expect(onChange).toHaveBeenCalledWith({
+      kind: "update",
+      fingerprint: reimported.fingerprint,
+      patch: { nickname: "New nickname" },
     });
   });
 
