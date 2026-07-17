@@ -1,0 +1,207 @@
+import "fake-indexeddb/auto";
+import { afterEach, describe, expect, it } from "vitest";
+import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
+import { lockVault } from "../../crypto/vault";
+import { lockVaultV2, unlockVaultV2 } from "../../crypto/vault-v2";
+import { equalBytes } from "../../protocol/checksum";
+import { createPublicContact } from "../../protocol/ppxc";
+import { encodeLockedVault } from "../../protocol/ppxv";
+import { encodeLockedVaultV2 } from "../../protocol/ppxv-v2";
+import type { LockedVaultObjectV2 } from "../../protocol/types-v2";
+import { listContacts, putContact } from "../../storage/contacts";
+import { deletePpxDatabase, openPpxDatabase } from "../../storage/db";
+import { migrateV1VaultToV2 } from "../../storage/vault-migration-v2";
+import { putVault } from "../../storage/vault";
+
+const PASSPHRASE = "five random words make safer vaults";
+
+async function legacyFixture(fill = 1) {
+  const identity = await deriveIdentityFromEntropy(
+    new Uint8Array(32).fill(fill),
+    "Alice",
+    1_717_171_717n,
+  );
+  return {
+    identity,
+    vault: await lockVault({ identity, passphrase: PASSPHRASE }),
+  };
+}
+
+describe("one-time stored V1 to V2 vault migration", () => {
+  afterEach(async () => {
+    await deletePpxDatabase();
+  });
+
+  it("verifies a temporary V2 vault then atomically replaces active and clears contacts", async () => {
+    const db = await openPpxDatabase();
+    const legacy = await legacyFixture();
+    await putVault(db, legacy.vault);
+    await putContact(
+      db,
+      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
+      "Old contact",
+    );
+
+    const migrated = await migrateV1VaultToV2(db, PASSPHRASE);
+    const active = (await db.get("vaults", "active")) as LockedVaultObjectV2;
+
+    expect(active.formatVersion).toBe(2);
+    expect(active.suite).toBe(2);
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    expect(await listContacts(db)).toEqual([]);
+    expect(migrated.identity.fingerprint).toEqual(
+      (
+        await deriveIdentityV2FromEntropy(
+          new Uint8Array(32).fill(1),
+          "Alice",
+          1_717_171_717n,
+        )
+      ).fingerprint,
+    );
+    expect(
+      (await unlockVaultV2({ vault: active, passphrase: PASSPHRASE }))
+        .fingerprint,
+    ).toEqual(migrated.identity.fingerprint);
+    db.close();
+  });
+
+  it("leaves exact active V1 bytes and contacts untouched after failure", async () => {
+    const db = await openPpxDatabase();
+    const legacy = await legacyFixture();
+    await putVault(db, legacy.vault);
+    await putContact(
+      db,
+      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
+      "Old contact",
+    );
+    const before = encodeLockedVault(legacy.vault);
+
+    await expect(migrateV1VaultToV2(db, "wrong password")).rejects.toThrow(
+      "vault-migration-failed",
+    );
+
+    const active = (await db.get("vaults", "active")) as typeof legacy.vault;
+    expect(equalBytes(encodeLockedVault(active), before)).toBe(true);
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    expect(await listContacts(db)).toHaveLength(1);
+    db.close();
+  });
+
+  it("does not overwrite an active vault changed during migration", async () => {
+    const db = await openPpxDatabase();
+    const legacy = await legacyFixture(1);
+    const competing = await legacyFixture(2);
+    await putVault(db, legacy.vault);
+
+    await expect(
+      migrateV1VaultToV2(db, PASSPHRASE, {
+        afterCandidateVerified: async () => {
+          await db.put("vaults", competing.vault, "active");
+        },
+      }),
+    ).rejects.toThrow("vault-migration-race");
+
+    const active = (await db.get("vaults", "active")) as typeof competing.vault;
+    expect(
+      equalBytes(encodeLockedVault(active), encodeLockedVault(competing.vault)),
+    ).toBe(true);
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    db.close();
+  });
+
+  it("leaves V1 and contacts untouched when the reread V2 identity does not verify", async () => {
+    const db = await openPpxDatabase();
+    const legacy = await legacyFixture(5);
+    await putVault(db, legacy.vault);
+    await putContact(
+      db,
+      createPublicContact(legacy.identity, "Alice", 1_717_171_717n),
+      "Old contact",
+    );
+    const before = encodeLockedVault(legacy.vault);
+    const wrong = await deriveIdentityV2FromEntropy(
+      new Uint8Array(32).fill(9),
+      "Wrong",
+      9n,
+    );
+
+    await expect(
+      migrateV1VaultToV2(db, PASSPHRASE, {
+        unlockV2: () => Promise.resolve(wrong),
+      }),
+    ).rejects.toThrow("vault-migration-failed");
+
+    const active = await db.get("vaults", "active");
+    expect(active?.formatVersion).toBe(1);
+    if (active?.formatVersion !== 1) throw new Error("expected V1 vault");
+    expect(equalBytes(encodeLockedVault(active), before)).toBe(true);
+    expect(await listContacts(db)).toHaveLength(1);
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    expect(wrong.masterEntropy.every((byte) => byte === 0)).toBe(true);
+    expect(wrong.kemSecretKey.every((byte) => byte === 0)).toBe(true);
+    expect(wrong.signingSecretKey.every((byte) => byte === 0)).toBe(true);
+    db.close();
+  });
+
+  it("zeroizes legacy and derived V2 secrets when candidate creation fails", async () => {
+    const db = await openPpxDatabase();
+    const legacy = await legacyFixture(4);
+    await putVault(db, legacy.vault);
+    let derived: Awaited<ReturnType<typeof deriveIdentityV2FromEntropy>>;
+
+    await expect(
+      migrateV1VaultToV2(db, PASSPHRASE, {
+        unlockLegacy: () => Promise.resolve(legacy.identity),
+        deriveV2: async (entropy, pseudonym, creationTime) => {
+          derived = await deriveIdentityV2FromEntropy(
+            entropy,
+            pseudonym,
+            creationTime,
+          );
+          return derived;
+        },
+        lockV2: () => Promise.reject(new Error("injected-lock-failure")),
+      }),
+    ).rejects.toThrow("vault-migration-failed");
+
+    for (const secret of [
+      legacy.identity.masterEntropy,
+      legacy.identity.kemSecretKey,
+      legacy.identity.x25519SecretKey,
+      legacy.identity.signingSecretKey,
+      derived!.masterEntropy,
+      derived!.kemSecretKey,
+      derived!.signingSecretKey,
+    ]) {
+      expect(secret.every((byte) => byte === 0)).toBe(true);
+    }
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    db.close();
+  });
+
+  it("rejects a V2 active vault instead of exposing a general legacy parser", async () => {
+    const db = await openPpxDatabase();
+    const identity = await deriveIdentityV2FromEntropy(
+      new Uint8Array(32).fill(3),
+      "Alice",
+    );
+    const v2 = await lockVaultV2({ identity, passphrase: PASSPHRASE });
+    await db.put("vaults", v2, "active");
+    await db.put("vaults", v2, "migration-v2");
+
+    await expect(migrateV1VaultToV2(db, PASSPHRASE)).rejects.toThrow(
+      "not-exact-v1-active-vault",
+    );
+    expect(
+      equalBytes(
+        encodeLockedVaultV2(
+          (await db.get("vaults", "active")) as LockedVaultObjectV2,
+        ),
+        encodeLockedVaultV2(v2),
+      ),
+    ).toBe(true);
+    expect(await db.get("vaults", "migration-v2")).toBeUndefined();
+    db.close();
+  });
+});
