@@ -1,13 +1,16 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { LockedVaultObject, PublicContact } from "../protocol/types";
-import type { LockedVaultObjectV2 } from "../protocol/types-v2";
+import type { LockedVaultObject } from "../protocol/types";
+import type {
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../protocol/types-v2";
 import { SessionStorage } from "./session";
 
 export const DATABASE_NAME = "chat-nocontrol-ppx";
 
 export interface StoredContact {
   id: string;
-  contact: PublicContact;
+  contact: PublicContactV2;
   nickname: string;
   includeSenderContactInLinks?: boolean;
 }

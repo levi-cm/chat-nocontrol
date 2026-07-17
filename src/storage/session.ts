@@ -1,4 +1,7 @@
-import type { LockedVaultObject, PublicContact } from "../protocol/types";
+import type {
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../protocol/types-v2";
 import { contactStorageId, type NormalizedStoredContact } from "./contacts";
 import {
   DEFAULT_SETTINGS,
@@ -8,11 +11,11 @@ import {
 
 export class SessionStorage {
   readonly #contacts = new Map<string, NormalizedStoredContact>();
-  #vault: LockedVaultObject | undefined;
+  #vault: LockedVaultObjectV2 | undefined;
   #settings: AppSettings = { ...DEFAULT_SETTINGS };
 
   putContact(
-    contact: PublicContact,
+    contact: PublicContactV2,
     nickname?: string,
     includeSenderContactInLinks?: boolean,
   ): NormalizedStoredContact {
@@ -37,7 +40,7 @@ export class SessionStorage {
 
   replaceContacts(
     contacts: ReadonlyArray<{
-      contact: PublicContact;
+      contact: PublicContactV2;
       nickname: string;
       includeSenderContactInLinks?: boolean;
     }>,
@@ -56,11 +59,11 @@ export class SessionStorage {
     }
   }
 
-  putVault(vault: LockedVaultObject): void {
+  putVault(vault: LockedVaultObjectV2): void {
     this.#vault = vault;
   }
 
-  getVault(): LockedVaultObject | undefined {
+  getVault(): LockedVaultObjectV2 | undefined {
     return this.#vault;
   }
 

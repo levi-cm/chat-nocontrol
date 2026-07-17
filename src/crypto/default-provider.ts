@@ -1,106 +1,67 @@
-import { parsePublicContact, createPublicContact } from "../protocol/ppxc";
-import type {
-  DecryptedQrTextOutput,
-  DecryptedFileOutput,
-  DecryptedTextOutput,
-  DecryptFileInput,
-  DecryptTextInput,
-  DecryptQrTextInput,
-  DerivedIdentity,
-  EncryptedFileBlobOutput,
-  EncryptedFileObject,
-  EncryptedTextObject,
-  EncryptedQrTextObject,
-  EncryptFileInput,
-  EncryptTextInput,
-  EncryptQrTextInput,
-  HybridEncapsulation,
-  LockedVaultObject,
-  LockVaultInput,
-  PublicContact,
-  UnlockVaultInput,
-} from "../protocol/types";
 import {
-  decryptFile,
-  encryptFile,
-  encryptFileToBlob,
-  type FileCryptoHooks,
-} from "./file";
-import { encapsulateHybrid } from "./hybrid";
-import { deriveIdentityFromEntropy } from "./identity";
+  parsePublicContactV2,
+  createPublicContactV2,
+} from "../protocol/ppxc-v2";
+import type {
+  DecryptedTextOutputV2,
+  DecryptTextInputV2,
+  DerivedIdentityV2,
+  EncryptedTextObjectV2,
+  EncryptTextInputV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../protocol/types-v2";
+import { deriveIdentityV2FromEntropy } from "./identity-v2";
 import type { CryptoProvider } from "./provider";
-import { decryptText, encryptText } from "./text";
-import { lockVault, unlockVault } from "./vault";
-import { decryptQrText, encryptQrText } from "./qr-text";
+import { decryptTextV2, encryptTextV2 } from "./text-v2";
+import {
+  lockVaultV2,
+  unlockVaultV2,
+  type LockVaultInputV2,
+  type UnlockVaultInputV2,
+} from "./vault-v2";
 
 export class DefaultCryptoProvider implements CryptoProvider {
-  deriveIdentity(masterEntropy: Uint8Array): Promise<DerivedIdentity> {
-    return deriveIdentityFromEntropy(masterEntropy);
+  deriveIdentity(
+    masterEntropy: Uint8Array,
+    pseudonym = "",
+    creationTime = 0n,
+  ): Promise<DerivedIdentityV2> {
+    return deriveIdentityV2FromEntropy(masterEntropy, pseudonym, creationTime);
   }
 
   createPublicContact(
-    identity: DerivedIdentity,
+    identity: DerivedIdentityV2,
     pseudonym: string,
     creationTime: bigint,
-  ): PublicContact {
-    return createPublicContact(identity, pseudonym, creationTime);
+    extraEntropy?: Uint8Array,
+  ): PublicContactV2 {
+    return createPublicContactV2(
+      identity,
+      pseudonym,
+      creationTime,
+      extraEntropy,
+    );
   }
 
-  parsePublicContact(bytes: Uint8Array): PublicContact {
-    return parsePublicContact(bytes);
+  parsePublicContact(bytes: Uint8Array): PublicContactV2 {
+    return parsePublicContactV2(bytes);
   }
 
-  createHybridEncapsulation(params: {
-    recipientFingerprint: Uint8Array;
-    recipientKemPublicKey: Uint8Array;
-    recipientX25519PublicKey: Uint8Array;
-  }): HybridEncapsulation {
-    return encapsulateHybrid(params);
+  encryptText(input: EncryptTextInputV2): Promise<EncryptedTextObjectV2> {
+    return encryptTextV2(input);
   }
 
-  encryptText(input: EncryptTextInput): Promise<EncryptedTextObject> {
-    return encryptText(input);
+  decryptText(input: DecryptTextInputV2): Promise<DecryptedTextOutputV2> {
+    return decryptTextV2(input);
   }
 
-  decryptText(input: DecryptTextInput): Promise<DecryptedTextOutput> {
-    return decryptText(input);
+  lockVault(input: LockVaultInputV2): Promise<LockedVaultObjectV2> {
+    return lockVaultV2(input);
   }
 
-  encryptQrText(input: EncryptQrTextInput): Promise<EncryptedQrTextObject> {
-    return encryptQrText(input);
-  }
-
-  decryptQrText(input: DecryptQrTextInput): Promise<DecryptedQrTextOutput> {
-    return decryptQrText(input);
-  }
-
-  encryptFile(
-    input: EncryptFileInput,
-    hooks?: FileCryptoHooks,
-  ): Promise<EncryptedFileObject> {
-    return encryptFile(input, hooks);
-  }
-
-  encryptFileToBlob(
-    input: EncryptFileInput,
-    hooks?: FileCryptoHooks,
-  ): Promise<EncryptedFileBlobOutput> {
-    return encryptFileToBlob(input, hooks);
-  }
-
-  decryptFile(
-    input: DecryptFileInput,
-    hooks?: FileCryptoHooks,
-  ): Promise<DecryptedFileOutput> {
-    return decryptFile(input, hooks);
-  }
-
-  lockVault(input: LockVaultInput): Promise<LockedVaultObject> {
-    return lockVault(input);
-  }
-
-  unlockVault(input: UnlockVaultInput): Promise<DerivedIdentity> {
-    return unlockVault(input);
+  unlockVault(input: UnlockVaultInputV2): Promise<DerivedIdentityV2> {
+    return unlockVaultV2(input);
   }
 }
 

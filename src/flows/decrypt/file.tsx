@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { AuthenticatedSenderCard } from "../../components/cards/authenticated-sender-card";
+import { createDecapsulationCapabilityV2 } from "../../crypto/identity-v2";
 import {
   createRevocableObjectUrl,
   downloadBlob,
@@ -8,11 +9,11 @@ import {
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
 import type { ContactSaveMutation } from "../../app/contact-save-queue";
-import type {
-  DecryptedFileOutput,
-  DerivedIdentity,
-} from "../../protocol/types";
 import { PPXError } from "../../protocol/types";
+import type {
+  DecryptedFileOutputV2,
+  DerivedIdentityV2,
+} from "../../protocol/types-v2";
 import {
   FileWorkerCancelled,
   type FileWorkerJob,
@@ -54,7 +55,7 @@ export function previewKind(mimeHint: string): PreviewKind {
   return null;
 }
 
-function downloadDecryptedFile(result: DecryptedFileOutput): void {
+function downloadDecryptedFile(result: DecryptedFileOutputV2): void {
   downloadBlob(result.blob, result.filename);
 }
 
@@ -70,7 +71,7 @@ export function DecryptFileFlow({
   locale,
 }: {
   t: (key: MessageKey) => string;
-  identity: DerivedIdentity;
+  identity: DerivedIdentityV2;
   contacts: ManagedContact[];
   onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   file: File | null;
@@ -83,11 +84,11 @@ export function DecryptFileFlow({
   const [progress, setProgress] = useState<FileProgress | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState<DecryptedFileOutput | null>(null);
+  const [result, setResult] = useState<DecryptedFileOutputV2 | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [collision, setCollision] = useState("");
   const [savingSender, setSavingSender] = useState(false);
-  const job = useRef<FileWorkerJob<DecryptedFileOutput> | null>(null);
+  const job = useRef<FileWorkerJob<DecryptedFileOutputV2> | null>(null);
 
   const cancelActiveFile = () => {
     job.current?.cancel();
@@ -138,7 +139,7 @@ export function DecryptFileFlow({
 
   const decrypt = async () => {
     if (!file) return;
-    let operation: FileWorkerJob<DecryptedFileOutput> | null = null;
+    let operation: FileWorkerJob<DecryptedFileOutputV2> | null = null;
     setBusy(true);
     onBusyChange(true);
     setProgress({ completed: 0, total: file.size });
@@ -147,7 +148,10 @@ export function DecryptFileFlow({
     setError("");
     try {
       operation = startDecryptFileJob(
-        { object: file, activeIdentity: identity },
+        {
+          object: file,
+          activeIdentity: createDecapsulationCapabilityV2(identity),
+        },
         (event) =>
           setProgress({
             completed: Number(event.completedBytes),

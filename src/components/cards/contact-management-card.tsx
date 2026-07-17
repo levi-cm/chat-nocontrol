@@ -1,9 +1,9 @@
 import type { MessageKey } from "../../i18n";
-import type { PublicContact } from "../../protocol/types";
+import type { PublicContactV2 } from "../../protocol/types-v2";
 import { formatFingerprintBytes } from "./public-contact-card";
 
 export interface ManagedContact {
-  contact: PublicContact;
+  contact: PublicContactV2;
   nickname: string;
   includeSenderContactInLinks: boolean;
 }

@@ -1,10 +1,10 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { DecryptFileFlow } from "../../flows/decrypt/file";
-import { createPublicContact } from "../../protocol/ppxc";
-import type { DecryptedFileOutput } from "../../protocol/types";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
+import type { DecryptedFileOutputV2 } from "../../protocol/types-v2";
 import { startDecryptFileJob } from "../../workers/file-client";
 
 vi.mock("../../workers/file-client", () => ({
@@ -19,16 +19,21 @@ afterEach(() => {
 
 describe("decrypted file sender contact preference", () => {
   it("defaults a newly saved authenticated sender to contact-inclusive links", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(5),
       "Recipient",
     );
-    const senderIdentity = await deriveIdentityFromEntropy(
+    const senderIdentity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(6),
       "Sender",
     );
-    const senderContact = createPublicContact(senderIdentity, "Sender", 6n);
-    const decrypted: DecryptedFileOutput = {
+    const senderContact = createPublicContactV2(
+      senderIdentity,
+      "Sender",
+      6n,
+      new Uint8Array(32).fill(9),
+    );
+    const decrypted: DecryptedFileOutputV2 = {
       senderContact,
       recipientId: identity.identityId,
       filename: "message.bin",
@@ -77,7 +82,7 @@ describe("decrypted file sender contact preference", () => {
   });
 
   it("exposes synchronous cancellation for an active file worker", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(7),
       "Recipient",
     );
@@ -104,6 +109,15 @@ describe("decrypted file sender contact preference", () => {
     );
 
     await waitFor(() => expect(startDecryptFileJob).toHaveBeenCalledOnce());
+    const input = vi.mocked(startDecryptFileJob).mock.calls[0]?.[0];
+    expect(input?.activeIdentity).toMatchObject({
+      suite: 2,
+      fingerprint: identity.fingerprint,
+      identityId: identity.identityId,
+      kemSecretKey: identity.kemSecretKey,
+    });
+    expect(input?.activeIdentity).not.toHaveProperty("masterEntropy");
+    expect(input?.activeIdentity).not.toHaveProperty("signingSecretKey");
     cancellationHandle.current?.();
     expect(cancel).toHaveBeenCalledOnce();
   });

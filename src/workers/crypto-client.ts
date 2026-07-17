@@ -1,24 +1,23 @@
-import type { PPXWorkerEvent, PPXWorkerRequest } from "../crypto/contracts";
-import { zeroize } from "../crypto/zeroize";
 import {
-  createDecapsulationCapability,
-  zeroizeDecapsulationCapability,
-} from "../crypto/decapsulation-capability";
+  cloneDecapsulationCapabilityV2,
+  validateSenderSigningCapabilityV2,
+  zeroizeDecapsulationCapabilityV2,
+  zeroizeSenderSigningCapabilityV2,
+} from "../crypto/capability-v2";
 import type {
-  DecryptedQrTextOutput,
-  DecryptedTextOutput,
-  DecryptTextInput,
-  DecryptQrTextInput,
-  DerivedIdentity,
-  EncryptedTextObject,
-  EncryptedQrTextObject,
-  EncryptTextInput,
-  EncryptQrTextInput,
-  LockedVaultObject,
-  LockVaultInput,
-  UnlockVaultInput,
-} from "../protocol/types";
+  PPXCryptoWorkerRequest,
+  PPXWorkerEvent,
+} from "../crypto/contracts";
+import type {
+  DecryptedTextOutputV2,
+  DecryptTextInputV2,
+  DerivedIdentityV2,
+  EncryptedTextObjectV2,
+  EncryptTextInputV2,
+  LockedVaultObjectV2,
+} from "../protocol/types-v2";
 import { PPXError } from "../protocol/types";
+import type { LockVaultInputV2, UnlockVaultInputV2 } from "../crypto/vault-v2";
 
 export interface CryptoWorkerJob<T> {
   readonly requestId: string;
@@ -34,16 +33,19 @@ function createRequestId(): string {
         .join("");
 }
 
+function releaseRequestAuthority(
+  request: Exclude<PPXCryptoWorkerRequest, { kind: "cancel" }>,
+): void {
+  if (request.kind === "decrypt-text") {
+    zeroizeDecapsulationCapabilityV2(request.input.activeIdentity);
+  } else if (request.kind === "encrypt-text") {
+    zeroizeSenderSigningCapabilityV2(request.input.senderSigningCapability);
+  }
+}
+
 function startCryptoJob<T>(
-  request: Exclude<
-    PPXWorkerRequest,
-    { kind: "cancel" | "encrypt-file" | "decrypt-file" }
-  >,
+  request: Exclude<PPXCryptoWorkerRequest, { kind: "cancel" }>,
 ): CryptoWorkerJob<T> {
-  const decapsulationCapability =
-    request.kind === "decrypt-text" || request.kind === "decrypt-qr-text"
-      ? request.input.activeIdentity
-      : undefined;
   let worker: Worker;
   try {
     worker = new Worker(new URL("./crypto-worker.ts", import.meta.url), {
@@ -51,12 +53,7 @@ function startCryptoJob<T>(
       name: "ppx-crypto-worker",
     });
   } catch (error) {
-    if (decapsulationCapability) {
-      zeroizeDecapsulationCapability(decapsulationCapability);
-    }
-    if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
     throw error;
   }
   let settled = false;
@@ -94,12 +91,7 @@ function startCryptoJob<T>(
   } catch {
     failWorker();
   } finally {
-    if (decapsulationCapability) {
-      zeroizeDecapsulationCapability(decapsulationCapability);
-    }
-    if (request.kind === "encrypt-text" || request.kind === "encrypt-qr-text") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
   }
   return {
     requestId: request.requestId,
@@ -113,67 +105,51 @@ function startCryptoJob<T>(
 }
 
 export function startEncryptTextJob(
-  input: EncryptTextInput,
-): CryptoWorkerJob<EncryptedTextObject> {
+  input: EncryptTextInputV2,
+): CryptoWorkerJob<EncryptedTextObjectV2> {
   try {
-    const requestId = createRequestId();
-    return startCryptoJob({ kind: "encrypt-text", requestId, input });
+    validateSenderSigningCapabilityV2(input.senderSigningCapability);
+    return startCryptoJob({
+      kind: "encrypt-text",
+      requestId: createRequestId(),
+      input,
+    });
   } catch (error) {
-    zeroize(input.senderSigningCapability.signingSecretKey);
+    zeroizeSenderSigningCapabilityV2(input.senderSigningCapability);
     throw error;
   }
 }
 
 export function startDecryptTextJob(
-  input: DecryptTextInput,
-): CryptoWorkerJob<DecryptedTextOutput> {
+  input: DecryptTextInputV2,
+): CryptoWorkerJob<DecryptedTextOutputV2> {
   const requestId = createRequestId();
   return startCryptoJob({
     kind: "decrypt-text",
     requestId,
     input: {
       ...input,
-      activeIdentity: createDecapsulationCapability(input.activeIdentity),
-    },
-  });
-}
-
-export function startEncryptQrTextJob(
-  input: EncryptQrTextInput,
-): CryptoWorkerJob<EncryptedQrTextObject> {
-  try {
-    const requestId = createRequestId();
-    return startCryptoJob({ kind: "encrypt-qr-text", requestId, input });
-  } catch (error) {
-    zeroize(input.senderSigningCapability.signingSecretKey);
-    throw error;
-  }
-}
-
-export function startDecryptQrTextJob(
-  input: DecryptQrTextInput,
-): CryptoWorkerJob<DecryptedQrTextOutput> {
-  const requestId = createRequestId();
-  return startCryptoJob({
-    kind: "decrypt-qr-text",
-    requestId,
-    input: {
-      ...input,
-      activeIdentity: createDecapsulationCapability(input.activeIdentity),
+      activeIdentity: cloneDecapsulationCapabilityV2(input.activeIdentity),
     },
   });
 }
 
 export function startLockVaultJob(
-  input: LockVaultInput,
-): CryptoWorkerJob<LockedVaultObject> {
-  const requestId = createRequestId();
-  return startCryptoJob({ kind: "lock-vault", requestId, input });
+  input: LockVaultInputV2,
+): CryptoWorkerJob<LockedVaultObjectV2> {
+  return startCryptoJob({
+    kind: "lock-vault",
+    requestId: createRequestId(),
+    input,
+  });
 }
 
 export function startUnlockVaultJob(
-  input: UnlockVaultInput,
-): CryptoWorkerJob<DerivedIdentity> {
-  const requestId = createRequestId();
-  return startCryptoJob({ kind: "unlock-vault", requestId, input });
+  input: UnlockVaultInputV2,
+): CryptoWorkerJob<DerivedIdentityV2> {
+  return startCryptoJob({
+    kind: "unlock-vault",
+    requestId: createRequestId(),
+    input,
+  });
 }

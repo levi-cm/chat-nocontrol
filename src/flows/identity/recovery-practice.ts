@@ -1,8 +1,11 @@
 import type { CryptoProvider } from "../../crypto/provider";
-import { zeroize, zeroizeIdentitySecrets } from "../../crypto/zeroize";
+import { zeroize, zeroizeIdentitySecretsV2 } from "../../crypto/zeroize";
 import { decodeBase45Upper } from "../../protocol/base45";
 import { equalBytes } from "../../protocol/checksum";
-import { parseRecoveryObject } from "../../protocol/ppxr";
+import {
+  parseRecoveryObjectV2,
+  PPXR_V2_TEXT_PREFIX,
+} from "../../protocol/ppxr-v2";
 
 export async function verifyRecoveryBytesForIdentity(
   input: Uint8Array,
@@ -10,16 +13,16 @@ export async function verifyRecoveryBytesForIdentity(
   provider: Pick<CryptoProvider, "deriveIdentity">,
 ): Promise<boolean> {
   const bytes = Uint8Array.from(input);
-  let recovery: ReturnType<typeof parseRecoveryObject> | null = null;
+  let recovery: ReturnType<typeof parseRecoveryObjectV2> | null = null;
   try {
-    recovery = parseRecoveryObject(bytes);
+    recovery = parseRecoveryObjectV2(bytes);
     const recoveredIdentity = await provider.deriveIdentity(
       recovery.masterEntropy,
     );
     try {
       return equalBytes(recoveredIdentity.identityId, expectedIdentityId);
     } finally {
-      zeroizeIdentitySecrets(recoveredIdentity);
+      zeroizeIdentitySecretsV2(recoveredIdentity);
     }
   } finally {
     if (recovery) zeroize(recovery.masterEntropy);
@@ -32,7 +35,7 @@ export async function verifyRecoveryCodeForIdentity(
   expectedIdentityId: Uint8Array,
   provider: Pick<CryptoProvider, "deriveIdentity">,
 ): Promise<boolean> {
-  const prefix = "PPX1:RECOVERY:";
+  const prefix = PPXR_V2_TEXT_PREFIX;
   if (!value.startsWith(prefix)) return false;
   const bytes = decodeBase45Upper(value.slice(prefix.length));
   try {

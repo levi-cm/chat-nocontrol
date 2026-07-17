@@ -1,7 +1,7 @@
 import {
   estimatePassphraseBits,
   passphraseStrengthBand,
-} from "../../crypto/vault";
+} from "../../crypto/passphrase-strength";
 import type { MessageKey } from "../../i18n";
 
 export function PassphraseMeter({

@@ -2,35 +2,25 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
 import { displayIdentityId } from "../../components/cards/contact-management-card";
 import { downloadBlob } from "../../components/media/blob-url";
-import {
-  generateMessageQrPng,
-  prepareMessageQr,
-  type MessageQrCapacity,
-  type MessageQrTransport,
-} from "../../components/qr/message";
-import { QrActionIcon } from "../../components/navigation/qr-icon";
 import { PasteButton } from "../../components/forms/paste-button";
 import { copyWithBestEffortClear } from "../identity/clipboard";
 import { CHAT_NOCONTROL_CANONICAL_APP_BASE } from "../../app/build-info";
 import type { ContactSaveMutation } from "../../app/contact-save-queue";
-import { createSenderSigningCapability } from "../../crypto/identity";
+import { createSenderSigningCapabilityV2 } from "../../crypto/identity-v2";
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
-import { encodeTextArmor } from "../../protocol/ppxt-armor";
-import { encodeMessageLink } from "../../protocol/message-link";
-import { encodeEncryptedQrText } from "../../protocol/ppxq-outer";
+import { encodeTextArmorV2 } from "../../protocol/ppxt-armor-v2";
+import { encodeMessageLinkV2 } from "../../protocol/message-link-v2";
 import type {
-  DerivedIdentity,
-  EncryptedQrTextObject,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  EncryptedTextObjectV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 import {
   type CryptoWorkerJob,
   startEncryptTextJob,
-  startEncryptQrTextJob,
 } from "../../workers/crypto-client";
-import type { EncryptedTextObject } from "../../protocol/types";
-import type { MessageOutputMode, QrExportMode } from "../../storage/settings";
+import type { MessageOutputMode } from "../../storage/settings";
 import { EncryptFileFlow } from "./file";
 
 function fingerprintId(value: Uint8Array): string {
@@ -51,27 +41,24 @@ export function EncryptTextFlow({
   onContactsChange,
   locale,
   messageOutputMode,
-  messageQrCreationEnabled,
-  qrExportMode,
 }: {
   t: (key: MessageKey) => string;
-  identity: DerivedIdentity | null;
-  sender: PublicContact | null;
+  identity: DerivedIdentityV2 | null;
+  sender: PublicContactV2 | null;
   contacts: ManagedContact[];
   onContactsChange: (mutation: ContactSaveMutation) => Promise<boolean>;
   locale: Locale;
   messageOutputMode: MessageOutputMode;
-  messageQrCreationEnabled: boolean;
-  qrExportMode: QrExportMode;
 }) {
   const [recipientId, setRecipientId] = useState("");
   const [recipientSearch, setRecipientSearch] = useState("");
   const [plaintext, setPlaintext] = useState("");
   const [output, setOutput] = useState("");
-  const [fullOutput, setFullOutput] = useState<EncryptedTextObject | null>(
+  const [fullOutput, setFullOutput] = useState<EncryptedTextObjectV2 | null>(
     null,
   );
-  const [qrOutput, setQrOutput] = useState<EncryptedQrTextObject | null>(null);
+  const [compactOutput, setCompactOutput] =
+    useState<EncryptedTextObjectV2 | null>(null);
   const [compactStatus, setCompactStatus] = useState<
     "idle" | "pending" | "ready" | "failed"
   >("idle");
@@ -85,8 +72,10 @@ export function EncryptTextFlow({
   const [status, setStatus] = useState("");
   const [mode, setMode] = useState<"text" | "file">("text");
   const [fileBusy, setFileBusy] = useState(false);
-  const job = useRef<CryptoWorkerJob<EncryptedTextObject> | null>(null);
-  const qrJob = useRef<CryptoWorkerJob<EncryptedQrTextObject> | null>(null);
+  const job = useRef<CryptoWorkerJob<EncryptedTextObjectV2> | null>(null);
+  const compactJob = useRef<CryptoWorkerJob<EncryptedTextObjectV2> | null>(
+    null,
+  );
   const outputRef = useRef<HTMLTextAreaElement | null>(null);
   const linkOutputRef = useRef<HTMLTextAreaElement | null>(null);
   const contactPreferenceRequest = useRef(0);
@@ -95,8 +84,8 @@ export function EncryptTextFlow({
     () => () => {
       job.current?.cancel();
       job.current = null;
-      qrJob.current?.cancel();
-      qrJob.current = null;
+      compactJob.current?.cancel();
+      compactJob.current = null;
       contactPreferenceRequest.current += 1;
     },
     [],
@@ -135,28 +124,16 @@ export function EncryptTextFlow({
     if (!linkEnabled || !fullOutput) return "";
     const value = includeSenderContactInLinks
       ? ({ kind: "ppxt", object: fullOutput } as const)
-      : qrOutput
-        ? ({ kind: "ppxq", object: qrOutput } as const)
+      : compactOutput
+        ? ({ kind: "ppxm", object: compactOutput } as const)
         : null;
     if (!value) return "";
     try {
-      return encodeMessageLink(value, CHAT_NOCONTROL_CANONICAL_APP_BASE);
+      return encodeMessageLinkV2(value, CHAT_NOCONTROL_CANONICAL_APP_BASE);
     } catch {
       return "";
     }
-  }, [fullOutput, includeSenderContactInLinks, linkEnabled, qrOutput]);
-  const qrCapacities = useMemo(() => {
-    if (!qrOutput) return null;
-    const bytes = encodeEncryptedQrText(qrOutput);
-    const appBase =
-      window.location.protocol === "https:"
-        ? `${window.location.origin}${import.meta.env.BASE_URL}`
-        : "https://levi-cm.github.io/chat-nocontrol/";
-    return {
-      app: prepareMessageQr(bytes, "app", appBase),
-      link: prepareMessageQr(bytes, "link", appBase),
-    };
-  }, [qrOutput]);
+  }, [compactOutput, fullOutput, includeSenderContactInLinks, linkEnabled]);
 
   useEffect(() => {
     if (!contactPreferenceUpdate) return;
@@ -184,11 +161,11 @@ export function EncryptTextFlow({
   };
 
   const resetTextOutput = () => {
-    qrJob.current?.cancel();
-    qrJob.current = null;
+    compactJob.current?.cancel();
+    compactJob.current = null;
     setOutput("");
     setFullOutput(null);
-    setQrOutput(null);
+    setCompactOutput(null);
     setCompactStatus("idle");
     setRevealTextFallback(false);
     setCopyStatus("");
@@ -215,18 +192,18 @@ export function EncryptTextFlow({
 
   const encrypt = async () => {
     if (!recipient) return;
-    let operation: CryptoWorkerJob<EncryptedTextObject> | null = null;
-    let compactOperation: CryptoWorkerJob<EncryptedQrTextObject> | null = null;
+    let operation: CryptoWorkerJob<EncryptedTextObjectV2> | null = null;
+    let compactOperation: CryptoWorkerJob<EncryptedTextObjectV2> | null = null;
     job.current?.cancel();
-    qrJob.current?.cancel();
+    compactJob.current?.cancel();
     job.current = null;
-    qrJob.current = null;
+    compactJob.current = null;
     setBusy(true);
     setError("");
     setStatus("");
     setOutput("");
     setFullOutput(null);
-    setQrOutput(null);
+    setCompactOutput(null);
     setCompactStatus("idle");
     setRevealTextFallback(false);
     setCopyStatus("");
@@ -235,8 +212,9 @@ export function EncryptTextFlow({
       const now = BigInt(Math.floor(Date.now() / 1000));
       const messageId = crypto.getRandomValues(new Uint8Array(16));
       operation = startEncryptTextJob({
+        compact: false,
         sender,
-        senderSigningCapability: createSenderSigningCapability(identity),
+        senderSigningCapability: createSenderSigningCapabilityV2(identity),
         recipient,
         plaintext,
         messageId,
@@ -246,35 +224,37 @@ export function EncryptTextFlow({
       job.current = operation;
       const object = await operation.promise;
       if (job.current !== operation) return;
-      setOutput(encodeTextArmor(object));
+      setOutput(encodeTextArmorV2(object));
       setFullOutput(object);
-      if (messageOutputMode !== "text" || messageQrCreationEnabled)
+      if (messageOutputMode !== "text" && !includeSenderContactInLinks)
         try {
           setCompactStatus("pending");
-          compactOperation = startEncryptQrTextJob({
+          compactOperation = startEncryptTextJob({
+            compact: true,
             sender,
-            senderSigningCapability: createSenderSigningCapability(identity),
+            senderSigningCapability: createSenderSigningCapabilityV2(identity),
             recipient,
             plaintext,
             messageId: Uint8Array.from(messageId),
             sentAt: now,
             createdAt: now,
           });
-          qrJob.current = compactOperation;
+          compactJob.current = compactOperation;
           void compactOperation.promise
             .then((compact) => {
-              if (qrJob.current === compactOperation) {
-                setQrOutput(compact);
+              if (compactJob.current === compactOperation) {
+                setCompactOutput(compact);
                 setCompactStatus("ready");
               }
             })
             .catch(() => {
-              if (qrJob.current === compactOperation) {
+              if (compactJob.current === compactOperation) {
                 setCompactStatus("failed");
               }
             })
             .finally(() => {
-              if (qrJob.current === compactOperation) qrJob.current = null;
+              if (compactJob.current === compactOperation)
+                compactJob.current = null;
             });
         } catch {
           setCompactStatus("failed");
@@ -294,25 +274,16 @@ export function EncryptTextFlow({
     const operation = job.current;
     job.current = null;
     operation?.cancel();
-    qrJob.current?.cancel();
-    qrJob.current = null;
+    compactJob.current?.cancel();
+    compactJob.current = null;
     setBusy(false);
     setStatus(t("operationCancelled"));
   };
 
-  const downloadQr = async (
-    transport: MessageQrTransport,
-    capacity: Extract<MessageQrCapacity, { fits: true }>,
-  ) => {
-    const blob = await generateMessageQrPng(capacity);
-    const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
-    downloadBlob(blob, `encrypted-message-${transport}-${stamp}.png`);
-  };
-
   const save = () => {
     downloadBlob(
-      new Blob([output], { type: "application/x-ppx-message" }),
-      "encrypted.ppxmessage",
+      new Blob([output], { type: "text/plain" }),
+      "encrypted-message.txt",
     );
   };
 
@@ -333,7 +304,13 @@ export function EncryptTextFlow({
   const share = async () => {
     if (typeof navigator.share !== "function") return;
     try {
-      await navigator.share({ title: t("brand"), text: output });
+      const file = new File([output], "encrypted-message.txt", {
+        type: "text/plain",
+      });
+      const data = { title: t("brand"), files: [file] };
+      if (typeof navigator.canShare === "function" && !navigator.canShare(data))
+        return;
+      await navigator.share(data);
     } catch {
       // User cancellation and platform refusal do not invalidate the output.
     }
@@ -741,37 +718,6 @@ export function EncryptTextFlow({
                     </p>
                   )}
                 </section>
-              )}
-              {messageQrCreationEnabled && qrCapacities && (
-                <div class="qr-message-actions">
-                  <p class="input-meta">{t("qrKnownSenderGuidance")}</p>
-                  <div class="action-row">
-                    {(["app", "link"] as const).map((transport) => {
-                      if (qrExportMode !== "both" && qrExportMode !== transport)
-                        return null;
-                      const capacity = qrCapacities[transport];
-                      return capacity.fits ? (
-                        <button
-                          class="button secondary"
-                          type="button"
-                          onClick={() => void downloadQr(transport, capacity)}
-                        >
-                          <QrActionIcon />
-                          {t(
-                            transport === "app"
-                              ? "downloadAppMessageQr"
-                              : "downloadLinkMessageQr",
-                          )}
-                        </button>
-                      ) : (
-                        <p class="field-error" role="status">
-                          {t("messageQrTooLarge")} {capacity.encodedBytesOver}{" "}
-                          {t("messageQrTooLargeSuffix")}
-                        </p>
-                      );
-                    })}
-                  </div>
-                </div>
               )}
             </div>
           )}

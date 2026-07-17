@@ -1,17 +1,19 @@
+import {
+  validateDecapsulationCapabilityV2,
+  validateSenderSigningCapabilityV2,
+  zeroizeDecapsulationCapabilityV2,
+  zeroizeSenderSigningCapabilityV2,
+} from "../crypto/capability-v2";
 import type {
+  PPXCryptoWorkerRequest,
   PPXSafeWorkerError,
   PPXWorkerEvent,
-  PPXWorkerRequest,
 } from "../crypto/contracts";
 import { defaultCryptoProvider } from "../crypto/default-provider";
-import {
-  validateDecapsulationCapability,
-  zeroizeDecapsulationCapability,
-} from "../crypto/decapsulation-capability";
 import { PPXError } from "../protocol/types";
 
 export interface CryptoRunner {
-  handle(request: PPXWorkerRequest): Promise<void>;
+  handle(request: PPXCryptoWorkerRequest): Promise<void>;
 }
 
 function safeErrorCode(error: unknown): PPXSafeWorkerError {
@@ -20,36 +22,29 @@ function safeErrorCode(error: unknown): PPXSafeWorkerError {
     : "wrong-identity-or-corruption";
 }
 
+function releaseRequestAuthority(
+  request: Exclude<PPXCryptoWorkerRequest, { kind: "cancel" }>,
+): void {
+  if (request.kind === "decrypt-text") {
+    zeroizeDecapsulationCapabilityV2(request.input.activeIdentity);
+  } else if (request.kind === "encrypt-text") {
+    zeroizeSenderSigningCapabilityV2(request.input.senderSigningCapability);
+  }
+}
+
 export function createCryptoRunner(
   emit: (event: PPXWorkerEvent) => void,
 ): CryptoRunner {
   const active = new Set<string>();
   const cancelled = new Set<string>();
-
   return {
     async handle(request) {
       if (request.kind === "cancel") {
         if (active.has(request.requestId)) cancelled.add(request.requestId);
         return;
       }
-      if (request.kind === "encrypt-file" || request.kind === "decrypt-file") {
-        if (request.kind === "decrypt-file") {
-          zeroizeDecapsulationCapability(request.input.activeIdentity);
-        }
-        emit({
-          kind: "error",
-          requestId: request.requestId,
-          code: "wrong-identity-or-corruption",
-        });
-        return;
-      }
       if (active.has(request.requestId)) {
-        if (
-          request.kind === "decrypt-text" ||
-          request.kind === "decrypt-qr-text"
-        ) {
-          zeroizeDecapsulationCapability(request.input.activeIdentity);
-        }
+        releaseRequestAuthority(request);
         emit({
           kind: "error",
           requestId: request.requestId,
@@ -57,94 +52,44 @@ export function createCryptoRunner(
         });
         return;
       }
-
       active.add(request.requestId);
       try {
+        let result;
         switch (request.kind) {
-          case "encrypt-text": {
-            const result = await defaultCryptoProvider.encryptText(
-              request.input,
+          case "encrypt-text":
+            validateSenderSigningCapabilityV2(
+              request.input.senderSigningCapability,
             );
-            if (cancelled.has(request.requestId)) {
-              emit({ kind: "cancelled", requestId: request.requestId });
-            } else {
-              emit({ kind: "completed", requestId: request.requestId, result });
-            }
+            result = await defaultCryptoProvider.encryptText(request.input);
             break;
-          }
-          case "decrypt-text": {
-            validateDecapsulationCapability(request.input.activeIdentity);
-            const result = await defaultCryptoProvider.decryptText(
-              request.input,
-            );
-            if (cancelled.has(request.requestId)) {
-              emit({ kind: "cancelled", requestId: request.requestId });
-            } else {
-              emit({ kind: "completed", requestId: request.requestId, result });
-            }
+          case "decrypt-text":
+            validateDecapsulationCapabilityV2(request.input.activeIdentity);
+            result = await defaultCryptoProvider.decryptText(request.input);
             break;
-          }
-          case "encrypt-qr-text": {
-            const result = await defaultCryptoProvider.encryptQrText(
-              request.input,
-            );
-            emit(
-              cancelled.has(request.requestId)
-                ? { kind: "cancelled", requestId: request.requestId }
-                : { kind: "completed", requestId: request.requestId, result },
-            );
+          case "lock-vault":
+            result = await defaultCryptoProvider.lockVault(request.input);
             break;
-          }
-          case "decrypt-qr-text": {
-            validateDecapsulationCapability(request.input.activeIdentity);
-            const result = await defaultCryptoProvider.decryptQrText(
-              request.input,
-            );
-            emit(
-              cancelled.has(request.requestId)
-                ? { kind: "cancelled", requestId: request.requestId }
-                : { kind: "completed", requestId: request.requestId, result },
-            );
+          case "unlock-vault":
+            result = await defaultCryptoProvider.unlockVault(request.input);
             break;
-          }
-          case "lock-vault": {
-            const result = await defaultCryptoProvider.lockVault(request.input);
-            if (cancelled.has(request.requestId)) {
-              emit({ kind: "cancelled", requestId: request.requestId });
-            } else {
-              emit({ kind: "completed", requestId: request.requestId, result });
-            }
-            break;
-          }
-          case "unlock-vault": {
-            const result = await defaultCryptoProvider.unlockVault(
-              request.input,
-            );
-            if (cancelled.has(request.requestId)) {
-              emit({ kind: "cancelled", requestId: request.requestId });
-            } else {
-              emit({ kind: "completed", requestId: request.requestId, result });
-            }
-            break;
-          }
         }
+        emit(
+          cancelled.has(request.requestId)
+            ? { kind: "cancelled", requestId: request.requestId }
+            : { kind: "completed", requestId: request.requestId, result },
+        );
       } catch (error) {
-        if (cancelled.has(request.requestId)) {
-          emit({ kind: "cancelled", requestId: request.requestId });
-        } else {
-          emit({
-            kind: "error",
-            requestId: request.requestId,
-            code: safeErrorCode(error),
-          });
-        }
+        emit(
+          cancelled.has(request.requestId)
+            ? { kind: "cancelled", requestId: request.requestId }
+            : {
+                kind: "error",
+                requestId: request.requestId,
+                code: safeErrorCode(error),
+              },
+        );
       } finally {
-        if (
-          request.kind === "decrypt-text" ||
-          request.kind === "decrypt-qr-text"
-        ) {
-          zeroizeDecapsulationCapability(request.input.activeIdentity);
-        }
+        releaseRequestAuthority(request);
         active.delete(request.requestId);
         cancelled.delete(request.requestId);
       }

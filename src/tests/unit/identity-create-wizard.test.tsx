@@ -4,50 +4,47 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentityCreate } from "../../flows/identity/create";
 import { messages } from "../../i18n";
 import type {
-  DerivedIdentity,
-  LockedVaultObject,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 
-function identityFixture(): DerivedIdentity {
+function identityFixture(): DerivedIdentityV2 {
   return {
-    suite: 1,
+    suite: 2,
     creationTime: 0n,
     masterEntropy: new Uint8Array(32).fill(3),
-    kemPublicKey: new Uint8Array(800),
-    kemSecretKey: new Uint8Array(1632).fill(4),
-    x25519PublicKey: new Uint8Array(32),
-    x25519SecretKey: new Uint8Array(32).fill(5),
-    signingPublicKey: new Uint8Array(32),
-    signingSecretKey: new Uint8Array(32).fill(6),
+    kemPublicKey: new Uint8Array(1568),
+    kemSecretKey: new Uint8Array(3168).fill(4),
+    signingPublicKey: new Uint8Array(2592),
+    signingSecretKey: new Uint8Array(4896).fill(6),
     fingerprint: new Uint8Array(32).fill(8),
     identityId: new Uint8Array(20).fill(8),
     pseudonym: "Alice",
   };
 }
 
-function contactFixture(): PublicContact {
+function contactFixture(): PublicContactV2 {
   return {
     magic: "PPXC",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     creationTime: 0n,
     pseudonym: "Alice",
-    kemPublicKey: new Uint8Array(800),
-    x25519PublicKey: new Uint8Array(32),
-    signingPublicKey: new Uint8Array(32),
-    selfSignature: new Uint8Array(64),
+    kemPublicKey: new Uint8Array(1568),
+    signingPublicKey: new Uint8Array(2592),
+    selfSignature: new Uint8Array(4627),
     checksum: new Uint8Array(16),
     fingerprint: new Uint8Array(32).fill(8),
     identityId: new Uint8Array(20).fill(8),
   };
 }
 
-function vaultFixture(): LockedVaultObject {
+function vaultFixture(): LockedVaultObjectV2 {
   return {
     magic: "PPXV",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     flags: 1,
     kdfId: 1,
     scryptN: 65_536,
@@ -55,16 +52,16 @@ function vaultFixture(): LockedVaultObject {
     scryptP: 2,
     salt: new Uint8Array(16),
     nonce: new Uint8Array(12),
-    ciphertextLength: 16,
-    ciphertext: new Uint8Array(16),
+    ciphertextLength: 58,
+    ciphertext: new Uint8Array(58),
     checksum: new Uint8Array(16),
   };
 }
 
 type ReadyCallback = (
-  identity: DerivedIdentity,
-  contact: PublicContact,
-  vault?: LockedVaultObject,
+  identity: DerivedIdentityV2,
+  contact: PublicContactV2,
+  vault?: LockedVaultObjectV2,
   signal?: AbortSignal,
   acceptOwnership?: () => boolean,
 ) => void;

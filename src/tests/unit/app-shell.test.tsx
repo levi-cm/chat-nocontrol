@@ -91,29 +91,20 @@ describe("app shell", () => {
     ).not.toBeNull();
   });
 
-  it("keeps message QR creation off until the user opts in", async () => {
+  it("does not expose removed public or message QR settings", async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(
       await screen.findByRole("link", { name: "Open settings" }),
     );
 
-    const creationToggle = screen.getByRole<HTMLInputElement>("checkbox", {
-      name: /^Offer message QR after text encryption/u,
-    });
-    expect(creationToggle.checked).toBe(false);
-    expect(screen.queryByLabelText("Export")).toBeNull();
-
-    await user.click(creationToggle);
-    expect(creationToggle.checked).toBe(true);
-    expect(screen.getByLabelText("Export")).not.toBeNull();
-
-    await user.selectOptions(screen.getByLabelText("Language"), "de");
     expect(
-      screen.getByRole("checkbox", {
-        name: /^Nachrichten-QR nach Textverschlüsselung anbieten/u,
+      screen.queryByRole("checkbox", {
+        name: /^Offer message QR after text encryption/u,
       }),
-    ).not.toBeNull();
+    ).toBeNull();
+    expect(screen.queryByLabelText("Export")).toBeNull();
+    expect(screen.getByLabelText("Message output")).not.toBeNull();
   });
 
   it("keeps scripts self-only while permitting only the local PDF frame", () => {

@@ -1,149 +1,115 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { defaultCryptoProvider } from "../../crypto/default-provider";
-import type { PPXWorkerEvent, PPXWorkerRequest } from "../../crypto/contracts";
+import { beforeAll, describe, expect, it } from "vitest";
+import type {
+  PPXFileWorkerRequest,
+  PPXWorkerEvent,
+} from "../../crypto/contracts";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../../crypto/identity";
-import { createPublicContact } from "../../protocol/ppxc";
+  createDecapsulationCapabilityV2,
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
+import type {
+  DerivedIdentityV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 import { createFileRunner } from "../../workers/file-runner";
 
-async function encryptRequest(size: number): Promise<PPXWorkerRequest> {
-  const alice = await deriveIdentityFromEntropy(
-    new Uint8Array(32).fill(61),
-    "Alice",
-  );
-  const bob = await deriveIdentityFromEntropy(
-    new Uint8Array(32).fill(62),
-    "Bob",
-  );
-  return {
-    kind: "encrypt-file",
-    requestId: `encrypt-${size}`,
-    input: {
-      sender: createPublicContact(alice, "Alice", 1n),
-      senderSigningCapability: createSenderSigningCapability(alice),
-      recipient: createPublicContact(bob, "Bob", 2n),
-      file: new Blob([new Uint8Array(size)]),
-      filename: "worker.bin",
-      mimeHint: "application/octet-stream",
-      caption: "",
-      fileLength: BigInt(size),
-    },
-  };
-}
+const fill = (length: number, value: number) =>
+  new Uint8Array(length).fill(value);
 
-describe("typed PPXF file runner", () => {
-  afterEach(() => vi.restoreAllMocks());
+describe("Cat-5 V2 PPXF file-only runner", () => {
+  let aliceIdentity: DerivedIdentityV2;
+  let bobIdentity: DerivedIdentityV2;
+  let alice: PublicContactV2;
+  let bob: PublicContactV2;
 
-  it("wipes worker-owned decapsulation secrets after file decrypt failure", async () => {
-    const capability = {
-      suite: 1 as const,
-      fingerprint: new Uint8Array(32),
-      identityId: new Uint8Array(20),
-      kemSecretKey: new Uint8Array(1632).fill(7),
-      x25519SecretKey: new Uint8Array(32).fill(8),
+  beforeAll(async () => {
+    aliceIdentity = await deriveIdentityV2FromEntropy(fill(32, 61), "Alice");
+    bobIdentity = await deriveIdentityV2FromEntropy(fill(32, 62), "Bob");
+    alice = createPublicContactV2(aliceIdentity, "Alice", 1n, fill(32, 63));
+    bob = createPublicContactV2(bobIdentity, "Bob", 2n, fill(32, 64));
+  });
+
+  function encryptRequest(size: number): PPXFileWorkerRequest {
+    return {
+      kind: "encrypt-file",
+      requestId: `encrypt-${size}`,
+      input: {
+        sender: alice,
+        senderSigningCapability: createSenderSigningCapabilityV2(aliceIdentity),
+        recipient: bob,
+        file: new Blob([new Uint8Array(size)]),
+        filename: "worker.bin",
+        mimeHint: "application/octet-stream",
+        caption: "",
+        fileLength: BigInt(size),
+      },
     };
-    vi.spyOn(defaultCryptoProvider, "decryptFile").mockRejectedValue(
-      new Error("injected failure"),
-    );
+  }
+
+  it("wipes worker-owned ML-KEM-1024 authority after PPXF decrypt failure", async () => {
+    const capability = createDecapsulationCapabilityV2(bobIdentity);
     const runner = createFileRunner(() => undefined);
 
     await runner.handle({
       kind: "decrypt-file",
       requestId: "wipe-decrypt-file",
-      input: { object: {} as never, activeIdentity: capability },
+      input: { object: new Blob(), activeIdentity: capability },
     });
 
-    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
-    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(3168));
   });
 
-  it("rejects and wipes an unsupported decapsulation suite at the worker boundary", async () => {
+  it("rejects and wipes a non-Cat-5 suite at the worker boundary", async () => {
     const events: PPXWorkerEvent[] = [];
     const capability = {
-      suite: 2,
-      fingerprint: new Uint8Array(32),
-      identityId: new Uint8Array(20),
-      kemSecretKey: new Uint8Array(1632).fill(7),
-      x25519SecretKey: new Uint8Array(32).fill(8),
+      suite: 1,
+      fingerprint: fill(32, 1),
+      identityId: fill(20, 2),
+      kemSecretKey: fill(3168, 7),
     };
-    const decrypt = vi.spyOn(defaultCryptoProvider, "decryptFile");
     const runner = createFileRunner((event) => events.push(event));
 
     await runner.handle({
       kind: "decrypt-file",
       requestId: "unsupported-file-suite",
-      input: { object: {} as never, activeIdentity: capability as never },
+      input: {
+        object: new Blob(),
+        activeIdentity: capability as never,
+      },
     });
 
-    expect(decrypt).not.toHaveBeenCalled();
     expect(events).toContainEqual({
       kind: "error",
       requestId: "unsupported-file-suite",
       code: "unknown-suite",
     });
-    expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
-    expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(3168));
   });
 
-  it.each(["decrypt-text", "decrypt-qr-text"] as const)(
-    "wipes %s authority rejected by the wrong worker",
-    async (kind) => {
-      const events: PPXWorkerEvent[] = [];
-      const capability = {
-        suite: 1 as const,
-        fingerprint: new Uint8Array(32),
-        identityId: new Uint8Array(20),
-        kemSecretKey: new Uint8Array(1632).fill(7),
-        x25519SecretKey: new Uint8Array(32).fill(8),
-      };
-      const runner = createFileRunner((event) => events.push(event));
-
-      const request: PPXWorkerRequest =
-        kind === "decrypt-text"
-          ? {
-              kind,
-              requestId: `wrong-file-worker-${kind}`,
-              input: { object: {} as never, activeIdentity: capability },
-            }
-          : {
-              kind,
-              requestId: `wrong-file-worker-${kind}`,
-              input: {
-                object: {} as never,
-                activeIdentity: capability,
-                knownSenders: [],
-              },
-            };
-      await runner.handle(request);
-
-      expect(events).toContainEqual({
-        kind: "error",
-        requestId: `wrong-file-worker-${kind}`,
-        code: "wrong-identity-or-corruption",
-      });
-      expect(capability.kemSecretKey).toEqual(new Uint8Array(1632));
-      expect(capability.x25519SecretKey).toEqual(new Uint8Array(32));
-    },
-  );
-
-  it("emits progress and exactly one completed event", async () => {
+  it("emits progress and one canonical PPXF completion", async () => {
     const events: PPXWorkerEvent[] = [];
     const runner = createFileRunner((event) => events.push(event));
-    await runner.handle(await encryptRequest(1));
+    await runner.handle(encryptRequest(1));
 
     expect(events.some((event) => event.kind === "progress")).toBe(true);
-    expect(events.filter((event) => event.kind === "completed")).toHaveLength(
-      1,
-    );
+    const completed = events.filter((event) => event.kind === "completed");
+    expect(completed).toHaveLength(1);
+    const result = completed[0]?.result;
+    if (!result || !("blob" in result) || !("encodedLength" in result)) {
+      throw new Error("missing encrypted PPXF Blob result");
+    }
+    expect(
+      new TextDecoder().decode(await result.blob.slice(0, 4).arrayBuffer()),
+    ).toBe("PPXF");
     expect(events.some((event) => event.kind === "error")).toBe(false);
-  });
+  }, 30_000);
 
-  it("cancels an active request without completed output", async () => {
+  it("cancels an active PPXF request without completed output", async () => {
     const events: PPXWorkerEvent[] = [];
     const runner = createFileRunner((event) => events.push(event));
-    const request = await encryptRequest(2_097_152);
+    const request = encryptRequest(2_097_152);
     const running = runner.handle(request);
     await runner.handle({ kind: "cancel", requestId: request.requestId });
     await running;
@@ -152,5 +118,5 @@ describe("typed PPXF file runner", () => {
       1,
     );
     expect(events.some((event) => event.kind === "completed")).toBe(false);
-  });
+  }, 30_000);
 });

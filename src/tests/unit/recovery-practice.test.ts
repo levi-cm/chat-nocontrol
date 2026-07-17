@@ -5,20 +5,18 @@ import {
   verifyRecoveryCodeForIdentity,
 } from "../../flows/identity/recovery-practice";
 import { encodeBase45Upper } from "../../protocol/base45";
-import { encodeRecoveryObject } from "../../protocol/ppxr";
-import type { DerivedIdentity } from "../../protocol/types";
+import { encodeRecoveryObjectV2 } from "../../protocol/ppxr-v2";
+import type { DerivedIdentityV2 } from "../../protocol/types-v2";
 
-function recoveredIdentity(): DerivedIdentity {
+function recoveredIdentity(): DerivedIdentityV2 {
   return {
-    suite: 1,
+    suite: 2,
     creationTime: 1n,
     masterEntropy: new Uint8Array(32).fill(1),
-    kemPublicKey: new Uint8Array(800),
-    kemSecretKey: new Uint8Array(1632).fill(2),
-    x25519PublicKey: new Uint8Array(32),
-    x25519SecretKey: new Uint8Array(32).fill(3),
-    signingPublicKey: new Uint8Array(32),
-    signingSecretKey: new Uint8Array(32).fill(4),
+    kemPublicKey: new Uint8Array(1568),
+    kemSecretKey: new Uint8Array(3168).fill(2),
+    signingPublicKey: new Uint8Array(2592),
+    signingSecretKey: new Uint8Array(4896).fill(4),
     fingerprint: new Uint8Array(32).fill(9),
     identityId: new Uint8Array(20).fill(9),
     pseudonym: "Alice",
@@ -26,10 +24,10 @@ function recoveredIdentity(): DerivedIdentity {
 }
 
 function recoveryBytes() {
-  return encodeRecoveryObject({
+  return encodeRecoveryObjectV2({
     magic: "PPXR",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     flags: 0,
     masterEntropy: new Uint8Array(32).fill(7),
     creationTime: 1n,
@@ -67,7 +65,7 @@ describe("onboarding recovery practice", () => {
     ).resolves.toBe(true);
     expect(provider.deriveIdentity).toHaveBeenCalledOnce();
     expect(recovered.masterEntropy).toEqual(new Uint8Array(32));
-    expect(recovered.signingSecretKey).toEqual(new Uint8Array(32));
+    expect(recovered.signingSecretKey).toEqual(new Uint8Array(4896));
   });
 
   it("rejects another valid identity and accepts the armored recovery code", async () => {
@@ -83,7 +81,7 @@ describe("onboarding recovery practice", () => {
     ).resolves.toBe(false);
     await expect(
       verifyRecoveryCodeForIdentity(
-        `PPX1:RECOVERY:${encodeBase45Upper(recoveryBytes())}`,
+        `PPX2:RECOVERY:${encodeBase45Upper(recoveryBytes())}`,
         new Uint8Array(20).fill(9),
         provider,
       ),

@@ -1,4 +1,4 @@
-import type { PublicContact } from "../protocol/types";
+import type { PublicContactV2 } from "../protocol/types-v2";
 import type { PpxDatabase, StoredContact } from "./db";
 
 export type NormalizedStoredContact = StoredContact & {
@@ -24,7 +24,7 @@ export function contactStorageId(fingerprint: Uint8Array): string {
 
 export async function putContact(
   db: PpxDatabase,
-  contact: PublicContact,
+  contact: PublicContactV2,
   nickname?: string,
   includeSenderContactInLinks?: boolean,
 ): Promise<NormalizedStoredContact> {
