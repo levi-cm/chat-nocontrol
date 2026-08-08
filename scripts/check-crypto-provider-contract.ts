@@ -153,6 +153,42 @@ function importedName(
   return (element.propertyName ?? element.name).text;
 }
 
+function unwrapExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isAwaitExpression(current) ||
+    ts.isParenthesizedExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+function dynamicImportTarget(
+  expression: ts.Expression,
+  fromPath: string,
+  sources: ReadonlyMap<string, string>,
+): string | undefined {
+  const candidate = unwrapExpression(expression);
+  if (
+    !ts.isCallExpression(candidate) ||
+    candidate.expression.kind !== ts.SyntaxKind.ImportKeyword
+  ) {
+    return undefined;
+  }
+  const specifier = candidate.arguments[0];
+  return specifier && ts.isStringLiteralLike(specifier)
+    ? resolveSourceImport(fromPath, specifier.text, sources)
+    : undefined;
+}
+
+function bindingImportedName(element: ts.BindingElement): string | undefined {
+  const name = element.propertyName ?? element.name;
+  return ts.isIdentifier(name) || ts.isStringLiteralLike(name)
+    ? name.text
+    : undefined;
+}
+
 function inspectReachableSource(
   path: string,
   source: string,
@@ -163,7 +199,113 @@ function inspectReachableSource(
   const isDormantLegacyImplementation =
     DORMANT_LEGACY_IMPLEMENTATION_MODULES.has(path);
 
+  const reportDynamicAccess = (target: string, name: string): void => {
+    if (LEGACY_WRITE_EXPORTS.get(target)?.has(name)) {
+      failures.push(
+        `${path}: forbidden dynamic V1 write access ${name} from ${target}`,
+      );
+    }
+  };
+
+  const inspectBinding = (
+    binding: ts.ObjectBindingPattern,
+    target: string,
+  ): void => {
+    for (const element of binding.elements) {
+      const name = bindingImportedName(element);
+      if (name) reportDynamicAccess(target, name);
+    }
+  };
+
+  const inspectDynamicNamespaceUse = (
+    node: ts.Node,
+    namespace: string,
+    target: string,
+  ): void => {
+    const scan = (candidate: ts.Node): void => {
+      if (
+        ts.isPropertyAccessExpression(candidate) &&
+        ts.isIdentifier(candidate.expression) &&
+        candidate.expression.text === namespace
+      ) {
+        reportDynamicAccess(target, candidate.name.text);
+      } else if (
+        ts.isElementAccessExpression(candidate) &&
+        ts.isIdentifier(candidate.expression) &&
+        candidate.expression.text === namespace &&
+        candidate.argumentExpression &&
+        ts.isStringLiteralLike(candidate.argumentExpression)
+      ) {
+        reportDynamicAccess(target, candidate.argumentExpression.text);
+      } else if (
+        ts.isVariableDeclaration(candidate) &&
+        ts.isObjectBindingPattern(candidate.name) &&
+        candidate.initializer &&
+        ts.isIdentifier(candidate.initializer) &&
+        candidate.initializer.text === namespace
+      ) {
+        inspectBinding(candidate.name, target);
+      }
+      ts.forEachChild(candidate, scan);
+    };
+    scan(node);
+  };
+
   const visit = (node: ts.Node): void => {
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      node.initializer
+    ) {
+      const target = dynamicImportTarget(node.initializer, path, sources);
+      if (target) inspectBinding(node.name, target);
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      (ts.isPropertyAccessExpression(node) ||
+        ts.isElementAccessExpression(node))
+    ) {
+      const target = dynamicImportTarget(node.expression, path, sources);
+      if (target) {
+        if (ts.isPropertyAccessExpression(node)) {
+          reportDynamicAccess(target, node.name.text);
+        } else if (
+          node.argumentExpression &&
+          ts.isStringLiteralLike(node.argumentExpression)
+        ) {
+          reportDynamicAccess(target, node.argumentExpression.text);
+        }
+      }
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "then"
+    ) {
+      const target = dynamicImportTarget(
+        node.expression.expression,
+        path,
+        sources,
+      );
+      const callback = node.arguments[0];
+      if (
+        target &&
+        callback &&
+        (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback))
+      ) {
+        const parameter = callback.parameters[0]?.name;
+        if (parameter && ts.isIdentifier(parameter)) {
+          inspectDynamicNamespaceUse(callback.body, parameter.text, target);
+        } else if (parameter && ts.isObjectBindingPattern(parameter)) {
+          inspectBinding(parameter, target);
+        }
+      }
+    }
+
     if (
       ts.isPropertySignature(node) ||
       ts.isPropertyAssignment(node) ||
