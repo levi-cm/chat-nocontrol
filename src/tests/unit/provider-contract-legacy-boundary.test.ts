@@ -11,6 +11,33 @@ function sources(...entries: Array<[string, string]>): Map<string, string> {
 
 describe("legacy V1 provider boundary", () => {
   it.each([
+    ["object method", "const api = { encryptLegacyV1(): void {} };\nvoid api;"],
+    ["class method", "class Api { sendLegacyV1(): void {} }\nvoid Api;"],
+    [
+      "method signature",
+      "interface Api { persistV1Contact(): void }\nconst api = {} as Api;\nvoid api;",
+    ],
+    [
+      "property-access call",
+      "declare const api: Record<string, () => void>;\napi.encryptLegacyV1();",
+    ],
+    [
+      "element-access call",
+      'declare const api: Record<string, () => void>;\napi["saveLegacyV1Contact"]();',
+    ],
+  ] as const)("rejects a reachable forbidden %s", (_label, unsafeSource) => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/unsafe";'],
+        ["src/features/unsafe.ts", unsafeSource],
+      ),
+      roots,
+    );
+
+    expect(result).not.toEqual([]);
+  });
+
+  it.each([
     [
       "worker kind",
       "src/features/commands.ts",

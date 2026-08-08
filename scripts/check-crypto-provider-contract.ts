@@ -62,7 +62,10 @@ const DORMANT_LEGACY_IMPLEMENTATION_MODULES = new Set([
 ]);
 
 const READ_ONLY_LEGACY_IMPORT_EXCEPTIONS = new Map<string, ReadonlySet<string>>(
-  [["src/storage/vault-migration-v2.ts", new Set(["encodeLockedVault"])]],
+  [
+    ["src/storage/vault-migration-v2.ts", new Set(["encodeLockedVault"])],
+    ["src/flows/decrypt/index.tsx", new Set(["encodePublicContact"])],
+  ],
 );
 
 const ALLOWED_LEGACY_WORKER_KINDS = new Set([
@@ -168,9 +171,17 @@ function reachableSources(
 function isForbiddenLegacyWriteName(name: string): boolean {
   if (!/(?:legacy|v1)/iu.test(name)) return false;
   return (
-    /(?:encrypt|send|persist|save|store)/iu.test(name) ||
+    /(?:encrypt|send(?!er)|persist|save|store)/iu.test(name) ||
     (/(?:create)/iu.test(name) && /contact/iu.test(name))
   );
+}
+
+function staticPropertyName(name: ts.PropertyName): string | undefined {
+  return ts.isIdentifier(name) ||
+    ts.isStringLiteralLike(name) ||
+    ts.isNumericLiteral(name)
+    ? name.text
+    : undefined;
 }
 
 function importedName(
@@ -337,6 +348,43 @@ function inspectReachableSource(
   };
 
   const visit = (node: ts.Node): void => {
+    if (
+      !isDormantLegacyImplementation &&
+      (ts.isMethodDeclaration(node) ||
+        ts.isMethodSignature(node) ||
+        ts.isPropertyDeclaration(node) ||
+        ts.isPropertySignature(node))
+    ) {
+      const name = staticPropertyName(node.name);
+      if (name && isForbiddenLegacyWriteName(name)) {
+        failures.push(`${path}: forbidden V1 write surface ${name}`);
+      }
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      isForbiddenLegacyWriteName(node.expression.name.text)
+    ) {
+      failures.push(
+        `${path}: forbidden V1 write surface ${node.expression.name.text}`,
+      );
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isCallExpression(node) &&
+      ts.isElementAccessExpression(node.expression) &&
+      node.expression.argumentExpression &&
+      ts.isStringLiteralLike(node.expression.argumentExpression) &&
+      isForbiddenLegacyWriteName(node.expression.argumentExpression.text)
+    ) {
+      failures.push(
+        `${path}: forbidden V1 write surface ${node.expression.argumentExpression.text}`,
+      );
+    }
+
     if (
       !isDormantLegacyImplementation &&
       ts.isCallExpression(node) &&
@@ -563,6 +611,7 @@ function runProviderContract(root: string): string[] {
     contracts: read("src/workers/legacy-v1-contracts.ts"),
     runner: read("src/workers/legacy-v1-runner.ts"),
     client: read("src/workers/legacy-v1-client.ts"),
+    worker: read("src/workers/legacy-v1-worker.ts"),
   };
   const failures: string[] = [];
 
@@ -653,6 +702,9 @@ function runProviderContract(root: string): string[] {
     'kind: "migrate-recovery-v1"',
     'kind: "migrate-vault-v1"',
     'kind: "cancel"',
+    "legacyV1RequestTransferList",
+    "legacyV1EventTransferList",
+    "zeroizeLegacyV1TransferList",
   ]);
   requireAll(failures, "V1 worker runner", legacyFiles.runner, [
     "decryptLegacyCompactTextV1",
@@ -669,6 +721,12 @@ function runProviderContract(root: string): string[] {
     "startLegacyRecoveryMigrationJob",
     "startLegacyVaultMigrationJob",
     "releaseRequestSecrets",
+    "legacyV1RequestTransferList",
+  ]);
+  requireAll(failures, "V1 worker transport", legacyFiles.worker, [
+    "legacyV1EventTransferList",
+    "zeroizeLegacyV1TransferList",
+    "scope.postMessage(event, transferList)",
   ]);
 
   for (const [label, source] of Object.entries(files)) {

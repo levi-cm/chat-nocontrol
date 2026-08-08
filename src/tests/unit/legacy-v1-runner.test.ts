@@ -1,13 +1,76 @@
 import { describe, expect, it } from "vitest";
 import { PPXError, type DecryptedFileOutput } from "../../protocol/types";
 import type { DerivedIdentityV2 } from "../../protocol/types-v2";
-import type { LegacyV1WorkerEvent } from "../../workers/legacy-v1-contracts";
+import {
+  legacyV1EventTransferList,
+  type LegacyV1WorkerEvent,
+  zeroizeLegacyV1TransferList,
+} from "../../workers/legacy-v1-contracts";
 import { createLegacyV1Runner } from "../../workers/legacy-v1-runner";
 
 const fill = (length: number, value: number) =>
   new Uint8Array(length).fill(value);
 
 describe("legacy V1 worker runner", () => {
+  it("transfers every owned migrated identity buffer without retaining worker copies", () => {
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      pseudonym: "Migrated",
+      masterEntropy: fill(32, 1),
+      kemPublicKey: fill(64, 2),
+      kemSecretKey: fill(64, 3),
+      signingPublicKey: fill(32, 4),
+      signingSecretKey: fill(32, 5),
+      fingerprint: fill(32, 6),
+      identityId: fill(20, 7),
+    } as DerivedIdentityV2;
+    const event = {
+      kind: "completed" as const,
+      requestId: "migration-transfer",
+      result: identity,
+    };
+
+    const transferred = structuredClone(event, {
+      transfer: legacyV1EventTransferList(event),
+    });
+
+    expect(legacyV1EventTransferList(transferred)).toHaveLength(7);
+    expect(identity.masterEntropy.byteLength).toBe(0);
+    expect(identity.kemPublicKey.byteLength).toBe(0);
+    expect(identity.kemSecretKey.byteLength).toBe(0);
+    expect(identity.signingPublicKey.byteLength).toBe(0);
+    expect(identity.signingSecretKey.byteLength).toBe(0);
+    expect(identity.fingerprint.byteLength).toBe(0);
+    expect(identity.identityId.byteLength).toBe(0);
+  });
+
+  it("zeroizes every migrated identity buffer when worker response transfer fails", () => {
+    const identity = {
+      suite: 2,
+      creationTime: 2n,
+      pseudonym: "Failed transfer",
+      masterEntropy: fill(32, 11),
+      kemPublicKey: fill(64, 12),
+      kemSecretKey: fill(64, 13),
+      signingPublicKey: fill(32, 14),
+      signingSecretKey: fill(32, 15),
+      fingerprint: fill(32, 16),
+      identityId: fill(20, 17),
+    } as DerivedIdentityV2;
+    const transferList = legacyV1EventTransferList({
+      kind: "completed",
+      requestId: "failed-migration-transfer",
+      result: identity,
+    });
+
+    zeroizeLegacyV1TransferList(transferList);
+
+    for (const buffer of transferList) {
+      expect(new Uint8Array(buffer).every((byte) => byte === 0)).toBe(true);
+    }
+  });
+
   it.each([
     "unknown-sender-contact",
     "invalid-signature",
