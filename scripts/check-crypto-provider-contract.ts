@@ -207,13 +207,25 @@ function inspectReachableSource(
     }
   };
 
+  const reportDynamicNamespaceExposure = (target: string): void => {
+    if (LEGACY_WRITE_EXPORTS.has(target)) {
+      failures.push(
+        `${path}: forbidden dynamic V1 namespace exposure from ${target}`,
+      );
+    }
+  };
+
   const inspectBinding = (
     binding: ts.ObjectBindingPattern,
     target: string,
   ): void => {
     for (const element of binding.elements) {
       const name = bindingImportedName(element);
-      if (name) reportDynamicAccess(target, name);
+      if (element.dotDotDotToken || !name) {
+        reportDynamicNamespaceExposure(target);
+      } else {
+        reportDynamicAccess(target, name);
+      }
     }
   };
 
@@ -223,28 +235,36 @@ function inspectReachableSource(
     target: string,
   ): void => {
     const scan = (candidate: ts.Node): void => {
-      if (
-        ts.isPropertyAccessExpression(candidate) &&
-        ts.isIdentifier(candidate.expression) &&
-        candidate.expression.text === namespace
-      ) {
-        reportDynamicAccess(target, candidate.name.text);
-      } else if (
-        ts.isElementAccessExpression(candidate) &&
-        ts.isIdentifier(candidate.expression) &&
-        candidate.expression.text === namespace &&
-        candidate.argumentExpression &&
-        ts.isStringLiteralLike(candidate.argumentExpression)
-      ) {
-        reportDynamicAccess(target, candidate.argumentExpression.text);
-      } else if (
-        ts.isVariableDeclaration(candidate) &&
-        ts.isObjectBindingPattern(candidate.name) &&
-        candidate.initializer &&
-        ts.isIdentifier(candidate.initializer) &&
-        candidate.initializer.text === namespace
-      ) {
-        inspectBinding(candidate.name, target);
+      if (ts.isIdentifier(candidate) && candidate.text === namespace) {
+        const parent = candidate.parent;
+        if (
+          ts.isPropertyAccessExpression(parent) &&
+          parent.expression === candidate
+        ) {
+          reportDynamicAccess(target, parent.name.text);
+        } else if (
+          ts.isElementAccessExpression(parent) &&
+          parent.expression === candidate
+        ) {
+          if (
+            parent.argumentExpression &&
+            ts.isStringLiteralLike(parent.argumentExpression)
+          ) {
+            reportDynamicAccess(target, parent.argumentExpression.text);
+          } else {
+            reportDynamicNamespaceExposure(target);
+          }
+        } else if (
+          ts.isVariableDeclaration(parent) &&
+          parent.initializer === candidate &&
+          ts.isObjectBindingPattern(parent.name)
+        ) {
+          inspectBinding(parent.name, target);
+        } else if (ts.isParameter(parent) && parent.name === candidate) {
+          // The callback parameter introduces the namespace binding.
+        } else {
+          reportDynamicNamespaceExposure(target);
+        }
       }
       ts.forEachChild(candidate, scan);
     };
@@ -261,7 +281,7 @@ function inspectReachableSource(
       if (target && ts.isObjectBindingPattern(node.name)) {
         inspectBinding(node.name, target);
       } else if (target && ts.isIdentifier(node.name)) {
-        inspectDynamicNamespaceUse(parsed, node.name.text, target);
+        reportDynamicNamespaceExposure(target);
       }
     }
 
@@ -279,7 +299,34 @@ function inspectReachableSource(
           ts.isStringLiteralLike(node.argumentExpression)
         ) {
           reportDynamicAccess(target, node.argumentExpression.text);
+        } else {
+          reportDynamicNamespaceExposure(target);
         }
+      }
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isReturnStatement(node) &&
+      node.expression
+    ) {
+      const target = dynamicImportTarget(node.expression, path, sources);
+      if (target) reportDynamicNamespaceExposure(target);
+    }
+
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isArrowFunction(node) &&
+      !ts.isBlock(node.body)
+    ) {
+      const target = dynamicImportTarget(node.body, path, sources);
+      if (target) reportDynamicNamespaceExposure(target);
+    }
+
+    if (!isDormantLegacyImplementation && ts.isCallExpression(node)) {
+      for (const argument of node.arguments) {
+        const target = dynamicImportTarget(argument, path, sources);
+        if (target) reportDynamicNamespaceExposure(target);
       }
     }
 
@@ -305,7 +352,11 @@ function inspectReachableSource(
           inspectDynamicNamespaceUse(callback.body, parameter.text, target);
         } else if (parameter && ts.isObjectBindingPattern(parameter)) {
           inspectBinding(parameter, target);
+        } else {
+          reportDynamicNamespaceExposure(target);
         }
+      } else if (target) {
+        reportDynamicNamespaceExposure(target);
       }
     }
 

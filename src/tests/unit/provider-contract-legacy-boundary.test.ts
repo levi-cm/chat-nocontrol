@@ -130,7 +130,7 @@ describe("legacy V1 provider boundary", () => {
       );
 
       expect(result).toContain(
-        "src/features/unsafe.ts: forbidden dynamic V1 write access encryptText from src/crypto/text.ts",
+        "src/features/unsafe.ts: forbidden dynamic V1 namespace exposure from src/crypto/text.ts",
       );
     },
   );
@@ -173,7 +173,7 @@ describe("legacy V1 provider boundary", () => {
     expect(result).toEqual([]);
   });
 
-  it("allows assigned dynamic namespace access to a read-only symbol", () => {
+  it("rejects assigning a dynamic legacy namespace even for later read-only access", () => {
     const result = findForbiddenLegacyWriteSurfaces(
       sources(
         ["src/main.tsx", 'import "./features/safe";'],
@@ -189,6 +189,69 @@ describe("legacy V1 provider boundary", () => {
       roots,
     );
 
-    expect(result).toEqual([]);
+    expect(result).toContain(
+      "src/features/safe.ts: forbidden dynamic V1 namespace exposure from src/crypto/text.ts",
+    );
   });
+
+  it.each([
+    [
+      "computed access",
+      'const key = "decryptText";\nvoid (await import("../crypto/text"))[key];',
+    ],
+    [
+      "passing to a helper",
+      'declare function consume(value: unknown): void;\nconsume(await import("../crypto/text"));',
+    ],
+    [
+      "returning from a function",
+      'export async function loadLegacy(): Promise<unknown> { return await import("../crypto/text"); }',
+    ],
+  ] as const)("rejects dynamic namespace %s", (_label, unsafeSource) => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/unsafe";'],
+        ["src/features/unsafe.ts", unsafeSource],
+        [
+          "src/crypto/text.ts",
+          "export function encryptText(): void {}\nexport function decryptText(): void {}",
+        ],
+      ),
+      roots,
+    );
+
+    expect(result).toContain(
+      "src/features/unsafe.ts: forbidden dynamic V1 namespace exposure from src/crypto/text.ts",
+    );
+  });
+
+  it.each([
+    [
+      "rest destructuring",
+      'const { decryptText, ...namespace } = await import("../crypto/text");\nvoid namespace;',
+    ],
+    [
+      "computed destructuring",
+      'const key = "decryptText";\nconst { [key]: value } = await import("../crypto/text");\nvoid value;',
+    ],
+  ] as const)(
+    "rejects non-static dynamic namespace %s",
+    (_label, unsafeSource) => {
+      const result = findForbiddenLegacyWriteSurfaces(
+        sources(
+          ["src/main.tsx", 'import "./features/unsafe";'],
+          ["src/features/unsafe.ts", unsafeSource],
+          [
+            "src/crypto/text.ts",
+            "export function encryptText(): void {}\nexport function decryptText(): void {}",
+          ],
+        ),
+        roots,
+      );
+
+      expect(result).toContain(
+        "src/features/unsafe.ts: forbidden dynamic V1 namespace exposure from src/crypto/text.ts",
+      );
+    },
+  );
 });
