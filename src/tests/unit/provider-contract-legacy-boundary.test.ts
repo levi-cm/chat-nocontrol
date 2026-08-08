@@ -62,6 +62,48 @@ describe("legacy V1 provider boundary", () => {
     );
   });
 
+  it("rejects forbidden member access from a dynamic legacy import", () => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/unsafe";'],
+        [
+          "src/features/unsafe.ts",
+          'void import("../crypto/text").then((module) => module.encryptText({} as never));',
+        ],
+        [
+          "src/crypto/text.ts",
+          "export function encryptText(): void {}\nexport function decryptText(): void {}",
+        ],
+      ),
+      roots,
+    );
+
+    expect(result).toContain(
+      "src/features/unsafe.ts: forbidden dynamic V1 write access encryptText from src/crypto/text.ts",
+    );
+  });
+
+  it("rejects forbidden destructuring from a dynamic legacy import", () => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/unsafe";'],
+        [
+          "src/features/unsafe.ts",
+          'const { encryptText } = await import("../crypto/text");\nencryptText({} as never);',
+        ],
+        [
+          "src/crypto/text.ts",
+          "export function encryptText(): void {}\nexport function decryptText(): void {}",
+        ],
+      ),
+      roots,
+    );
+
+    expect(result).toContain(
+      "src/features/unsafe.ts: forbidden dynamic V1 write access encryptText from src/crypto/text.ts",
+    );
+  });
+
   it("allows dormant V1 write exports when only read symbols cross the boundary", () => {
     const result = findForbiddenLegacyWriteSurfaces(
       sources(
@@ -69,6 +111,25 @@ describe("legacy V1 provider boundary", () => {
         [
           "src/crypto/legacy-v1-reader.ts",
           'import { decryptText } from "./text";\nvoid decryptText;',
+        ],
+        [
+          "src/crypto/text.ts",
+          "export function encryptText(): void {}\nexport function decryptText(): void {}",
+        ],
+      ),
+      roots,
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("allows a dynamic legacy import when only a read symbol is accessed", () => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/safe";'],
+        [
+          "src/features/safe.ts",
+          'const { decryptText } = await import("../crypto/text");\nvoid decryptText;',
         ],
         [
           "src/crypto/text.ts",
