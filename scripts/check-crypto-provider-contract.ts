@@ -255,11 +255,14 @@ function inspectReachableSource(
     if (
       !isDormantLegacyImplementation &&
       ts.isVariableDeclaration(node) &&
-      ts.isObjectBindingPattern(node.name) &&
       node.initializer
     ) {
       const target = dynamicImportTarget(node.initializer, path, sources);
-      if (target) inspectBinding(node.name, target);
+      if (target && ts.isObjectBindingPattern(node.name)) {
+        inspectBinding(node.name, target);
+      } else if (target && ts.isIdentifier(node.name)) {
+        inspectDynamicNamespaceUse(parsed, node.name.text, target);
+      }
     }
 
     if (
