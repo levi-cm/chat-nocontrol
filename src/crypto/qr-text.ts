@@ -148,6 +148,7 @@ export async function decryptQrText(
   let decrypted: Uint8Array | undefined;
   let decoded: Uint8Array | undefined;
   let storedPayload: Uint8Array | undefined;
+  let reencoded: Uint8Array | undefined;
   try {
     const object = parseEncryptedQrText(encodeEncryptedQrText(input.object));
     key = decapsulateHybrid({
@@ -185,7 +186,8 @@ export async function decryptQrText(
     } catch {
       throw new PPXError("wrong-identity-or-corruption");
     }
-    if (encoder.encode(plaintext).byteLength !== decoded.byteLength) {
+    reencoded = encoder.encode(plaintext);
+    if (reencoded.byteLength !== decoded.byteLength) {
       throw new PPXError("wrong-identity-or-corruption");
     }
     return {
@@ -209,6 +211,7 @@ export async function decryptQrText(
     throw new PPXError("wrong-identity-or-corruption");
   } finally {
     if (key) zeroize(key);
+    if (reencoded) zeroize(reencoded);
     if (decoded) zeroize(decoded);
     if (storedPayload) zeroize(storedPayload);
     if (decrypted) zeroize(decrypted);
