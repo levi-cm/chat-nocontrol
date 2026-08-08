@@ -1,4 +1,5 @@
 import { signEd25519, verifyEd25519 } from "../crypto/noble-provider";
+import { zeroize } from "../crypto/zeroize";
 import { StrictByteReader, StrictByteWriter } from "./bytes";
 import { equalBytes } from "./checksum";
 import { PPXError, type PublicContact } from "./types";
@@ -54,22 +55,29 @@ export function encodeSignedQrTextInner(input: {
   const writer = new StrictByteWriter(
     PPXQ_FIXED_INNER_SIZE + input.storedPayload.byteLength,
   );
-  writer.writeBytes(input.senderFingerprint);
-  writer.writeBytes(input.recipientId);
-  writer.writeBytes(input.messageId);
-  writer.writeUint64BE(input.sentAt);
-  writer.writeUint64BE(input.createdAt);
-  writer.writeUint32BE(input.originalUtf8Length);
-  writer.writeUint16BE(input.storedPayload.byteLength);
-  writer.writeBytes(input.storedPayload);
-  const unsigned = writer.toBytes();
-  writer.writeBytes(
-    signEd25519(
-      concatBytes(SIGNATURE_DOMAIN, unsigned),
-      input.signingSecretKey,
-    ),
-  );
-  return writer.toBytes();
+  let unsigned: Uint8Array | undefined;
+  let signingMessage: Uint8Array | undefined;
+  let signature: Uint8Array | undefined;
+  try {
+    writer.writeBytes(input.senderFingerprint);
+    writer.writeBytes(input.recipientId);
+    writer.writeBytes(input.messageId);
+    writer.writeUint64BE(input.sentAt);
+    writer.writeUint64BE(input.createdAt);
+    writer.writeUint32BE(input.originalUtf8Length);
+    writer.writeUint16BE(input.storedPayload.byteLength);
+    writer.writeBytes(input.storedPayload);
+    unsigned = writer.toBytes();
+    signingMessage = concatBytes(SIGNATURE_DOMAIN, unsigned);
+    signature = signEd25519(signingMessage, input.signingSecretKey);
+    writer.writeBytes(signature);
+    return writer.toBytes();
+  } finally {
+    if (unsigned) zeroize(unsigned);
+    if (signingMessage) zeroize(signingMessage);
+    if (signature) zeroize(signature);
+    writer.destroy();
+  }
 }
 
 export function parseSignedQrTextInner(
@@ -80,46 +88,59 @@ export function parseSignedQrTextInner(
     bytes,
     PPXQ_FIXED_INNER_SIZE + PPXQ_MAXIMUM_STORED_PAYLOAD_SIZE,
   );
-  if (bytes.byteLength < PPXQ_FIXED_INNER_SIZE)
-    throw new PPXError("impossible-length");
-  const senderFingerprint = reader.readBytes(32);
-  const recipientId = reader.readBytes(20);
-  const messageId = reader.readBytes(16);
-  const sentAt = reader.readUint64BE();
-  const createdAt = reader.readUint64BE();
-  const originalUtf8Length = reader.readUint32BE();
-  const storedPayloadLength = reader.readUint16BE();
-  if (
-    originalUtf8Length > PPXQ_MAXIMUM_ORIGINAL_UTF8_SIZE ||
-    storedPayloadLength > PPXQ_MAXIMUM_STORED_PAYLOAD_SIZE ||
-    reader.remaining() !== storedPayloadLength + 64
-  ) {
-    throw new PPXError("impossible-length");
+  let storedPayload: Uint8Array | undefined;
+  let signedBody: Uint8Array | undefined;
+  let verificationMessage: Uint8Array | undefined;
+  let payloadTransferred = false;
+  try {
+    if (bytes.byteLength < PPXQ_FIXED_INNER_SIZE)
+      throw new PPXError("impossible-length");
+    const senderFingerprint = reader.readBytes(32);
+    const recipientId = reader.readBytes(20);
+    const messageId = reader.readBytes(16);
+    const sentAt = reader.readUint64BE();
+    const createdAt = reader.readUint64BE();
+    const originalUtf8Length = reader.readUint32BE();
+    const storedPayloadLength = reader.readUint16BE();
+    if (
+      originalUtf8Length > PPXQ_MAXIMUM_ORIGINAL_UTF8_SIZE ||
+      storedPayloadLength > PPXQ_MAXIMUM_STORED_PAYLOAD_SIZE ||
+      reader.remaining() !== storedPayloadLength + 64
+    ) {
+      throw new PPXError("impossible-length");
+    }
+    storedPayload = reader.readBytes(storedPayloadLength);
+    const signatureOffset = bytes.byteLength - 64;
+    const signature = reader.readBytes(64);
+    reader.requireEnd();
+    const senderContact = knownSenders.find((contact) =>
+      equalBytes(contact.fingerprint, senderFingerprint),
+    );
+    if (!senderContact) throw new PPXError("unknown-sender-contact");
+    signedBody = bytes.slice(0, signatureOffset);
+    verificationMessage = concatBytes(SIGNATURE_DOMAIN, signedBody);
+    if (
+      !verifyEd25519(
+        signature,
+        verificationMessage,
+        senderContact.signingPublicKey,
+      )
+    ) {
+      throw new PPXError("invalid-signature");
+    }
+    payloadTransferred = true;
+    return {
+      senderContact,
+      recipientId,
+      messageId,
+      sentAt,
+      createdAt,
+      originalUtf8Length,
+      storedPayload,
+    };
+  } finally {
+    if (!payloadTransferred && storedPayload) zeroize(storedPayload);
+    if (signedBody) zeroize(signedBody);
+    if (verificationMessage) zeroize(verificationMessage);
   }
-  const storedPayload = reader.readBytes(storedPayloadLength);
-  const signatureOffset = bytes.byteLength - 64;
-  const signature = reader.readBytes(64);
-  reader.requireEnd();
-  const senderContact = knownSenders.find((contact) =>
-    equalBytes(contact.fingerprint, senderFingerprint),
-  );
-  if (!senderContact) throw new PPXError("unknown-sender-contact");
-  if (
-    !verifyEd25519(
-      signature,
-      concatBytes(SIGNATURE_DOMAIN, bytes.slice(0, signatureOffset)),
-      senderContact.signingPublicKey,
-    )
-  ) {
-    throw new PPXError("invalid-signature");
-  }
-  return {
-    senderContact,
-    recipientId,
-    messageId,
-    sentAt,
-    createdAt,
-    originalUtf8Length,
-    storedPayload,
-  };
 }
