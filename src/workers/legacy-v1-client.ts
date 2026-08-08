@@ -8,9 +8,10 @@ import type {
   EncryptedTextObject,
 } from "../protocol/types";
 import type { DerivedIdentityV2 } from "../protocol/types-v2";
-import type {
-  LegacyV1WorkerEvent,
-  LegacyV1WorkerRequest,
+import {
+  legacyV1RequestTransferList,
+  type LegacyV1WorkerEvent,
+  type LegacyV1WorkerRequest,
 } from "./legacy-v1-contracts";
 
 type ActiveLegacyV1Request = Exclude<LegacyV1WorkerRequest, { kind: "cancel" }>;
@@ -39,18 +40,22 @@ function createRequestId(): string {
 
 function releaseRequestSecrets(request: ActiveLegacyV1Request): void {
   if (request.kind === "decrypt-compact-v1") {
-    zeroize(
+    for (const bytes of [
       request.input.ppxqBytes,
       request.input.senderContactBytes,
       request.input.masterEntropy,
-    );
+    ]) {
+      if (bytes.byteLength > 0) zeroize(bytes);
+    }
   } else if (
     request.kind === "decrypt-text-v1" ||
     request.kind === "decrypt-file-v1"
   ) {
-    zeroize(request.input.masterEntropy);
+    if (request.input.masterEntropy.byteLength > 0) {
+      zeroize(request.input.masterEntropy);
+    }
   } else {
-    zeroize(request.input.bytes);
+    if (request.input.bytes.byteLength > 0) zeroize(request.input.bytes);
   }
 }
 
@@ -129,11 +134,10 @@ function startLegacyV1Job<T>(
   worker.addEventListener("error", failWorker);
   worker.addEventListener("messageerror", failWorker);
   try {
-    worker.postMessage(request);
+    worker.postMessage(request, legacyV1RequestTransferList(request));
   } catch {
-    failWorker();
-  } finally {
     releaseRequestSecrets(request);
+    failWorker();
   }
   return {
     requestId: request.requestId,
