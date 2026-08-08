@@ -207,6 +207,14 @@ describe("legacy V1 provider boundary", () => {
       "returning from a function",
       'export async function loadLegacy(): Promise<unknown> { return await import("../crypto/text"); }',
     ],
+    [
+      "storage in an object literal",
+      'const holder = { legacy: await import("../crypto/text") };\nvoid holder;',
+    ],
+    [
+      "storage in an array literal",
+      'const holder = [await import("../crypto/text")];\nvoid holder;',
+    ],
   ] as const)("rejects dynamic namespace %s", (_label, unsafeSource) => {
     const result = findForbiddenLegacyWriteSurfaces(
       sources(

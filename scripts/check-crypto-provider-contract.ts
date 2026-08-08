@@ -29,6 +29,32 @@ const LEGACY_WRITE_EXPORTS = new Map<string, ReadonlySet<string>>([
   ],
 ]);
 
+const LEGACY_DYNAMIC_READ_EXPORTS = new Map<string, ReadonlySet<string>>([
+  ["src/crypto/identity.ts", new Set(["deriveIdentityFromEntropy"])],
+  ["src/crypto/text.ts", new Set(["decryptText"])],
+  ["src/crypto/file.ts", new Set(["decryptFile"])],
+  ["src/crypto/qr-text.ts", new Set(["decryptQrText"])],
+  ["src/crypto/vault.ts", new Set(["unlockVault"])],
+  [
+    "src/protocol/ppxc.ts",
+    new Set(["parsePublicContact", "parsePublicContactQr"]),
+  ],
+  [
+    "src/protocol/ppxq.ts",
+    new Set(["extractQrMessageBytes", "parseQrMessageText"]),
+  ],
+  [
+    "src/protocol/message-link.ts",
+    new Set([
+      "captureIncomingMessageIntent",
+      "isReservedMessageLinkHash",
+      "parseMessageLinkHash",
+    ]),
+  ],
+  ["src/protocol/ppxr.ts", new Set(["parseRecoveryObject"])],
+  ["src/protocol/ppxv.ts", new Set(["parseLockedVault"])],
+]);
+
 const DORMANT_LEGACY_IMPLEMENTATION_MODULES = new Set([
   ...LEGACY_WRITE_EXPORTS.keys(),
   "src/protocol/ppxf-manifest.ts",
@@ -204,6 +230,10 @@ function inspectReachableSource(
       failures.push(
         `${path}: forbidden dynamic V1 write access ${name} from ${target}`,
       );
+    } else if (!LEGACY_DYNAMIC_READ_EXPORTS.get(target)?.has(name)) {
+      failures.push(
+        `${path}: forbidden unrecognized dynamic V1 access ${name} from ${target}`,
+      );
     }
   };
 
@@ -271,7 +301,57 @@ function inspectReachableSource(
     scan(node);
   };
 
+  const isAllowedDynamicImportContext = (node: ts.CallExpression): boolean => {
+    let expression: ts.Expression = node;
+    while (
+      (ts.isAwaitExpression(expression.parent) ||
+        ts.isParenthesizedExpression(expression.parent)) &&
+      expression.parent.expression === expression
+    ) {
+      expression = expression.parent;
+    }
+    const parent = expression.parent;
+    if (
+      ts.isVariableDeclaration(parent) &&
+      parent.initializer === expression &&
+      ts.isObjectBindingPattern(parent.name)
+    ) {
+      return true;
+    }
+    if (
+      ts.isPropertyAccessExpression(parent) &&
+      parent.expression === expression
+    ) {
+      return true;
+    }
+    if (
+      ts.isElementAccessExpression(parent) &&
+      parent.expression === expression
+    ) {
+      return Boolean(
+        parent.argumentExpression &&
+        ts.isStringLiteralLike(parent.argumentExpression),
+      );
+    }
+    return false;
+  };
+
   const visit = (node: ts.Node): void => {
+    if (
+      !isDormantLegacyImplementation &&
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      const target = dynamicImportTarget(node, path, sources);
+      if (
+        target &&
+        LEGACY_WRITE_EXPORTS.has(target) &&
+        !isAllowedDynamicImportContext(node)
+      ) {
+        reportDynamicNamespaceExposure(target);
+      }
+    }
+
     if (
       !isDormantLegacyImplementation &&
       ts.isVariableDeclaration(node) &&
@@ -280,8 +360,6 @@ function inspectReachableSource(
       const target = dynamicImportTarget(node.initializer, path, sources);
       if (target && ts.isObjectBindingPattern(node.name)) {
         inspectBinding(node.name, target);
-      } else if (target && ts.isIdentifier(node.name)) {
-        reportDynamicNamespaceExposure(target);
       }
     }
 
@@ -293,7 +371,13 @@ function inspectReachableSource(
       const target = dynamicImportTarget(node.expression, path, sources);
       if (target) {
         if (ts.isPropertyAccessExpression(node)) {
-          reportDynamicAccess(target, node.name.text);
+          if (
+            node.name.text !== "then" ||
+            !ts.isCallExpression(node.parent) ||
+            node.parent.expression !== node
+          ) {
+            reportDynamicAccess(target, node.name.text);
+          }
         } else if (
           node.argumentExpression &&
           ts.isStringLiteralLike(node.argumentExpression)
@@ -302,31 +386,6 @@ function inspectReachableSource(
         } else {
           reportDynamicNamespaceExposure(target);
         }
-      }
-    }
-
-    if (
-      !isDormantLegacyImplementation &&
-      ts.isReturnStatement(node) &&
-      node.expression
-    ) {
-      const target = dynamicImportTarget(node.expression, path, sources);
-      if (target) reportDynamicNamespaceExposure(target);
-    }
-
-    if (
-      !isDormantLegacyImplementation &&
-      ts.isArrowFunction(node) &&
-      !ts.isBlock(node.body)
-    ) {
-      const target = dynamicImportTarget(node.body, path, sources);
-      if (target) reportDynamicNamespaceExposure(target);
-    }
-
-    if (!isDormantLegacyImplementation && ts.isCallExpression(node)) {
-      for (const argument of node.arguments) {
-        const target = dynamicImportTarget(argument, path, sources);
-        if (target) reportDynamicNamespaceExposure(target);
       }
     }
 
