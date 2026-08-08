@@ -104,6 +104,37 @@ describe("legacy V1 provider boundary", () => {
     );
   });
 
+  it.each([
+    ["member", "legacy.encryptText({} as never);"],
+    ["bracket", 'legacy["encryptText"]({} as never);'],
+    [
+      "later destructuring",
+      "const { encryptText } = legacy;\nencryptText({} as never);",
+    ],
+  ] as const)(
+    "rejects assigned dynamic namespace %s access",
+    (_label, access) => {
+      const result = findForbiddenLegacyWriteSurfaces(
+        sources(
+          ["src/main.tsx", 'import "./features/unsafe";'],
+          [
+            "src/features/unsafe.ts",
+            `const legacy = await import("../crypto/text");\n${access}`,
+          ],
+          [
+            "src/crypto/text.ts",
+            "export function encryptText(): void {}\nexport function decryptText(): void {}",
+          ],
+        ),
+        roots,
+      );
+
+      expect(result).toContain(
+        "src/features/unsafe.ts: forbidden dynamic V1 write access encryptText from src/crypto/text.ts",
+      );
+    },
+  );
+
   it("allows dormant V1 write exports when only read symbols cross the boundary", () => {
     const result = findForbiddenLegacyWriteSurfaces(
       sources(
@@ -130,6 +161,25 @@ describe("legacy V1 provider boundary", () => {
         [
           "src/features/safe.ts",
           'const { decryptText } = await import("../crypto/text");\nvoid decryptText;',
+        ],
+        [
+          "src/crypto/text.ts",
+          "export function encryptText(): void {}\nexport function decryptText(): void {}",
+        ],
+      ),
+      roots,
+    );
+
+    expect(result).toEqual([]);
+  });
+
+  it("allows assigned dynamic namespace access to a read-only symbol", () => {
+    const result = findForbiddenLegacyWriteSurfaces(
+      sources(
+        ["src/main.tsx", 'import "./features/safe";'],
+        [
+          "src/features/safe.ts",
+          'const legacy = await import("../crypto/text");\nvoid legacy.decryptText;',
         ],
         [
           "src/crypto/text.ts",
