@@ -27,6 +27,22 @@ Service worker may cache app shell and versioned hashed assets only. It must
 never cache identities, contacts as user data, imported/decrypted files,
 messages, link payloads, vault/recovery material, or diagnostics.
 
+## Legacy rollback baseline
+
+The pre-cutover Pages state verified on 2026-08-28 is:
+
+- canonical URL `https://levi-cm.github.io/chat-nocontrol/`;
+- `build_type: legacy`;
+- source branch `gh-pages`, path `/`;
+- immutable source commit
+  `1a3a5b4d5e55ab78d2bf4692eed2d3545856e291`;
+- HTTPS enforced and no CNAME.
+
+The same immutable commit is pinned by the real two-build PWA upgrade test.
+After cutover the branch remains only as an unserved emergency pointer. It may
+be restored with this exact configuration only if the first CAT-5 cutover
+fails; it is never offered as an alternate app or user-selectable version.
+
 ## Silent update
 
 Discovered update activates silently. No update banner, modal, prompt, or
@@ -47,7 +63,7 @@ no reload loop or same-version interruption, no fragment leak or retained
 fragment history, removal of every known legacy-only cache entry, retention of
 current precache assets, the current bundle before and after manual reload, and
 the current bundle after offline close/reopen. The focused real-build gate
-passed on 2026-08-11; this does not close independent-review, physical-device,
+passed on 2026-08-28; this does not close independent-review, physical-device,
 or deployment gates.
 
 ## Candidate, review, and tag chain
