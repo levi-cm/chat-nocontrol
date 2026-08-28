@@ -196,9 +196,16 @@ describe("physical-device synthetic test kit", () => {
       expect(sha256(join(first, match?.[2] ?? ""))).toBe(match?.[1]);
     }
 
-    const ignored = spawnSync("git", ["check-ignore", "-q", "output/release"], {
-      cwd: process.cwd(),
-    });
+    const ignored = spawnSync(
+      "git",
+      [
+        "check-ignore",
+        "-q",
+        "--no-index",
+        "output/release/physical-device-test-kit/manifest.json",
+      ],
+      { cwd: process.cwd() },
+    );
     expect(ignored.status).toBe(0);
     expect(readFileSync("scripts/package-release.ts", "utf8")).not.toContain(
       "physical-device-test-kit",
