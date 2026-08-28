@@ -1,13 +1,16 @@
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { deriveIdentityFromEntropy } from "../../crypto/identity";
 import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { lockVault } from "../../crypto/vault";
-import { lockVaultV2, unlockVaultV2 } from "../../crypto/vault-v2";
-import { equalBytes } from "../../protocol/checksum";
+import { lockVaultV2 } from "../../crypto/vault-v2";
+import { checksum16, equalBytes } from "../../protocol/checksum";
 import { createPublicContact } from "../../protocol/ppxc";
 import { encodeLockedVault } from "../../protocol/ppxv";
-import { encodeLockedVaultV2 } from "../../protocol/ppxv-v2";
+import {
+  encodeLockedVaultHeaderV2,
+  encodeLockedVaultV2,
+} from "../../protocol/ppxv-v2";
 import type { LockedVaultObjectV2 } from "../../protocol/types-v2";
 import { contactStorageId, listContacts } from "../../storage/contacts";
 import { deletePpxDatabase, openPpxDatabase } from "../../storage/db";
@@ -33,6 +36,35 @@ async function migratedFixture(fill = 1) {
     "Alice",
     1_717_171_717n,
   );
+}
+
+function canonicalVaultFixture(fill = 0x33): LockedVaultObjectV2 {
+  const vault: LockedVaultObjectV2 = {
+    magic: "PPXV",
+    formatVersion: 2,
+    suite: 2,
+    flags: 1,
+    kdfId: 1,
+    scryptN: 65_536,
+    scryptR: 8,
+    scryptP: 2,
+    salt: new Uint8Array(16).fill(fill),
+    nonce: new Uint8Array(12).fill(fill + 1),
+    ciphertextLength: 58,
+    ciphertext: new Uint8Array(58).fill(fill + 2),
+    checksum: new Uint8Array(16),
+  };
+  const header = encodeLockedVaultHeaderV2(vault);
+  const payload = new Uint8Array(header.byteLength + vault.ciphertextLength);
+  try {
+    payload.set(header);
+    payload.set(vault.ciphertext, header.byteLength);
+    vault.checksum = checksum16(payload);
+    return vault;
+  } finally {
+    header.fill(0);
+    payload.fill(0);
+  }
 }
 
 function completedMigrationJob(
@@ -110,30 +142,27 @@ describe("one-time stored V1 to V2 vault migration", () => {
     const db = await openPpxDatabase();
     const legacy = await legacyFixture();
     const workerIdentity = await migratedFixture();
+    const verifiedIdentity = await migratedFixture();
+    const candidate = canonicalVaultFixture();
+    const lockV2 = vi.fn(() => Promise.resolve(candidate));
+    const unlockV2 = vi.fn(() => Promise.resolve(verifiedIdentity));
     await putExactLegacyFixture(db, legacy, true);
 
     const migrated = await migrateV1VaultToV2(db, PASSPHRASE, {
       startLegacyVaultMigrationJob: completedMigrationJob(workerIdentity),
+      lockV2,
+      unlockV2,
     });
     const active = (await db.get("vaults", "active")) as LockedVaultObjectV2;
 
+    expect(lockV2).toHaveBeenCalledOnce();
+    expect(unlockV2).toHaveBeenCalledOnce();
     expect(active.formatVersion).toBe(2);
     expect(active.suite).toBe(2);
+    expect(encodeLockedVaultV2(active)).toEqual(encodeLockedVaultV2(candidate));
     expect(await db.get("vaults", "migration-v2")).toBeUndefined();
     expect(await listContacts(db)).toEqual([]);
-    expect(migrated.identity.fingerprint).toEqual(
-      (
-        await deriveIdentityV2FromEntropy(
-          new Uint8Array(32).fill(1),
-          "Alice",
-          1_717_171_717n,
-        )
-      ).fingerprint,
-    );
-    expect(
-      (await unlockVaultV2({ vault: active, passphrase: PASSPHRASE }))
-        .fingerprint,
-    ).toEqual(migrated.identity.fingerprint);
+    expect(migrated.identity.fingerprint).toEqual(verifiedIdentity.fingerprint);
     db.close();
   });
 
@@ -168,11 +197,15 @@ describe("one-time stored V1 to V2 vault migration", () => {
     const legacy = await legacyFixture(1);
     const competing = await legacyFixture(2);
     const workerIdentity = await migratedFixture(1);
+    const verifiedIdentity = await migratedFixture(1);
+    const candidate = canonicalVaultFixture(0x44);
     await putExactLegacyFixture(db, legacy);
 
     await expect(
       migrateV1VaultToV2(db, PASSPHRASE, {
         startLegacyVaultMigrationJob: completedMigrationJob(workerIdentity),
+        lockV2: () => Promise.resolve(candidate),
+        unlockV2: () => Promise.resolve(verifiedIdentity),
         afterCandidateVerified: async () => {
           await db.put("vaults", competing.vault, "active");
         },
