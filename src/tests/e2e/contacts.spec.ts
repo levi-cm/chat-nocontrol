@@ -1,27 +1,27 @@
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { displayIdentityId } from "../../components/cards/contact-management-card";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 
 test("contacts import, merge, collision warning, and delete", async ({
   page,
 }) => {
-  const firstIdentity = await deriveIdentityFromEntropy(
+  const firstIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(8),
     "Bob",
   );
-  const secondIdentity = await deriveIdentityFromEntropy(
+  const secondIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(9),
     "Bob",
   );
-  const first = encodePublicContactQr(
-    createPublicContact(firstIdentity, "Bob", 1n),
+  const first = encodePublicContactV2Text(
+    createPublicContactV2(firstIdentity, "Bob", 1n),
   );
-  const second = encodePublicContactQr(
-    createPublicContact(secondIdentity, "Bob", 2n),
+  const second = encodePublicContactV2Text(
+    createPublicContactV2(secondIdentity, "Bob", 2n),
   );
 
   await page.goto("/");
@@ -54,11 +54,13 @@ test("contacts import, merge, collision warning, and delete", async ({
     );
   expect(new Set(deleteNames).size).toBe(2);
   expect(deleteNames.join(" ")).toContain(
-    displayIdentityId(createPublicContact(firstIdentity, "Bob", 1n).identityId),
+    displayIdentityId(
+      createPublicContactV2(firstIdentity, "Bob", 1n).identityId,
+    ),
   );
   expect(deleteNames.join(" ")).toContain(
     displayIdentityId(
-      createPublicContact(secondIdentity, "Bob", 2n).identityId,
+      createPublicContactV2(secondIdentity, "Bob", 2n).identityId,
     ),
   );
   await page

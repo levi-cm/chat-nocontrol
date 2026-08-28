@@ -1,11 +1,15 @@
 /// <reference lib="webworker" />
 
-import { clientsClaim } from "workbox-core";
 import {
   cleanupOutdatedCaches,
   precacheAndRoute,
   type PrecacheEntry,
 } from "workbox-precaching";
+import {
+  forceLegacyClientCutover,
+  probeClientVersion,
+  type LegacyCutoverClient,
+} from "./app/bootstrap";
 import { zeroize } from "./crypto/zeroize";
 import { handleIncomingShareTarget } from "./sw/share-target-handler";
 import {
@@ -22,9 +26,30 @@ const shareTargetPath = new URL("./share-target", self.registration.scope)
   .pathname;
 
 void self.skipWaiting();
-clientsClaim();
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      await self.clients.claim();
+      const windows = await self.clients.matchAll({
+        includeUncontrolled: true,
+        type: "window",
+      });
+      await Promise.all(
+        windows.map((client) =>
+          forceLegacyClientCutover(
+            client as LegacyCutoverClient,
+            __CHAT_NOCONTROL_VERSION__,
+            self.registration.scope,
+            probeClientVersion,
+          ),
+        ),
+      );
+    })(),
+  );
+});
 
 function randomToken(): string {
   const random = crypto.getRandomValues(new Uint8Array(32));

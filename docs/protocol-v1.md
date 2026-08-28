@@ -1,10 +1,13 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the brand-neutral PPX Protocol v1.
+> **Authority:** Legacy PPX Protocol V1 decode/migration reference.
+> **Status:** Decode/migration-only compatibility. No V1 creation or write path.
+> CAT-5/V2 authority is
+> [protocol-cat5-v2.md](protocol-cat5-v2.md).
 > **Version:** 1.0-draft
 > **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
-# PPX Protocol v1
+# Legacy PPX Protocol V1
 
 ## 1. Scope and naming
 

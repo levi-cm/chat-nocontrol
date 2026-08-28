@@ -5,25 +5,40 @@ import {
   type ReviewRecord,
   validateIndependentReviewEvidence,
 } from "./independent-review-evidence";
+import { validatePhysicalDeviceEvidenceFiles } from "./physical-device-evidence";
 
 const failures: string[] = [];
 const recordPath = "docs/independent-security-review.json";
 const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
 const commit = head.status === 0 ? head.stdout.trim() : "";
+let reviewRecord: ReviewRecord = {};
 
 if (!existsSync(recordPath)) {
   failures.push(
     `missing ${recordPath}; an implementation-team or AI review is not independent review`,
   );
 } else {
-  let record: ReviewRecord = {};
   try {
-    record = JSON.parse(readFileSync(recordPath, "utf8")) as ReviewRecord;
+    reviewRecord = JSON.parse(readFileSync(recordPath, "utf8")) as ReviewRecord;
   } catch {
     failures.push(`${recordPath} is not valid JSON`);
   }
-  failures.push(...validateIndependentReviewEvidence(record, { head: commit }));
+  failures.push(
+    ...validateIndependentReviewEvidence(reviewRecord, { head: commit }),
+  );
 }
+
+const manifest = JSON.parse(readFileSync("package.json", "utf8")) as {
+  version?: string;
+};
+const version = manifest.version ?? "";
+failures.push(
+  ...validatePhysicalDeviceEvidenceFiles({
+    reviewedCandidateSha: reviewRecord.reviewedCommit ?? "",
+    version,
+    requireSignature: true,
+  }).failures,
+);
 
 const response = await fetch(
   "https://api.github.com/repos/levi-cm/chat-nocontrol/private-vulnerability-reporting",
@@ -43,5 +58,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Public-beta prerequisites OK: release HEAD ${commit} is the evidence-only child of its reviewed candidate; private reporting enabled.`,
+  `Public-beta prerequisites OK: release HEAD ${commit} is the evidence-only child of its reviewed candidate; physical-device evidence matches the exact dist/archive; private reporting enabled.`,
 );

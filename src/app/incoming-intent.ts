@@ -1,20 +1,20 @@
-import type { IncomingMessageIntentV2 } from "../protocol/message-link-v2";
+import type { IncomingEncryptedIntent } from "../protocol/message-link";
 
 export const INCOMING_MESSAGE_INTENT_TTL_MS = 15 * 60 * 1_000;
 
 export function consumeExpectedIncomingIntent(
-  current: IncomingMessageIntentV2 | null,
-  expected?: IncomingMessageIntentV2,
-): IncomingMessageIntentV2 | null {
+  current: IncomingEncryptedIntent | null,
+  expected?: IncomingEncryptedIntent,
+): IncomingEncryptedIntent | null {
   return expected && current !== expected ? current : null;
 }
 
-function capturedAt(intent: IncomingMessageIntentV2): number | null {
+function capturedAt(intent: IncomingEncryptedIntent): number | null {
   return intent.kind === "invalid" ? null : intent.capturedAt;
 }
 
 export function incomingIntentIsExpired(
-  intent: IncomingMessageIntentV2,
+  intent: IncomingEncryptedIntent,
   now: number,
 ): boolean {
   const captured = capturedAt(intent);
@@ -22,7 +22,7 @@ export function incomingIntentIsExpired(
 }
 
 export function remainingIncomingIntentLifetime(
-  intent: IncomingMessageIntentV2,
+  intent: IncomingEncryptedIntent,
   now: number,
 ): number | null {
   const captured = capturedAt(intent);
@@ -31,7 +31,7 @@ export function remainingIncomingIntentLifetime(
 }
 
 export function scheduleIncomingIntentExpiry(
-  intent: IncomingMessageIntentV2,
+  intent: IncomingEncryptedIntent,
   now: number,
   onExpire: () => void,
 ): () => void {

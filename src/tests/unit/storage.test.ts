@@ -77,12 +77,12 @@ describe("minimal PPX storage", () => {
     await putVault(db, vault);
     await putSettings(db, {
       locale: "de",
-      messageQrCreationEnabled: true,
+      messageOutputMode: "text",
     });
     expect((await getVault(db))?.magic).toBe("PPXV");
     expect(await getSettings(db)).toEqual({
       locale: "de",
-      messageQrCreationEnabled: true,
+      messageOutputMode: "text",
     });
     await deleteAllLocalData(db);
     expect(await getVault(db)).toBeUndefined();
@@ -141,6 +141,34 @@ describe("minimal PPX storage", () => {
     expect(await getSettings(db)).toEqual({
       locale: "en",
       messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+    });
+    db.close();
+  });
+
+  it("strips obsolete message QR settings when rewriting a legacy record", async () => {
+    const db = await openPpxDatabase();
+    const legacyRecord = {
+      locale: "de" as const,
+      theme: "dark" as const,
+      messageQrCreationEnabled: true,
+      qrExportMode: "both",
+      qrImportControls: "camera",
+      qrAutoDecrypt: false,
+    } as Parameters<typeof putSettings>[1];
+    await db.put("settings", legacyRecord, "preferences");
+
+    const normalized = normalizeSettings(await getSettings(db));
+    expect(normalized.autoDecryptIncomingMessages).toBe(false);
+
+    await putSettings(db, normalized);
+
+    expect(await getSettings(db)).toEqual({
+      locale: "de",
+      theme: "dark",
+      accent: "blue",
+      translucent: true,
+      messageOutputMode: "both",
       autoDecryptIncomingMessages: false,
     });
     db.close();

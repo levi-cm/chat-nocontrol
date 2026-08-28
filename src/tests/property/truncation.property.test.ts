@@ -6,6 +6,11 @@ import {
   parseForCanonicalRoundTrip,
   protocolFamilies,
 } from "../helpers/canonical-protocol";
+import {
+  canonicalCat5ProtocolBytes,
+  cat5ProtocolFamilies,
+  parseCat5ForCanonicalRoundTrip,
+} from "../helpers/canonical-cat5-protocol";
 
 describe("canonical object truncations", () => {
   it("rejects every shortened canonical object in all five families", async () => {
@@ -36,4 +41,21 @@ describe("canonical object truncations", () => {
       ).toThrow();
     }
   });
+
+  it("rejects every shortened canonical CAT5 object", async () => {
+    const fixtures = await canonicalCat5ProtocolBytes();
+    for (const family of cat5ProtocolFamilies) {
+      const canonical = fixtures[family];
+      for (let length = 0; length < canonical.byteLength; length += 1) {
+        expect(
+          () =>
+            parseCat5ForCanonicalRoundTrip(
+              family,
+              canonical.subarray(0, length),
+            ),
+          `${family} length ${length}`,
+        ).toThrow();
+      }
+    }
+  }, 30_000);
 });

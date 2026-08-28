@@ -20,6 +20,10 @@ function fingerprintId(value: Uint8Array): string {
   return [...value].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function isLegacyContactText(value: string): boolean {
+  return value.trim().startsWith("PPX1:CONTACT:");
+}
+
 export function ContactsManage({
   t,
   contacts,
@@ -111,7 +115,13 @@ export function ContactsManage({
       setSelectedContactFile("");
       setNickname("");
     } catch {
-      setError(t("invalidContact"));
+      setError(
+        t(
+          isLegacyContactText(payload)
+            ? "legacyContactUnsupported"
+            : "invalidContact",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -128,6 +138,7 @@ export function ContactsManage({
     setError("");
     setStatus("");
     setReadingFile(true);
+    let text = "";
     try {
       if (
         file.size >
@@ -135,15 +146,20 @@ export function ContactsManage({
       ) {
         throw new Error("oversize contact");
       }
-      const contact = parsePublicContactV2Text(
-        (await readContactFileText(file)).trim(),
-      );
+      text = (await readContactFileText(file)).trim();
+      const contact = parsePublicContactV2Text(text);
       if (importGeneration.current !== generation) return;
       setPayload(encodePublicContactV2Text(contact));
       setSelectedContactFile(file.name);
     } catch {
       if (importGeneration.current === generation) {
-        setError(t("invalidContact"));
+        setError(
+          t(
+            isLegacyContactText(text)
+              ? "legacyContactUnsupported"
+              : "invalidContact",
+          ),
+        );
         setSelectedContactFile("");
       }
     } finally {

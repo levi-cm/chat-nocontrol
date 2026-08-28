@@ -1,5 +1,5 @@
 import {
-  cloneDecapsulationCapabilityV2,
+  validateDecapsulationCapabilityV2,
   validateSenderSigningCapabilityV2,
   zeroizeDecapsulationCapabilityV2,
   zeroizeSenderSigningCapabilityV2,
@@ -64,7 +64,6 @@ function startFileJob<T>(
   }
   let settled = false;
   let cancelRequested = false;
-  let cancellationTimer: number | null = null;
   let resolveJob!: (result: T) => void;
   let rejectJob!: (error: Error) => void;
   const promise = new Promise<T>((resolve, reject) => {
@@ -73,8 +72,6 @@ function startFileJob<T>(
   });
   const close = () => {
     settled = true;
-    if (cancellationTimer !== null) window.clearTimeout(cancellationTimer);
-    cancellationTimer = null;
     worker.terminate();
   };
   worker.addEventListener(
@@ -122,18 +119,11 @@ function startFileJob<T>(
     cancel() {
       if (settled || cancelRequested) return;
       cancelRequested = true;
-      try {
-        worker.postMessage({ kind: "cancel", requestId: request.requestId });
-      } catch {
-        close();
-        rejectJob(new FileWorkerCancelled());
-        return;
-      }
-      cancellationTimer = window.setTimeout(() => {
-        if (settled) return;
-        close();
-        rejectJob(new FileWorkerCancelled());
-      }, 5_000);
+      // Each file job owns its worker. Termination is the only synchronous
+      // cancellation boundary during the authenticated plaintext-release
+      // pass; a queued cancel message can otherwise wait behind more crypto.
+      close();
+      rejectJob(new FileWorkerCancelled());
     },
   };
 }
@@ -158,13 +148,24 @@ export function startDecryptFileJob(
   input: DecryptFileSourceInputV2,
   onProgress?: (event: ProgressEvent) => void,
 ): FileWorkerJob<DecryptedFileOutputV2> {
+  try {
+    validateDecapsulationCapabilityV2(input.activeIdentity);
+  } catch (error) {
+    zeroizeDecapsulationCapabilityV2(input.activeIdentity);
+    throw error;
+  }
   return startFileJob(
     {
       kind: "decrypt-file",
       requestId: createRequestId(),
       input: {
         ...input,
-        activeIdentity: cloneDecapsulationCapabilityV2(input.activeIdentity),
+        activeIdentity: {
+          suite: input.activeIdentity.suite,
+          fingerprint: input.activeIdentity.fingerprint,
+          identityId: input.activeIdentity.identityId,
+          kemSecretKey: input.activeIdentity.kemSecretKey,
+        },
       },
     },
     onProgress,

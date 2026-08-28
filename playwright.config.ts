@@ -4,6 +4,14 @@ import { defineConfig, devices } from "@playwright/test";
 // launch remains the hard gate and still fails if an actual shared library is missing.
 process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "1";
 
+export const REQUIRED_RELEASE_PROJECT_NAMES = [
+  "desktop-chromium",
+  "mobile-chromium",
+  "desktop-firefox",
+  "desktop-webkit",
+  "mobile-webkit",
+] as const;
+
 export default defineConfig({
   testDir: "./src/tests",
   testMatch: "**/*.spec.ts",
@@ -13,27 +21,47 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
+    baseURL: "https://127.0.0.1:4173",
+    ignoreHTTPSErrors: true,
+    trace: "off",
+    screenshot: "off",
+    video: "off",
   },
   webServer: {
-    command: "npm run build && npm run preview -- --host 127.0.0.1",
-    url: "http://127.0.0.1:4173",
+    command:
+      "npm run build && node ./node_modules/tsx/dist/cli.mjs scripts/preview-https.ts",
+    url: "https://127.0.0.1:4173",
+    ignoreHTTPSErrors: true,
     reuseExistingServer: true,
     timeout: 30_000,
   },
   projects: [
     {
-      name: "desktop-chromium",
+      name: REQUIRED_RELEASE_PROJECT_NAMES[0],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 1000 },
+        launchOptions: { args: ["--ignore-certificate-errors"] },
       },
     },
-    { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
-    { name: "desktop-firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "desktop-webkit", use: { ...devices["Desktop Safari"] } },
-    { name: "mobile-webkit", use: { ...devices["iPhone 13"] } },
+    {
+      name: REQUIRED_RELEASE_PROJECT_NAMES[1],
+      use: {
+        ...devices["Pixel 7"],
+        launchOptions: { args: ["--ignore-certificate-errors"] },
+      },
+    },
+    {
+      name: REQUIRED_RELEASE_PROJECT_NAMES[2],
+      use: { ...devices["Desktop Firefox"] },
+    },
+    {
+      name: REQUIRED_RELEASE_PROJECT_NAMES[3],
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: REQUIRED_RELEASE_PROJECT_NAMES[4],
+      use: { ...devices["iPhone 13"] },
+    },
   ],
 });

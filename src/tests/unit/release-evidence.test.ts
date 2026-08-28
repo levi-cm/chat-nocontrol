@@ -11,14 +11,24 @@ describe("release evidence", () => {
   it("builds deterministic CycloneDX release evidence", () => {
     const lock = {
       name: "chat-nocontrol",
-      version: "0.1.0-beta.1",
+      version: "0.2.0-beta.1",
       packages: {
         "": {
           name: "chat-nocontrol",
-          version: "0.1.0-beta.1",
+          version: "0.2.0-beta.1",
           license: "AGPL-3.0-or-later",
+          dependencies: { preact: "10.29.7", tool: "1.0.0" },
         },
-        "node_modules/preact": { version: "10.29.7", license: "MIT" },
+        "node_modules/preact": {
+          version: "10.29.7",
+          license: "MIT",
+          integrity: `sha512-${Buffer.alloc(64, 1).toString("base64")}`,
+        },
+        "node_modules/tool": {
+          version: "1.0.0",
+          license: "MIT",
+          dependencies: { preact: "10.0.0" },
+        },
         "node_modules/tool/node_modules/preact": {
           version: "10.0.0",
           license: "MIT",
@@ -37,13 +47,42 @@ describe("release evidence", () => {
         component: {
           type: "application",
           name: "chat-nocontrol",
-          version: "0.1.0-beta.1",
+          version: "0.2.0-beta.1",
           licenses: [{ license: { id: "AGPL-3.0-or-later" } }],
         },
       },
     });
-    const parsed = JSON.parse(first) as { components: unknown[] };
-    expect(parsed.components).toHaveLength(2);
+    const parsed = JSON.parse(first) as {
+      components: Array<{
+        "bom-ref": string;
+        name: string;
+        purl?: string;
+        hashes?: Array<{ alg: string; content: string }>;
+      }>;
+      dependencies: Array<{ ref: string; dependsOn: string[] }>;
+    };
+    expect(parsed.components).toHaveLength(3);
+    expect(
+      parsed.components.find(({ name }) => name === "preact"),
+    ).toMatchObject({
+      purl: "pkg:npm/preact@10.29.7",
+      hashes: [{ alg: "SHA-512", content: "01".repeat(64) }],
+    });
+    expect(parsed.dependencies).toEqual(
+      expect.arrayContaining([
+        {
+          ref: "pkg:npm/chat-nocontrol@0.2.0-beta.1",
+          dependsOn: [
+            "npm-path:node_modules/preact@10.29.7",
+            "npm-path:node_modules/tool@1.0.0",
+          ],
+        },
+        {
+          ref: "npm-path:node_modules/tool@1.0.0",
+          dependsOn: ["npm-path:node_modules/tool/node_modules/preact@10.0.0"],
+        },
+      ]),
+    );
   });
 
   it("records a beta artifact, SBOM, build log, and explicit initial rollback", () => {
@@ -52,9 +91,9 @@ describe("release evidence", () => {
     const testReportSha256 = "e".repeat(64);
     const record = buildReleaseRecord({
       packageName: "chat-nocontrol",
-      version: "0.1.0-beta.1",
+      version: "0.2.0-beta.1",
       commit: "a".repeat(40),
-      tag: "v0.1.0-beta.1",
+      tag: "v0.2.0-beta.1",
       artifactSha256,
       sbomSha256,
       testReportSha256,
@@ -63,15 +102,15 @@ describe("release evidence", () => {
       rollbackTag: null,
     });
 
-    expect(releaseArtifactName("0.1.0-beta.1")).toBe(
-      "chat-nocontrol-v0.1.0-beta.1.tgz",
+    expect(releaseArtifactName("0.2.0-beta.1")).toBe(
+      "chat-nocontrol-v0.2.0-beta.1.tgz",
     );
     expect(record).toMatchObject({
       schemaVersion: 1,
       channel: "beta",
       source: {
         commit: "a".repeat(40),
-        tag: "v0.1.0-beta.1",
+        tag: "v0.2.0-beta.1",
         remoteTagObjectId: "f".repeat(40),
       },
       artifact: { sha256: artifactSha256 },

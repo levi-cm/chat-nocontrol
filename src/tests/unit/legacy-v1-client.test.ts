@@ -254,4 +254,40 @@ describe("legacy V1 worker client", () => {
     expect(completed.kemSecretKey).toEqual(new Uint8Array(32));
     expect(completed.signingSecretKey).toEqual(new Uint8Array(32));
   });
+
+  it("zeroizes completed identity secrets from a wrong-request event", () => {
+    const workers: FakeLegacyWorker[] = [];
+    vi.stubGlobal(
+      "Worker",
+      class extends FakeLegacyWorker {
+        constructor() {
+          super();
+          workers.push(this);
+        }
+      },
+    );
+    const job = startLegacyRecoveryMigrationJob(new Uint8Array(64).fill(12));
+    const completed = {
+      suite: 2,
+      masterEntropy: new Uint8Array(32).fill(13),
+      kemSecretKey: new Uint8Array(32).fill(14),
+      signingSecretKey: new Uint8Array(32).fill(15),
+    };
+
+    workers[0]?.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          kind: "completed",
+          requestId: "wrong-request",
+          result: completed,
+        },
+      }),
+    );
+
+    expect(completed.masterEntropy).toEqual(new Uint8Array(32));
+    expect(completed.kemSecretKey).toEqual(new Uint8Array(32));
+    expect(completed.signingSecretKey).toEqual(new Uint8Array(32));
+    job.cancel();
+    void job.promise.catch(() => undefined);
+  });
 });

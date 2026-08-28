@@ -16,6 +16,123 @@ interface QrCrop {
   size: number;
 }
 
+function createBoundedImageBitmap(
+  file: File,
+  started: number,
+): Promise<ImageBitmap> {
+  const remaining = Math.max(
+    1,
+    QR_IMAGE_RECOVERY_MAX_MS - (performance.now() - started),
+  );
+  return new Promise<ImageBitmap>((resolve, reject) => {
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      settled = true;
+      reject(new Error("QR image recovery bounds reached"));
+    }, remaining);
+    void createImageBitmap(file).then(
+      (bitmap) => {
+        if (settled) {
+          bitmap.close();
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve(bitmap);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        reject(
+          error instanceof Error
+            ? error
+            : new Error("QR image recovery unavailable"),
+        );
+      },
+    );
+  });
+}
+
+function decodeWithinRecoveryDeadline(
+  decode: (canvas: HTMLCanvasElement) => Promise<string>,
+  canvas: HTMLCanvasElement,
+  started: number,
+): Promise<string> {
+  const remaining = Math.max(
+    1,
+    QR_IMAGE_RECOVERY_MAX_MS - (performance.now() - started),
+  );
+  return new Promise<string>((resolve, reject) => {
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      settled = true;
+      reject(new Error("QR image recovery bounds reached"));
+    }, remaining);
+    let decoding: Promise<string>;
+    try {
+      decoding = decode(canvas);
+    } catch (error) {
+      window.clearTimeout(timeout);
+      reject(
+        error instanceof Error ? error : new Error("QR decoder unavailable"),
+      );
+      return;
+    }
+    void decoding.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        reject(
+          error instanceof Error ? error : new Error("QR decoder unavailable"),
+        );
+      },
+    );
+  });
+}
+
+function prepareDecoderWithinRecoveryDeadline(
+  decode:
+    | ((canvas: HTMLCanvasElement) => Promise<string>)
+    | Promise<(canvas: HTMLCanvasElement) => Promise<string>>,
+  started: number,
+): Promise<(canvas: HTMLCanvasElement) => Promise<string>> {
+  const remaining = Math.max(
+    1,
+    QR_IMAGE_RECOVERY_MAX_MS - (performance.now() - started),
+  );
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = window.setTimeout(() => {
+      settled = true;
+      reject(new Error("QR image recovery bounds reached"));
+    }, remaining);
+    void Promise.resolve(decode).then(
+      (prepared) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        resolve(prepared);
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeout);
+        reject(
+          error instanceof Error ? error : new Error("QR decoder unavailable"),
+        );
+      },
+    );
+  });
+}
+
 export function priorityQrCropForImage(
   width: number,
   height: number,
@@ -71,12 +188,29 @@ function transformPixels(
 
 export async function recoverQrFromImage(
   file: File,
-  decode: (canvas: HTMLCanvasElement) => Promise<string>,
+  decode:
+    | ((canvas: HTMLCanvasElement) => Promise<string>)
+    | Promise<(canvas: HTMLCanvasElement) => Promise<string>>,
 ): Promise<string> {
   if (typeof createImageBitmap !== "function")
     throw new Error("image recovery unavailable");
   const started = performance.now();
-  const bitmap = await createImageBitmap(file);
+  const bitmapPromise = createBoundedImageBitmap(file, started);
+  let bitmap: ImageBitmap;
+  let preparedDecode: (canvas: HTMLCanvasElement) => Promise<string>;
+  try {
+    [bitmap, preparedDecode] = await Promise.all([
+      bitmapPromise,
+      prepareDecoderWithinRecoveryDeadline(decode, started),
+    ]);
+  } catch (error) {
+    try {
+      (await bitmapPromise).close();
+    } catch {
+      // The bounded bitmap operation already failed and owns no bitmap.
+    }
+    throw error;
+  }
   let attempts = 0;
   try {
     const shortEdge = Math.min(bitmap.width, bitmap.height);
@@ -139,8 +273,18 @@ export async function recoverQrFromImage(
             }
           }
           try {
-            return await decode(canvas);
-          } catch {
+            return await decodeWithinRecoveryDeadline(
+              preparedDecode,
+              canvas,
+              started,
+            );
+          } catch (error) {
+            if (
+              error instanceof Error &&
+              error.message === "QR image recovery bounds reached"
+            ) {
+              throw error;
+            }
             // Continue through the fixed bounded recovery matrix.
           }
         } finally {

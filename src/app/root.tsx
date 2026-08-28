@@ -4,14 +4,14 @@ import { readStoredLocale } from "./bootstrap";
 import { checkRuntimeSupport, type RuntimeSupport } from "./runtime-support";
 import { UnsupportedEnvironment } from "./unsupported-environment";
 import type { Locale } from "../i18n";
-import type { IncomingMessageIntentV2 } from "../protocol/message-link-v2";
+import type { IncomingEncryptedIntent } from "../protocol/message-link";
 import { createIncomingSharedArtifactHandoff } from "../share/incoming-shared-artifact";
 import { zeroize } from "../crypto/zeroize";
 
 interface AppRootProps {
   locale?: Locale;
   runtimeSupport?: RuntimeSupport;
-  initialIncomingIntent?: IncomingMessageIntentV2 | null;
+  initialIncomingIntent?: IncomingEncryptedIntent | null;
 }
 
 export function AppRoot({

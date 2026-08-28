@@ -12,7 +12,11 @@ import type {
   EncryptedTextObjectV2,
   PublicContactV2,
 } from "../../protocol/types-v2";
-import { createCryptoRunner } from "../../workers/crypto-runner";
+import {
+  createCryptoRunner,
+  cryptoEventTransferList,
+  zeroizeCryptoTransferList,
+} from "../../workers/crypto-runner";
 
 const fill = (length: number, value: number) =>
   new Uint8Array(length).fill(value);
@@ -45,7 +49,7 @@ describe("Cat-5 V2 crypto-only runner", () => {
       input: {
         object: { magic: "PPXT" } as never,
         activeIdentity: capability,
-        knownSenders: [alice],
+        knownSenders: [structuredClone(alice)],
       },
     });
 
@@ -96,10 +100,10 @@ describe("Cat-5 V2 crypto-only runner", () => {
         requestId: encryptRequestId,
         input: {
           compact,
-          sender: alice,
+          sender: structuredClone(alice),
           senderSigningCapability:
             createSenderSigningCapabilityV2(aliceIdentity),
-          recipient: bob,
+          recipient: structuredClone(bob),
           plaintext: `${magic} worker secret`,
           messageId: fill(16, compact ? 4 : 3),
           sentAt: 4n,
@@ -131,7 +135,7 @@ describe("Cat-5 V2 crypto-only runner", () => {
         input: {
           object,
           activeIdentity: createDecapsulationCapabilityV2(bobIdentity),
-          knownSenders: [alice],
+          knownSenders: [structuredClone(alice)],
         },
       });
       const decrypted = events.find(
@@ -149,4 +153,162 @@ describe("Cat-5 V2 crypto-only runner", () => {
     },
     30_000,
   );
+
+  it("transfers every completed identity buffer without retaining worker copies", () => {
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      pseudonym: "Unlocked",
+      masterEntropy: fill(32, 1),
+      kemPublicKey: fill(1568, 2),
+      kemSecretKey: fill(3168, 3),
+      signingPublicKey: fill(2592, 4),
+      signingSecretKey: fill(4896, 5),
+      fingerprint: fill(32, 6),
+      identityId: fill(20, 7),
+    } as DerivedIdentityV2;
+    const event = {
+      kind: "completed" as const,
+      requestId: "identity-transfer",
+      result: identity,
+    };
+
+    const transferred = structuredClone(event, {
+      transfer: cryptoEventTransferList(event),
+    });
+
+    expect(cryptoEventTransferList(transferred)).toHaveLength(7);
+    expect(identity.masterEntropy.byteLength).toBe(0);
+    expect(identity.kemPublicKey.byteLength).toBe(0);
+    expect(identity.kemSecretKey.byteLength).toBe(0);
+    expect(identity.signingPublicKey.byteLength).toBe(0);
+    expect(identity.signingSecretKey.byteLength).toBe(0);
+    expect(identity.fingerprint.byteLength).toBe(0);
+    expect(identity.identityId.byteLength).toBe(0);
+  });
+
+  it("zeroizes completed identity buffers when response transfer fails", () => {
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      pseudonym: "Failed",
+      masterEntropy: fill(32, 11),
+      kemPublicKey: fill(1568, 12),
+      kemSecretKey: fill(3168, 13),
+      signingPublicKey: fill(2592, 14),
+      signingSecretKey: fill(4896, 15),
+      fingerprint: fill(32, 16),
+      identityId: fill(20, 17),
+    } as DerivedIdentityV2;
+    const transferList = cryptoEventTransferList({
+      kind: "completed",
+      requestId: "identity-post-failure",
+      result: identity,
+    });
+
+    zeroizeCryptoTransferList(transferList);
+
+    for (const buffer of transferList) {
+      expect(new Uint8Array(buffer).every((byte) => byte === 0)).toBe(true);
+    }
+  });
+
+  it("releases a completed result when the response emitter throws", async () => {
+    const events: PPXWorkerEvent[] = [];
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      pseudonym: "Post failure",
+      masterEntropy: fill(32, 18),
+      kemPublicKey: fill(1568, 19),
+      kemSecretKey: fill(3168, 20),
+      signingPublicKey: fill(2592, 21),
+      signingSecretKey: fill(4896, 22),
+      fingerprint: fill(32, 23),
+      identityId: fill(20, 24),
+    } as DerivedIdentityV2;
+    vi.spyOn(defaultCryptoProvider, "unlockVault").mockResolvedValue(identity);
+    const runner = createCryptoRunner((event) => {
+      if (event.kind === "completed") throw new Error("post failed");
+      events.push(event);
+    });
+
+    await runner.handle({
+      kind: "unlock-vault",
+      requestId: "post-failure",
+      input: {
+        vault: {
+          salt: fill(16, 25),
+          nonce: fill(12, 26),
+          ciphertext: fill(32, 27),
+          checksum: fill(16, 28),
+        } as never,
+        passphrase: "passphrase",
+      },
+    });
+
+    expect(events).toContainEqual({
+      kind: "error",
+      requestId: "post-failure",
+      code: "wrong-identity-or-corruption",
+    });
+    expect(identity.masterEntropy).toEqual(fill(32, 0));
+    expect(identity.kemSecretKey).toEqual(fill(3168, 0));
+    expect(identity.signingSecretKey).toEqual(fill(4896, 0));
+  });
+
+  it("zeroizes a completed identity when its request is cancelled", async () => {
+    const events: PPXWorkerEvent[] = [];
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      pseudonym: "Cancelled",
+      masterEntropy: fill(32, 21),
+      kemPublicKey: fill(1568, 22),
+      kemSecretKey: fill(3168, 23),
+      signingPublicKey: fill(2592, 24),
+      signingSecretKey: fill(4896, 25),
+      fingerprint: fill(32, 26),
+      identityId: fill(20, 27),
+    } as DerivedIdentityV2;
+    vi.spyOn(defaultCryptoProvider, "unlockVault").mockImplementation(
+      async () => {
+        await pending;
+        return identity;
+      },
+    );
+    const requestCiphertext = fill(32, 33);
+    const request = {
+      kind: "unlock-vault" as const,
+      requestId: "cancel-unlock",
+      input: {
+        vault: {
+          salt: fill(16, 31),
+          nonce: fill(12, 32),
+          ciphertext: requestCiphertext,
+          checksum: fill(16, 34),
+        } as never,
+        passphrase: "passphrase",
+      },
+    };
+    const runner = createCryptoRunner((event) => events.push(event));
+
+    const running = runner.handle(request);
+    await runner.handle({ kind: "cancel", requestId: request.requestId });
+    finish();
+    await running;
+
+    expect(events).toContainEqual({
+      kind: "cancelled",
+      requestId: request.requestId,
+    });
+    expect(identity.masterEntropy).toEqual(fill(32, 0));
+    expect(identity.kemSecretKey).toEqual(fill(3168, 0));
+    expect(identity.signingSecretKey).toEqual(fill(4896, 0));
+    expect(requestCiphertext).toEqual(fill(32, 0));
+  });
 });

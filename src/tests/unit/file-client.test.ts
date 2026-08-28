@@ -53,7 +53,7 @@ afterEach(() => {
 });
 
 describe("Cat-5 V2 file worker client", () => {
-  it("clones only ML-KEM decapsulation authority into a PPXF request", () => {
+  it("moves only ML-KEM decapsulation authority into a PPXF request", () => {
     const workers: AuthoritativeCancelWorker[] = [];
     vi.stubGlobal(
       "Worker",
@@ -95,12 +95,12 @@ describe("Cat-5 V2 file worker client", () => {
     expect([...posted.input.activeIdentity.kemSecretKey]).toEqual(
       Array(3168).fill(7),
     );
-    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168));
     job.cancel();
     void job.promise.catch(() => undefined);
   });
 
-  it("waits for authoritative cancelled event before termination", async () => {
+  it("terminates immediately on cancellation so a release pass cannot retain more plaintext", async () => {
     const workers: AuthoritativeCancelWorker[] = [];
     vi.stubGlobal(
       "Worker",
@@ -116,13 +116,11 @@ describe("Cat-5 V2 file worker client", () => {
     expect(worker).toBeDefined();
 
     job.cancel();
-    expect(worker?.terminated).toBe(false);
+    expect(worker?.terminated).toBe(true);
     await expect(job.promise).rejects.toBeInstanceOf(FileWorkerCancelled);
     expect(worker?.requests.map((request) => request.kind)).toEqual([
       "decrypt-file",
-      "cancel",
     ]);
-    expect(worker?.terminated).toBe(true);
   });
 
   it("wipes request-owned authority when postMessage fails", async () => {
@@ -163,7 +161,7 @@ describe("Cat-5 V2 file worker client", () => {
     );
     expect(wipe).toHaveBeenCalledOnce();
     expect(wipe.mock.calls[0]?.[0].kemSecretKey).toEqual(new Uint8Array(3168));
-    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168).fill(7));
+    expect(activeIdentity.kemSecretKey).toEqual(new Uint8Array(3168));
   });
 
   it("wipes request-owned authority immediately after a successful post", async () => {

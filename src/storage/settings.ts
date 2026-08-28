@@ -69,8 +69,18 @@ export function putSettings(
   db: PpxDatabase,
   settings: StoredSettings,
 ): Promise<"preferences"> {
-  const current = { ...settings };
-  delete current.qrAutoDecrypt;
+  const current: StoredSettings = { locale: settings.locale };
+  if (settings.theme !== undefined) current.theme = settings.theme;
+  if (settings.accent !== undefined) current.accent = settings.accent;
+  if (settings.translucent !== undefined) {
+    current.translucent = settings.translucent;
+  }
+  if (settings.messageOutputMode !== undefined) {
+    current.messageOutputMode = settings.messageOutputMode;
+  }
+  if (settings.autoDecryptIncomingMessages !== undefined) {
+    current.autoDecryptIncomingMessages = settings.autoDecryptIncomingMessages;
+  }
   return db.put("settings", current, "preferences");
 }
 

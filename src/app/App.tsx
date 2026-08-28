@@ -12,7 +12,7 @@ import { PassphraseMeter } from "../components/forms/passphrase-meter";
 import { BrandLogo, NavigationIcon } from "../components/navigation/icons";
 import type { ManagedContact } from "../components/cards/contact-management-card";
 import { defaultCryptoProvider } from "../crypto/default-provider";
-import { zeroizeIdentitySecretsV2 } from "../crypto/zeroize";
+import { zeroize, zeroizeIdentitySecretsV2 } from "../crypto/zeroize";
 import { messages, type Locale, type MessageKey } from "../i18n";
 import type {
   DerivedIdentityV2,
@@ -20,9 +20,9 @@ import type {
   PublicContactV2,
 } from "../protocol/types-v2";
 import {
-  captureIncomingMessageIntentV2,
-  type IncomingMessageIntentV2,
-} from "../protocol/message-link-v2";
+  captureIncomingEncryptedIntent,
+  type IncomingEncryptedIntent,
+} from "../protocol/message-link";
 import { encodeBase45Upper } from "../protocol/base45";
 import { equalBytes } from "../protocol/checksum";
 import { encodePublicContactV2 } from "../protocol/ppxc-v2";
@@ -112,7 +112,7 @@ export function App({
   incomingSharedText = null,
   onIncomingSharedTextConsumed,
 }: {
-  initialIncomingIntent?: IncomingMessageIntentV2 | null;
+  initialIncomingIntent?: IncomingEncryptedIntent | null;
   incomingSharedText?: string | null;
   onIncomingSharedTextConsumed?: () => void;
 }) {
@@ -131,7 +131,7 @@ export function App({
     routeFromHash(window.location.hash),
   );
   const [pendingIncomingIntent, setPendingIncomingIntent] =
-    useState<IncomingMessageIntentV2 | null>(initialIncomingIntent);
+    useState<IncomingEncryptedIntent | null>(initialIncomingIntent);
   const [activeIdentity, setActiveIdentity] =
     useState<DerivedIdentityV2 | null>(null);
   const [publicContact, setPublicContact] = useState<PublicContactV2 | null>(
@@ -151,6 +151,7 @@ export function App({
   const contactsWriteQueue = useRef(createSerializedContactSaveQueue());
   const contactsRef = useRef<ManagedContact[]>([]);
   const decryptCancellation = useRef<(() => void) | null>(null);
+  const legacySenderContactSession = useRef<Uint8Array | null>(null);
   const [offline, setOffline] = useState(() => !navigator.onLine);
   const [storageFailure, setStorageFailure] = useState<
     "fallback" | "delete-failed" | null
@@ -160,9 +161,15 @@ export function App({
     contactsRef.current = next;
     setContacts(next);
   };
+  const clearLegacySenderContactSession = () => {
+    if (!legacySenderContactSession.current) return;
+    zeroize(legacySenderContactSession.current);
+    legacySenderContactSession.current = null;
+  };
 
   const lockActiveIdentity = () => {
     decryptCancellation.current?.();
+    clearLegacySenderContactSession();
     setPendingIncomingIntent(null);
     if (activeIdentity) writeLastUnlockedRoute(route);
     if (activeIdentity) zeroizeIdentitySecretsV2(activeIdentity);
@@ -172,6 +179,7 @@ export function App({
 
   useEffect(
     () => () => {
+      clearLegacySenderContactSession();
       if (activeIdentity) zeroizeIdentitySecretsV2(activeIdentity);
     },
     [activeIdentity],
@@ -409,8 +417,10 @@ export function App({
   useEffect(() => {
     const updateRoute = () => {
       const currentUrl = new URL(window.location.href);
-      const captured = captureIncomingMessageIntentV2(
+      const captured = captureIncomingEncryptedIntent(
         {
+          protocol: currentUrl.protocol,
+          hostname: currentUrl.hostname,
           pathname: currentUrl.pathname,
           search: currentUrl.search,
           hash: currentUrl.hash,
@@ -629,6 +639,7 @@ export function App({
     }
     if (aborted()) return;
     if (acceptOwnership && !acceptOwnership()) return;
+    if (activeIdentity !== identity) clearLegacySenderContactSession();
     setActiveIdentity(identity);
     setPublicContact(contact);
     navigate(
@@ -643,7 +654,10 @@ export function App({
     );
   };
 
-  const migrateLegacyVault = async (passphrase: string): Promise<void> => {
+  const migrateLegacyVault = async (
+    passphrase: string,
+    signal: AbortSignal,
+  ): Promise<void> => {
     if (
       storage?.mode !== "persistent" ||
       storedVault?.formatVersion !== 1 ||
@@ -651,9 +665,15 @@ export function App({
     ) {
       throw new Error("vault-migration-unavailable");
     }
-    const migrated = await migrateV1VaultToV2(storage.db, passphrase);
+    const migrated = await migrateV1VaultToV2(
+      storage.db,
+      passphrase,
+      {},
+      signal,
+    );
     let transferred = false;
     try {
+      if (signal.aborted) return;
       commitContacts([]);
       setStoredVault(migrated.vault);
       await identityReady(
@@ -665,7 +685,9 @@ export function App({
         ),
         undefined,
         true,
+        signal,
       );
+      if (signal.aborted) return;
       transferred = true;
     } finally {
       if (!transferred) zeroizeIdentitySecretsV2(migrated.identity);
@@ -899,7 +921,13 @@ export function App({
           </div>
         ) : route === "decrypt" ? (
           <DecryptFlow
-            key={activeIdentity ? "decrypt-unlocked" : "decrypt-locked"}
+            key={
+              activeIdentity
+                ? `decrypt-${Array.from(activeIdentity.fingerprint)
+                    .map((byte) => byte.toString(16).padStart(2, "0"))
+                    .join("")}`
+                : "decrypt-locked"
+            }
             t={t}
             identity={activeIdentity}
             contacts={contacts}
@@ -915,6 +943,7 @@ export function App({
             cancellationHandle={decryptCancellation}
             incomingSharedText={incomingSharedText}
             onIncomingSharedTextConsumed={onIncomingSharedTextConsumed}
+            legacySenderContactHandle={legacySenderContactSession}
           />
         ) : route === "contacts" ? (
           <ContactsManage t={t} contacts={contacts} onChange={saveContacts} />
@@ -972,7 +1001,10 @@ function IdentityHome({
     signal?: AbortSignal,
     acceptOwnership?: () => boolean,
   ) => Promise<void> | void;
-  onMigrateLegacyVault: (passphrase: string) => Promise<void>;
+  onMigrateLegacyVault: (
+    passphrase: string,
+    signal: AbortSignal,
+  ) => Promise<void>;
   onDeleteVault: () => Promise<boolean>;
   onEraseAll: () => Promise<boolean>;
   preferImport?: boolean;
@@ -982,6 +1014,7 @@ function IdentityHome({
   const [unlockError, setUnlockError] = useState("");
   const [busy, setBusy] = useState(false);
   const unlockJob = useRef<CryptoWorkerJob<DerivedIdentityV2> | null>(null);
+  const migrationAbort = useRef<AbortController | null>(null);
   const [confirming, setConfirming] = useState<"vault" | "all" | null>(null);
 
   const verifyPrivateExport = async (
@@ -1025,7 +1058,16 @@ function IdentityHome({
     setUnlockError("");
     try {
       if (storedVault.formatVersion === 1) {
-        await onMigrateLegacyVault(candidatePassphrase);
+        const controller = new AbortController();
+        migrationAbort.current?.abort();
+        migrationAbort.current = controller;
+        await onMigrateLegacyVault(candidatePassphrase, controller.signal);
+        if (
+          controller.signal.aborted ||
+          migrationAbort.current !== controller
+        ) {
+          return;
+        }
         setPassphrase("");
         return;
       }
@@ -1053,9 +1095,15 @@ function IdentityHome({
       transferred = true;
       setPassphrase("");
     } catch {
-      if (!operation || unlockJob.current === operation)
+      if (
+        !migrationAbort.current?.signal.aborted &&
+        (!operation || unlockJob.current === operation)
+      )
         setUnlockError(t("unlockError"));
     } finally {
+      if (migrationAbort.current?.signal.aborted || !operation) {
+        migrationAbort.current = null;
+      }
       if (unlocked && !transferred) zeroizeIdentitySecretsV2(unlocked);
       if (!operation || unlockJob.current === operation) {
         unlockJob.current = null;
@@ -1066,6 +1114,8 @@ function IdentityHome({
 
   useEffect(
     () => () => {
+      migrationAbort.current?.abort();
+      migrationAbort.current = null;
       unlockJob.current?.cancel();
       unlockJob.current = null;
     },

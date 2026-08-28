@@ -1,13 +1,21 @@
-> **Authority:** Normative additive PPX-PQ-5 internal foundation contract.
-> **Status:** Additive internal protocol foundation. Current user interface and
-> V1 runtime remain authoritative until a later explicit migration.
+> **Authority:** Normative CAT-5/V2 foundation summary.
+> **Status:** Active CAT-5/V2 write format. V1 is confined to the read and
+> private-recovery boundary defined by
+> [legacy V1 compatibility](legacy-v1-compatibility.md).
 
-# PPX-PQ-5 foundation
+# PPX-PQ-5 foundation summary
+
+Complete wire, domain-separation, size, parser, and transport authority now
+lives in [protocol-cat5-v2.md](protocol-cat5-v2.md). If this summary differs,
+that document wins.
 
 Suite `0x02` is named `PPX-PQ-5`. Version `0x02` identities contain one
 32-byte master entropy value, ML-KEM-1024 keys, ML-DSA-87 keys, fingerprint,
 identity ID, pseudonym, and creation time. They contain no X25519 or Ed25519
 keys. This foundation exposes no downgrade or dual/weak mode.
+
+CAT-5/V2 is the sole identity, public-contact, encryption, and sending format.
+The isolated V1 reader is not part of this provider and cannot emit artifacts.
 
 ## Identity derivation
 

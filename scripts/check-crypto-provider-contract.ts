@@ -37,7 +37,12 @@ const LEGACY_DYNAMIC_READ_EXPORTS = new Map<string, ReadonlySet<string>>([
   ["src/crypto/vault.ts", new Set(["unlockVault"])],
   [
     "src/protocol/ppxc.ts",
-    new Set(["parsePublicContact", "parsePublicContactQr"]),
+    new Set([
+      "parsePublicContact",
+      "parsePublicContactQr",
+      "PPXC_MAXIMUM_BASE45_CHARS",
+      "PPXC_MAXIMUM_SIZE",
+    ]),
   ],
   [
     "src/protocol/ppxq.ts",
@@ -46,13 +51,61 @@ const LEGACY_DYNAMIC_READ_EXPORTS = new Map<string, ReadonlySet<string>>([
   [
     "src/protocol/message-link.ts",
     new Set([
+      "captureIncomingEncryptedIntent",
       "captureIncomingMessageIntent",
+      "isReservedIncomingEncryptedHash",
       "isReservedMessageLinkHash",
       "parseMessageLinkHash",
     ]),
   ],
-  ["src/protocol/ppxr.ts", new Set(["parseRecoveryObject"])],
-  ["src/protocol/ppxv.ts", new Set(["parseLockedVault"])],
+  [
+    "src/protocol/ppxr.ts",
+    new Set(["parseRecoveryObject", "PPXR_MAXIMUM_BASE45_CHARS"]),
+  ],
+  [
+    "src/protocol/ppxv.ts",
+    new Set([
+      "parseLockedVault",
+      "PPXV_MAXIMUM_BASE45_CHARS",
+      "PPXV_MAXIMUM_SIZE",
+    ]),
+  ],
+]);
+
+const LEGACY_SECRET_EXPORTS = new Map<string, ReadonlySet<string>>([
+  ["src/crypto/identity.ts", new Set(["deriveIdentityFromEntropy"])],
+  ["src/crypto/vault.ts", new Set(["unlockVault"])],
+]);
+
+const ALLOWED_LEGACY_SECRET_IMPORTS = new Map<
+  string,
+  ReadonlyMap<string, ReadonlySet<string>>
+>([
+  [
+    "src/crypto/legacy-v1-reader.ts",
+    new Map([
+      ["src/crypto/identity.ts", new Set(["deriveIdentityFromEntropy"])],
+      ["src/crypto/vault.ts", new Set(["unlockVault"])],
+    ]),
+  ],
+  [
+    "src/crypto/vault.ts",
+    new Map([
+      ["src/crypto/identity.ts", new Set(["deriveIdentityFromEntropy"])],
+    ]),
+  ],
+]);
+
+const FORBIDDEN_REACHABLE_LEGACY_MODULES = new Map<string, string>([
+  [
+    "src/components/qr/message.ts",
+    "forbidden reachable legacy message-QR writer module",
+  ],
+]);
+
+const FORBIDDEN_MESSAGE_QR_WRITER_NAMES = new Set([
+  "prepareMessageQr",
+  "generateMessageQrPng",
 ]);
 
 const DORMANT_LEGACY_IMPLEMENTATION_MODULES = new Set([
@@ -129,9 +182,12 @@ function directDependencies(
 ): string[] {
   const dependencies = new Set<string>();
   const parsed = sourceFile(path, source);
+  const stringBindings = collectStaticStringBindings(parsed);
   const addSpecifier = (value: ts.Expression | undefined) => {
-    if (!value || !ts.isStringLiteralLike(value)) return;
-    const resolved = resolveSourceImport(path, value.text, sources);
+    if (!value) return;
+    const specifier = staticExpressionName(value, stringBindings);
+    if (!specifier) return;
+    const resolved = resolveSourceImport(path, specifier, sources);
     if (resolved) dependencies.add(resolved);
   };
   const visit = (node: ts.Node): void => {
@@ -171,17 +227,83 @@ function reachableSources(
 function isForbiddenLegacyWriteName(name: string): boolean {
   if (!/(?:legacy|v1)/iu.test(name)) return false;
   return (
-    /(?:encrypt|send(?!er)|persist|save|store)/iu.test(name) ||
-    (/(?:create)/iu.test(name) && /contact/iu.test(name))
+    /(?:encrypt|send(?!er)|persist|save|store|write|publish)/iu.test(name) ||
+    /(?:create|add|insert|put|record|upsert).*(?:legacy|v1).*contact/iu.test(
+      name,
+    ) ||
+    /(?:legacy|v1).*contact.*(?:create|add|insert|put|record|upsert)/iu.test(
+      name,
+    )
   );
 }
 
-function staticPropertyName(name: ts.PropertyName): string | undefined {
+function isForbiddenCat5DowngradeName(name: string): boolean {
+  return (
+    /downgrade.*(?:legacy|v1)/iu.test(name) ||
+    /(?:cat5|v2).*to(?:legacy|v1)/iu.test(name) ||
+    /(?:convert|migrate).*to(?:legacy|v1)/iu.test(name)
+  );
+}
+
+function isForbiddenLegacyWorkerKind(kind: string): boolean {
+  if (ALLOWED_LEGACY_WORKER_KINDS.has(kind)) return false;
+  return (
+    /^(?:encrypt|send|create|persist|save|store|write|encode).*-v1$/iu.test(
+      kind,
+    ) ||
+    /^(?:downgrade|convert).*(?:legacy|v1)$/iu.test(kind) ||
+    /(?:cat5|v2)-(?:to|as)-(?:legacy|v1)$/iu.test(kind)
+  );
+}
+
+function staticExpressionName(
+  expression: ts.Expression,
+  stringBindings: ReadonlyMap<string, string>,
+): string | undefined {
+  const candidate = unwrapExpression(expression);
+  if (ts.isStringLiteralLike(candidate) || ts.isNumericLiteral(candidate)) {
+    return candidate.text;
+  }
+  if (ts.isIdentifier(candidate)) return stringBindings.get(candidate.text);
+  if (
+    ts.isBinaryExpression(candidate) &&
+    candidate.operatorToken.kind === ts.SyntaxKind.PlusToken
+  ) {
+    const left = staticExpressionName(candidate.left, stringBindings);
+    const right = staticExpressionName(candidate.right, stringBindings);
+    return left !== undefined && right !== undefined ? left + right : undefined;
+  }
+  return undefined;
+}
+
+function staticPropertyName(
+  name: ts.PropertyName,
+  stringBindings: ReadonlyMap<string, string>,
+): string | undefined {
   return ts.isIdentifier(name) ||
     ts.isStringLiteralLike(name) ||
     ts.isNumericLiteral(name)
     ? name.text
-    : undefined;
+    : ts.isComputedPropertyName(name)
+      ? staticExpressionName(name.expression, stringBindings)
+      : undefined;
+}
+
+function collectStaticStringBindings(root: ts.Node): Map<string, string> {
+  const stringBindings = new Map<string, string>();
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer
+    ) {
+      const value = staticExpressionName(node.initializer, stringBindings);
+      if (value !== undefined) stringBindings.set(node.name.text, value);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(root);
+  return stringBindings;
 }
 
 function importedName(
@@ -194,7 +316,11 @@ function unwrapExpression(expression: ts.Expression): ts.Expression {
   let current = expression;
   while (
     ts.isAwaitExpression(current) ||
-    ts.isParenthesizedExpression(current)
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
   ) {
     current = current.expression;
   }
@@ -205,6 +331,7 @@ function dynamicImportTarget(
   expression: ts.Expression,
   fromPath: string,
   sources: ReadonlyMap<string, string>,
+  stringBindings: ReadonlyMap<string, string>,
 ): string | undefined {
   const candidate = unwrapExpression(expression);
   if (
@@ -214,8 +341,11 @@ function dynamicImportTarget(
     return undefined;
   }
   const specifier = candidate.arguments[0];
-  return specifier && ts.isStringLiteralLike(specifier)
-    ? resolveSourceImport(fromPath, specifier.text, sources)
+  const specifierText = specifier
+    ? staticExpressionName(specifier, stringBindings)
+    : undefined;
+  return specifierText
+    ? resolveSourceImport(fromPath, specifierText, sources)
     : undefined;
 }
 
@@ -224,6 +354,34 @@ function bindingImportedName(element: ts.BindingElement): string | undefined {
   return ts.isIdentifier(name) || ts.isStringLiteralLike(name)
     ? name.text
     : undefined;
+}
+
+function isCallableComputedSurface(
+  node:
+    | ts.MethodDeclaration
+    | ts.MethodSignature
+    | ts.GetAccessorDeclaration
+    | ts.SetAccessorDeclaration
+    | ts.PropertyAssignment
+    | ts.PropertyDeclaration
+    | ts.PropertySignature,
+): boolean {
+  if (
+    ts.isMethodDeclaration(node) ||
+    ts.isMethodSignature(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  ) {
+    return true;
+  }
+  if (ts.isPropertySignature(node)) {
+    return Boolean(node.type && ts.isFunctionTypeNode(node.type));
+  }
+  return Boolean(
+    node.initializer &&
+    (ts.isArrowFunction(node.initializer) ||
+      ts.isFunctionExpression(node.initializer)),
+  );
 }
 
 function inspectReachableSource(
@@ -235,11 +393,32 @@ function inspectReachableSource(
   const parsed = sourceFile(path, source);
   const isDormantLegacyImplementation =
     DORMANT_LEGACY_IMPLEMENTATION_MODULES.has(path);
+  const stringBindings = collectStaticStringBindings(parsed);
+
+  const isAllowedSecretImport = (target: string, name: string): boolean =>
+    ALLOWED_LEGACY_SECRET_IMPORTS.get(path)?.get(target)?.has(name) ?? false;
+
+  const reportForbiddenSurface = (name: string): void => {
+    if (FORBIDDEN_MESSAGE_QR_WRITER_NAMES.has(name)) {
+      failures.push(`${path}: forbidden message-QR writer surface ${name}`);
+    } else if (isForbiddenCat5DowngradeName(name)) {
+      failures.push(`${path}: forbidden CAT5-to-V1 downgrade surface ${name}`);
+    } else if (isForbiddenLegacyWriteName(name)) {
+      failures.push(`${path}: forbidden V1 write surface ${name}`);
+    }
+  };
 
   const reportDynamicAccess = (target: string, name: string): void => {
     if (LEGACY_WRITE_EXPORTS.get(target)?.has(name)) {
       failures.push(
         `${path}: forbidden dynamic V1 write access ${name} from ${target}`,
+      );
+    } else if (
+      LEGACY_SECRET_EXPORTS.get(target)?.has(name) &&
+      !isAllowedSecretImport(target, name)
+    ) {
+      failures.push(
+        `${path}: forbidden dynamic V1 secret access ${name} from ${target}`,
       );
     } else if (!LEGACY_DYNAMIC_READ_EXPORTS.get(target)?.has(name)) {
       failures.push(
@@ -249,7 +428,7 @@ function inspectReachableSource(
   };
 
   const reportDynamicNamespaceExposure = (target: string): void => {
-    if (LEGACY_WRITE_EXPORTS.has(target)) {
+    if (LEGACY_WRITE_EXPORTS.has(target) || LEGACY_SECRET_EXPORTS.has(target)) {
       failures.push(
         `${path}: forbidden dynamic V1 namespace exposure from ${target}`,
       );
@@ -352,37 +531,61 @@ function inspectReachableSource(
       !isDormantLegacyImplementation &&
       (ts.isMethodDeclaration(node) ||
         ts.isMethodSignature(node) ||
+        ts.isGetAccessorDeclaration(node) ||
+        ts.isSetAccessorDeclaration(node) ||
+        ts.isPropertyAssignment(node) ||
         ts.isPropertyDeclaration(node) ||
         ts.isPropertySignature(node))
     ) {
-      const name = staticPropertyName(node.name);
-      if (name && isForbiddenLegacyWriteName(name)) {
-        failures.push(`${path}: forbidden V1 write surface ${name}`);
+      const name = staticPropertyName(node.name, stringBindings);
+      if (name) {
+        reportForbiddenSurface(name);
+      } else if (
+        ts.isComputedPropertyName(node.name) &&
+        isCallableComputedSurface(node)
+      ) {
+        failures.push(
+          `${path}: forbidden non-static computed surface prevents V1 boundary analysis`,
+        );
       }
     }
 
+    if (!isDormantLegacyImplementation && ts.isPropertyAccessExpression(node)) {
+      reportForbiddenSurface(node.name.text);
+    }
+
     if (
       !isDormantLegacyImplementation &&
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      isForbiddenLegacyWriteName(node.expression.name.text)
+      ts.isElementAccessExpression(node) &&
+      node.argumentExpression &&
+      staticExpressionName(node.argumentExpression, stringBindings) !==
+        undefined
     ) {
-      failures.push(
-        `${path}: forbidden V1 write surface ${node.expression.name.text}`,
+      reportForbiddenSurface(
+        staticExpressionName(node.argumentExpression, stringBindings) as string,
       );
     }
 
     if (
       !isDormantLegacyImplementation &&
-      ts.isCallExpression(node) &&
-      ts.isElementAccessExpression(node.expression) &&
-      node.expression.argumentExpression &&
-      ts.isStringLiteralLike(node.expression.argumentExpression) &&
-      isForbiddenLegacyWriteName(node.expression.argumentExpression.text)
+      ts.isBindingElement(node) &&
+      ts.isObjectBindingPattern(node.parent)
     ) {
-      failures.push(
-        `${path}: forbidden V1 write surface ${node.expression.argumentExpression.text}`,
-      );
+      const name = node.propertyName
+        ? staticPropertyName(node.propertyName, stringBindings)
+        : ts.isIdentifier(node.name)
+          ? node.name.text
+          : undefined;
+      if (name) {
+        reportForbiddenSurface(name);
+      } else if (
+        node.propertyName &&
+        ts.isComputedPropertyName(node.propertyName)
+      ) {
+        failures.push(
+          `${path}: forbidden non-static computed surface prevents V1 boundary analysis`,
+        );
+      }
     }
 
     if (
@@ -390,10 +593,22 @@ function inspectReachableSource(
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword
     ) {
-      const target = dynamicImportTarget(node, path, sources);
+      const target = dynamicImportTarget(node, path, sources, stringBindings);
+      if (!target) {
+        const specifier = node.arguments[0];
+        const specifierText = specifier
+          ? staticExpressionName(specifier, stringBindings)
+          : undefined;
+        if (!specifierText) {
+          failures.push(
+            `${path}: forbidden non-static dynamic import prevents V1 boundary analysis`,
+          );
+        }
+      }
       if (
         target &&
-        LEGACY_WRITE_EXPORTS.has(target) &&
+        (LEGACY_WRITE_EXPORTS.has(target) ||
+          LEGACY_SECRET_EXPORTS.has(target)) &&
         !isAllowedDynamicImportContext(node)
       ) {
         reportDynamicNamespaceExposure(target);
@@ -405,7 +620,12 @@ function inspectReachableSource(
       ts.isVariableDeclaration(node) &&
       node.initializer
     ) {
-      const target = dynamicImportTarget(node.initializer, path, sources);
+      const target = dynamicImportTarget(
+        node.initializer,
+        path,
+        sources,
+        stringBindings,
+      );
       if (target && ts.isObjectBindingPattern(node.name)) {
         inspectBinding(node.name, target);
       }
@@ -416,7 +636,12 @@ function inspectReachableSource(
       (ts.isPropertyAccessExpression(node) ||
         ts.isElementAccessExpression(node))
     ) {
-      const target = dynamicImportTarget(node.expression, path, sources);
+      const target = dynamicImportTarget(
+        node.expression,
+        path,
+        sources,
+        stringBindings,
+      );
       if (target) {
         if (ts.isPropertyAccessExpression(node)) {
           if (
@@ -447,6 +672,7 @@ function inspectReachableSource(
         node.expression.expression,
         path,
         sources,
+        stringBindings,
       );
       const callback = node.arguments[0];
       if (
@@ -480,10 +706,7 @@ function inspectReachableSource(
           (ts.isStringLiteralLike(name) && name.text === "kind")) &&
         initializer &&
         ts.isStringLiteralLike(initializer) &&
-        /^(?:encrypt|send|create|persist|save|store).*-v1$/iu.test(
-          initializer.text,
-        ) &&
-        !ALLOWED_LEGACY_WORKER_KINDS.has(initializer.text)
+        isForbiddenLegacyWorkerKind(initializer.text)
       ) {
         failures.push(
           `${path}: forbidden V1 worker request kind ${initializer.text}`,
@@ -495,13 +718,20 @@ function inspectReachableSource(
       const parent = node.parent;
       const isDeclaredOrCalledSurface =
         (ts.isFunctionDeclaration(parent) && parent.name === node) ||
+        (ts.isFunctionExpression(parent) && parent.name === node) ||
         (ts.isClassDeclaration(parent) && parent.name === node) ||
+        (ts.isClassExpression(parent) && parent.name === node) ||
         (ts.isInterfaceDeclaration(parent) && parent.name === node) ||
         (ts.isTypeAliasDeclaration(parent) && parent.name === node) ||
         (ts.isVariableDeclaration(parent) && parent.name === node) ||
         (ts.isCallExpression(parent) && parent.expression === node);
-      if (isDeclaredOrCalledSurface && isForbiddenLegacyWriteName(node.text)) {
-        failures.push(`${path}: forbidden V1 write surface ${node.text}`);
+      if (
+        isDeclaredOrCalledSurface &&
+        (isForbiddenLegacyWriteName(node.text) ||
+          isForbiddenCat5DowngradeName(node.text) ||
+          FORBIDDEN_MESSAGE_QR_WRITER_NAMES.has(node.text))
+      ) {
+        reportForbiddenSurface(node.text);
       }
     }
 
@@ -517,8 +747,21 @@ function inspectReachableSource(
         sources,
       );
       const forbidden = target ? LEGACY_WRITE_EXPORTS.get(target) : undefined;
-      if (target && forbidden) {
+      const secret = target ? LEGACY_SECRET_EXPORTS.get(target) : undefined;
+      if (target && (forbidden || secret)) {
         if (ts.isImportDeclaration(node)) {
+          if (node.importClause?.isTypeOnly) {
+            return;
+          }
+          if (!node.importClause) {
+            failures.push(
+              `${path}: forbidden side-effect V1 import from ${target}`,
+            );
+          } else if (node.importClause.name) {
+            failures.push(
+              `${path}: forbidden default V1 import from ${target}`,
+            );
+          }
           const bindings = node.importClause?.namedBindings;
           if (bindings && ts.isNamespaceImport(bindings)) {
             failures.push(
@@ -526,28 +769,66 @@ function inspectReachableSource(
             );
           } else if (bindings && ts.isNamedImports(bindings)) {
             for (const element of bindings.elements) {
+              if (element.isTypeOnly) continue;
               const name = importedName(element);
               const allowed = READ_ONLY_LEGACY_IMPORT_EXCEPTIONS.get(path);
-              if (forbidden.has(name) && !allowed?.has(name)) {
+              const writeException = allowed?.has(name) ?? false;
+              if (forbidden?.has(name) && !allowed?.has(name)) {
                 failures.push(
                   `${path}: forbidden V1 write import ${name} from ${target}`,
                 );
               }
+              if (secret?.has(name) && !isAllowedSecretImport(target, name)) {
+                failures.push(
+                  `${path}: forbidden V1 secret import ${name} from ${target}`,
+                );
+              }
+              if (
+                !forbidden?.has(name) &&
+                !secret?.has(name) &&
+                !LEGACY_DYNAMIC_READ_EXPORTS.get(target)?.has(name) &&
+                !writeException
+              ) {
+                failures.push(
+                  `${path}: forbidden unrecognized static V1 import ${name} from ${target}`,
+                );
+              }
             }
           }
+        } else if (node.isTypeOnly) {
+          // Type-only re-exports cannot expose a runtime V1 operation.
         } else if (!node.exportClause) {
           failures.push(
             `${path}: wildcard export exposes V1 write symbols from ${target}`,
           );
         } else if (ts.isNamedExports(node.exportClause)) {
           for (const element of node.exportClause.elements) {
+            if (element.isTypeOnly) continue;
             const name = importedName(element);
-            if (forbidden.has(name)) {
+            if (forbidden?.has(name)) {
               failures.push(
                 `${path}: forbidden V1 write export ${name} from ${target}`,
               );
             }
+            if (secret?.has(name)) {
+              failures.push(
+                `${path}: forbidden V1 secret export ${name} from ${target}`,
+              );
+            }
+            if (
+              !forbidden?.has(name) &&
+              !secret?.has(name) &&
+              !LEGACY_DYNAMIC_READ_EXPORTS.get(target)?.has(name)
+            ) {
+              failures.push(
+                `${path}: forbidden unrecognized V1 export ${name} from ${target}`,
+              );
+            }
           }
+        } else {
+          failures.push(
+            `${path}: namespace export exposes V1 symbols from ${target}`,
+          );
         }
       }
     }
@@ -563,6 +844,8 @@ export function findForbiddenLegacyWriteSurfaces(
 ): string[] {
   const failures: string[] = [];
   for (const path of reachableSources(sources, roots)) {
+    const forbiddenModule = FORBIDDEN_REACHABLE_LEGACY_MODULES.get(path);
+    if (forbiddenModule) failures.push(`${path}: ${forbiddenModule}`);
     const source = sources.get(path);
     if (source !== undefined) {
       failures.push(...inspectReachableSource(path, source, sources));

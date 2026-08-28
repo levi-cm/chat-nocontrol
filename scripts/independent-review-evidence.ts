@@ -25,8 +25,20 @@ export interface ReviewValidationOptions {
 }
 
 const recordPath = "docs/independent-security-review.json";
-const signatureNamespace = "chat-nocontrol-security-review-v1";
+const signatureNamespace = "chat-nocontrol-security-review-cat5-v2";
+const gitSignatureNamespace = "git";
 const trustedAllowedSignersPath = ".github/allowed_signers";
+
+interface AllowedSignerEntry {
+  key: string;
+  namespace: string;
+  principal: string;
+}
+
+export interface AllowedSignerPolicyOptions {
+  requireGitSigner?: boolean;
+  reviewIdentity?: string;
+}
 
 interface GitResult {
   status: number | null;
@@ -36,6 +48,90 @@ interface GitResult {
 function git(cwd: string, args: string[]): GitResult {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   return { status: result.status, stdout: result.stdout };
+}
+
+function parseAllowedSignerEntries(contents: string): {
+  entries: AllowedSignerEntry[];
+  invalid: boolean;
+} {
+  const entries: AllowedSignerEntry[] = [];
+  let invalid = false;
+  for (const rawLine of contents.split(/\r?\n/u)) {
+    const line = rawLine.trim();
+    if (line === "" || line.startsWith("#")) continue;
+    const match =
+      /^(\S+)\s+namespaces="([^"]+)"\s+((?:ssh-|ecdsa-|sk-)\S*)\s+(\S+)(?:\s+.*)?$/u.exec(
+        line,
+      );
+    if (!match) {
+      invalid = true;
+      continue;
+    }
+    const [, principal, namespace, keyType, keyData] = match;
+    if (
+      !principal ||
+      !namespace ||
+      !keyType ||
+      !keyData ||
+      /[,!*?\[\]]/u.test(principal) ||
+      (namespace !== signatureNamespace && namespace !== gitSignatureNamespace)
+    ) {
+      invalid = true;
+      continue;
+    }
+    entries.push({
+      key: `${keyType} ${keyData}`,
+      namespace,
+      principal,
+    });
+  }
+  return { entries, invalid };
+}
+
+export function validateAllowedSignerRolePolicy(
+  contents: string,
+  options: AllowedSignerPolicyOptions = {},
+): string[] {
+  const failures: string[] = [];
+  const parsed = parseAllowedSignerEntries(contents);
+  if (parsed.invalid || parsed.entries.length === 0) {
+    failures.push(
+      "allowed signer entries must use exactly one approved signature namespace",
+    );
+  }
+  const reviewEntries = parsed.entries.filter(
+    (entry) => entry.namespace === signatureNamespace,
+  );
+  const gitEntries = parsed.entries.filter(
+    (entry) => entry.namespace === gitSignatureNamespace,
+  );
+  if (
+    reviewEntries.some((reviewEntry) =>
+      gitEntries.some(
+        (gitEntry) =>
+          gitEntry.key === reviewEntry.key ||
+          gitEntry.principal === reviewEntry.principal,
+      ),
+    )
+  ) {
+    failures.push(
+      "review and Git release signing roles must use different keys and principals",
+    );
+  }
+  if (
+    options.reviewIdentity !== undefined &&
+    !reviewEntries.some(
+      (entry) => entry.principal === options.reviewIdentity?.trim(),
+    )
+  ) {
+    failures.push(
+      "independent review signer must be authorized only for the CAT5 review namespace",
+    );
+  }
+  if (options.requireGitSigner === true && gitEntries.length === 0) {
+    failures.push("a Git-only project release signer is required");
+  }
+  return failures;
 }
 
 function canonicalEvidencePath(
@@ -316,6 +412,19 @@ export function validateIndependentReviewEvidence(
     cwd,
     failures,
   );
+  let signerRolePolicyIsValid = false;
+  try {
+    const signerRoleFailures = validateAllowedSignerRolePolicy(
+      readFileSync(join(cwd, trustedAllowedSignersPath), "utf8"),
+      { reviewIdentity: record.signingIdentity },
+    );
+    failures.push(...signerRoleFailures);
+    signerRolePolicyIsValid = signerRoleFailures.length === 0;
+  } catch {
+    failures.push(
+      "allowed signer entries must use exactly one approved signature namespace",
+    );
+  }
 
   if (
     reportPath &&
@@ -323,6 +432,7 @@ export function validateIndependentReviewEvidence(
     reportIsFile &&
     signatureIsFile &&
     trustedAllowedSignersIsValid &&
+    signerRolePolicyIsValid &&
     record.signingIdentity?.trim() &&
     record.signatureNamespace === signatureNamespace
   ) {

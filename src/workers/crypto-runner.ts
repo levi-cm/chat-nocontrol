@@ -1,8 +1,6 @@
 import {
   validateDecapsulationCapabilityV2,
   validateSenderSigningCapabilityV2,
-  zeroizeDecapsulationCapabilityV2,
-  zeroizeSenderSigningCapabilityV2,
 } from "../crypto/capability-v2";
 import type {
   PPXCryptoWorkerRequest,
@@ -16,20 +14,68 @@ export interface CryptoRunner {
   handle(request: PPXCryptoWorkerRequest): Promise<void>;
 }
 
+type CryptoCompletedResult = Extract<
+  PPXWorkerEvent,
+  { kind: "completed" }
+>["result"];
+
 function safeErrorCode(error: unknown): PPXSafeWorkerError {
   return error instanceof PPXError
     ? error.code
     : "wrong-identity-or-corruption";
 }
 
-function releaseRequestAuthority(
+function collectArrayBuffers(
+  value: unknown,
+  buffers: Set<ArrayBuffer>,
+  visited: Set<object>,
+): void {
+  if (Object.prototype.toString.call(value) === "[object Uint8Array]") {
+    const bytes = value as Uint8Array;
+    if (
+      Object.prototype.toString.call(bytes.buffer) === "[object ArrayBuffer]"
+    ) {
+      buffers.add(bytes.buffer as ArrayBuffer);
+    }
+    return;
+  }
+  if (typeof value !== "object" || value === null || visited.has(value)) return;
+  visited.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) collectArrayBuffers(item, buffers, visited);
+    return;
+  }
+  for (const item of Object.values(value)) {
+    collectArrayBuffers(item, buffers, visited);
+  }
+}
+
+function transferList(value: unknown): ArrayBuffer[] {
+  const buffers = new Set<ArrayBuffer>();
+  collectArrayBuffers(value, buffers, new Set<object>());
+  return [...buffers];
+}
+
+export function zeroizeCryptoTransferList(
+  buffers: readonly ArrayBuffer[],
+): void {
+  for (const buffer of buffers) {
+    if (buffer.byteLength > 0) new Uint8Array(buffer).fill(0);
+  }
+}
+
+export function cryptoEventTransferList(event: PPXWorkerEvent): ArrayBuffer[] {
+  return event.kind === "completed" ? transferList(event.result) : [];
+}
+
+function releaseResult(result: unknown): void {
+  zeroizeCryptoTransferList(transferList(result));
+}
+
+function releaseRequestBuffers(
   request: Exclude<PPXCryptoWorkerRequest, { kind: "cancel" }>,
 ): void {
-  if (request.kind === "decrypt-text") {
-    zeroizeDecapsulationCapabilityV2(request.input.activeIdentity);
-  } else if (request.kind === "encrypt-text") {
-    zeroizeSenderSigningCapabilityV2(request.input.senderSigningCapability);
-  }
+  zeroizeCryptoTransferList(transferList(request.input));
 }
 
 export function createCryptoRunner(
@@ -44,7 +90,7 @@ export function createCryptoRunner(
         return;
       }
       if (active.has(request.requestId)) {
-        releaseRequestAuthority(request);
+        releaseRequestBuffers(request);
         emit({
           kind: "error",
           requestId: request.requestId,
@@ -53,8 +99,8 @@ export function createCryptoRunner(
         return;
       }
       active.add(request.requestId);
+      let result: CryptoCompletedResult | undefined;
       try {
-        let result;
         switch (request.kind) {
           case "encrypt-text":
             validateSenderSigningCapabilityV2(
@@ -73,12 +119,22 @@ export function createCryptoRunner(
             result = await defaultCryptoProvider.unlockVault(request.input);
             break;
         }
-        emit(
-          cancelled.has(request.requestId)
-            ? { kind: "cancelled", requestId: request.requestId }
-            : { kind: "completed", requestId: request.requestId, result },
-        );
+        if (cancelled.has(request.requestId)) {
+          releaseResult(result);
+          result = undefined;
+          emit({ kind: "cancelled", requestId: request.requestId });
+        } else {
+          const completedResult = result as CryptoCompletedResult;
+          emit({
+            kind: "completed",
+            requestId: request.requestId,
+            result: completedResult,
+          });
+          result = undefined;
+        }
       } catch (error) {
+        releaseResult(result);
+        result = undefined;
         emit(
           cancelled.has(request.requestId)
             ? { kind: "cancelled", requestId: request.requestId }
@@ -89,7 +145,8 @@ export function createCryptoRunner(
               },
         );
       } finally {
-        releaseRequestAuthority(request);
+        releaseResult(result);
+        releaseRequestBuffers(request);
         active.delete(request.requestId);
         cancelled.delete(request.requestId);
       }

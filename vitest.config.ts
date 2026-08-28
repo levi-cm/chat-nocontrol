@@ -1,7 +1,7 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vitest/config";
-import manifest from "./package.json";
-import { validateCanonicalAppBase } from "./src/app/canonical-app-base";
+import manifest from "./package.json" with { type: "json" };
+import { validateCanonicalAppBase } from "./src/app/canonical-app-base.ts";
 
 const canonicalAppBase = validateCanonicalAppBase(manifest.homepage);
 

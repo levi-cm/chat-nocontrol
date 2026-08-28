@@ -9,7 +9,7 @@ import {
 import type { Locale, MessageKey } from "../../i18n";
 import { formatLocalNumber } from "../../i18n/format";
 import type { ContactSaveMutation } from "../../app/contact-save-queue";
-import { PPXError } from "../../protocol/types";
+import { PPXError, type DecryptedFileOutput } from "../../protocol/types";
 import type {
   DecryptedFileOutputV2,
   DerivedIdentityV2,
@@ -19,6 +19,12 @@ import {
   type FileWorkerJob,
   startDecryptFileJob,
 } from "../../workers/file-client";
+import {
+  LegacyV1WorkerCancelled,
+  type LegacyV1WorkerJob,
+  startLegacyFileDecryptJob,
+} from "../../workers/legacy-v1-client";
+import { classifyEncryptedFile } from "./compat-routing";
 import { isKnownSender } from "./sender";
 
 interface FileProgress {
@@ -55,9 +61,18 @@ export function previewKind(mimeHint: string): PreviewKind {
   return null;
 }
 
-function downloadDecryptedFile(result: DecryptedFileOutputV2): void {
+function downloadDecryptedFile(
+  result: DecryptedFileOutputV2 | DecryptedFileOutput,
+): void {
   downloadBlob(result.blob, result.filename);
 }
+
+type FileDecryptResult =
+  | { suite: "cat5-v2"; output: DecryptedFileOutputV2 }
+  | { suite: "legacy-v1"; output: DecryptedFileOutput };
+
+type DecryptFileJob =
+  FileWorkerJob<DecryptedFileOutputV2> | LegacyV1WorkerJob<DecryptedFileOutput>;
 
 export function DecryptFileFlow({
   t,
@@ -84,11 +99,11 @@ export function DecryptFileFlow({
   const [progress, setProgress] = useState<FileProgress | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState<DecryptedFileOutputV2 | null>(null);
+  const [result, setResult] = useState<FileDecryptResult | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [collision, setCollision] = useState("");
   const [savingSender, setSavingSender] = useState(false);
-  const job = useRef<FileWorkerJob<DecryptedFileOutputV2> | null>(null);
+  const job = useRef<DecryptFileJob | null>(null);
 
   const cancelActiveFile = () => {
     job.current?.cancel();
@@ -116,11 +131,11 @@ export function DecryptFileFlow({
   );
 
   useEffect(() => {
-    if (!result || !previewKind(result.mimeHint)) {
+    if (result?.suite !== "cat5-v2" || !previewKind(result.output.mimeHint)) {
       setPreviewUrl("");
       return;
     }
-    const objectUrl = createRevocableObjectUrl(result.blob);
+    const objectUrl = createRevocableObjectUrl(result.output.blob);
     setPreviewUrl(objectUrl.url);
     return () => objectUrl.revoke();
   }, [result]);
@@ -139,7 +154,8 @@ export function DecryptFileFlow({
 
   const decrypt = async () => {
     if (!file) return;
-    let operation: FileWorkerJob<DecryptedFileOutputV2> | null = null;
+    let operation: DecryptFileJob | null = null;
+    let suite: FileDecryptResult["suite"] = "cat5-v2";
     setBusy(true);
     onBusyChange(true);
     setProgress({ completed: 0, total: file.size });
@@ -147,24 +163,42 @@ export function DecryptFileFlow({
     setStatus("");
     setError("");
     try {
-      operation = startDecryptFileJob(
-        {
-          object: file,
-          activeIdentity: createDecapsulationCapabilityV2(identity),
-        },
-        (event) =>
-          setProgress({
-            completed: Number(event.completedBytes),
-            total: Number(event.totalBytes),
-          }),
-      );
+      suite = await classifyEncryptedFile(file);
+      const onProgress = (event: {
+        completedBytes: bigint;
+        totalBytes: bigint;
+      }) =>
+        setProgress({
+          completed: Number(event.completedBytes),
+          total: Number(event.totalBytes),
+        });
+      operation =
+        suite === "legacy-v1"
+          ? startLegacyFileDecryptJob(
+              { object: file, masterEntropy: identity.masterEntropy },
+              onProgress,
+            )
+          : startDecryptFileJob(
+              {
+                object: file,
+                activeIdentity: createDecapsulationCapabilityV2(identity),
+              },
+              onProgress,
+            );
       job.current = operation;
       const decrypted = await operation.promise;
       if (job.current !== operation) return;
-      setResult(decrypted);
+      setResult(
+        suite === "legacy-v1"
+          ? { suite, output: decrypted as DecryptedFileOutput }
+          : { suite, output: decrypted as DecryptedFileOutputV2 },
+      );
     } catch (caught) {
       if (operation && job.current !== operation) return;
-      if (caught instanceof FileWorkerCancelled) {
+      if (
+        caught instanceof FileWorkerCancelled ||
+        caught instanceof LegacyV1WorkerCancelled
+      ) {
         setStatus(t("fileCancelled"));
       } else {
         const detail =
@@ -188,24 +222,27 @@ export function DecryptFileFlow({
     // startToken is the explicit one-shot request boundary.
   }, [startToken]);
 
-  const senderSaved = result
-    ? isKnownSender(result.senderContact.fingerprint, contacts)
-    : false;
-  const kind = result ? previewKind(result.mimeHint) : null;
+  const senderSaved =
+    result?.suite === "cat5-v2"
+      ? isKnownSender(result.output.senderContact.fingerprint, contacts)
+      : false;
+  const kind =
+    result?.suite === "cat5-v2" ? previewKind(result.output.mimeHint) : null;
 
   const saveFileSender = async () => {
-    if (!result || senderSaved || savingSender) return;
+    if (result?.suite !== "cat5-v2" || senderSaved || savingSender) return;
+    const output = result.output;
     setSavingSender(true);
     const hasCollision = contacts.some(
       (item) =>
-        item.contact.pseudonym === result.senderContact.pseudonym &&
-        !isKnownSender(result.senderContact.fingerprint, [item]),
+        item.contact.pseudonym === output.senderContact.pseudonym &&
+        !isKnownSender(output.senderContact.fingerprint, [item]),
     );
     try {
       const saved = await onContactsChange({
         kind: "add",
         item: {
-          contact: result.senderContact,
+          contact: output.senderContact,
           nickname: "",
           includeSenderContactInLinks: true,
         },
@@ -267,24 +304,37 @@ export function DecryptFileFlow({
       {result && (
         <section class="decrypted-result file-result">
           <h3>{t("decryptedFile")}</h3>
-          <AuthenticatedSenderCard
-            sender={result.senderContact}
-            contacts={contacts}
-            t={t}
-          />
+          {result.suite === "legacy-v1" ? (
+            <div class="warning-panel" role="status">
+              <p>{t("legacyContentNotice")}</p>
+              <p class="input-meta">{t("previewUnavailable")}</p>
+              <p class="input-meta">
+                {t("authenticatedLegacySenderLabel")}:{" "}
+                {result.output.senderContact.pseudonym}
+              </p>
+            </div>
+          ) : (
+            <AuthenticatedSenderCard
+              sender={result.output.senderContact}
+              contacts={contacts}
+              t={t}
+            />
+          )}
           <dl class="file-metadata">
             <div>
               <dt>{t("filename")}</dt>
-              <dd>{result.filename}</dd>
+              <dd>{result.output.filename}</dd>
             </div>
-            {result.caption && (
+            {result.output.caption && (
               <div>
                 <dt>{t("caption")}</dt>
-                <dd>{result.caption}</dd>
+                <dd>{result.output.caption}</dd>
               </div>
             )}
           </dl>
-          <p class="input-meta">{t("previewAfterAuthentication")}</p>
+          {result.suite === "cat5-v2" && (
+            <p class="input-meta">{t("previewAfterAuthentication")}</p>
+          )}
           {previewUrl && kind === "image" && (
             <img class="file-preview" src={previewUrl} alt={t("filePreview")} />
           )}
@@ -299,15 +349,17 @@ export function DecryptFileFlow({
               aria-label={t("filePreview")}
             />
           )}
-          {!kind && <p class="input-meta">{t("previewUnavailable")}</p>}
+          {result.suite === "cat5-v2" && !kind && (
+            <p class="input-meta">{t("previewUnavailable")}</p>
+          )}
           <button
             class="button secondary"
             type="button"
-            onClick={() => downloadDecryptedFile(result)}
+            onClick={() => downloadDecryptedFile(result.output)}
           >
             {t("downloadDecryptedFile")}
           </button>
-          {!senderSaved && (
+          {result.suite === "cat5-v2" && !senderSaved && (
             <div class="warning-panel" role="status">
               <h3>{t("unknownSender")}</h3>
               <p>{t("unknownSenderFileText")}</p>

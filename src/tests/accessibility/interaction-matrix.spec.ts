@@ -1,10 +1,10 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { createRecoveryWordCodec } from "../../crypto/recovery-words";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { importSessionIdentity } from "../e2e/helpers";
 
 async function activateWithKeyboard(locator: Locator): Promise<void> {
@@ -236,9 +236,9 @@ test("keyboard-only identity import, contact import, encrypt, decrypt, save, and
 }) => {
   const aliceEntropy = new Uint8Array(32);
   const bobEntropy = new Uint8Array(32).fill(2);
-  const bobIdentity = await deriveIdentityFromEntropy(bobEntropy, "Bob");
-  const bobPayload = encodePublicContactQr(
-    createPublicContact(bobIdentity, "Bob", 2n),
+  const bobIdentity = await deriveIdentityV2FromEntropy(bobEntropy, "Bob");
+  const bobPayload = encodePublicContactV2Text(
+    createPublicContactV2(bobIdentity, "Bob", 2n),
   );
 
   await page.goto("/");

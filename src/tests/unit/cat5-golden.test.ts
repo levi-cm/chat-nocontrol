@@ -5,10 +5,20 @@ import { deriveHkdfSha512, sha512Digest } from "../../crypto/noble-provider";
 import { mlKem1024Keygen } from "../../crypto/pq-provider-v2";
 import { checksum16 } from "../../protocol/checksum";
 import { parsePublicContactV2 } from "../../protocol/ppxc-v2";
+import {
+  encodeRecoveryObjectV2,
+  parseRecoveryObjectV2,
+} from "../../protocol/ppxr-v2";
+import {
+  encodeLockedVaultV2,
+  parseLockedVaultV2,
+} from "../../protocol/ppxv-v2";
 import { ObjectFamilyV2 } from "../../protocol/types-v2";
 import {
   canonicalCat5Foundation,
   canonicalCat5ContactBytes,
+  canonicalCat5RecoveryBytes,
+  canonicalCat5VaultBytes,
   cat5GoldenInputs,
 } from "../helpers/canonical-cat5";
 
@@ -52,6 +62,49 @@ describe("Cat-5 foundation golden", () => {
       encodedLength: 15_258,
     });
     expect(fixture.file.encodedSha512).toMatch(/^[0-9a-f]{128}$/u);
+  });
+
+  it("locks PPXR V2 recovery size and digest", () => {
+    const generated = canonicalCat5RecoveryBytes();
+    const committed = Uint8Array.from(
+      Buffer.from(fixture.recovery.encodedBase64, "base64"),
+    );
+    expect(fixture.recovery).toMatchObject({
+      magic: "PPXR",
+      flags: 0,
+      encodedLength: 75,
+    });
+    expect(generated).toEqual(committed);
+    expect(generated).toHaveLength(fixture.recovery.encodedLength);
+    expect(hex(sha512(generated))).toBe(fixture.recovery.encodedSha512);
+    expect(encodeRecoveryObjectV2(parseRecoveryObjectV2(committed))).toEqual(
+      committed,
+    );
+  });
+
+  it("locks PPXV V2 vault parameters, size, and digests", () => {
+    const generated = canonicalCat5VaultBytes();
+    const committed = Uint8Array.from(
+      Buffer.from(fixture.vault.encodedBase64, "base64"),
+    );
+    expect(fixture.vault).toMatchObject({
+      magic: "PPXV",
+      flags: 1,
+      kdfId: 1,
+      scryptN: 65_536,
+      scryptR: 8,
+      scryptP: 2,
+      encodedLength: 140,
+    });
+    expect(generated).toEqual(committed);
+    expect(generated).toHaveLength(fixture.vault.encodedLength);
+    expect(hex(sha512(generated))).toBe(fixture.vault.encodedSha512);
+    expect(hex(sha512(generated.subarray(56, -16)))).toBe(
+      fixture.vault.ciphertextSha512,
+    );
+    expect(encodeLockedVaultV2(parseLockedVaultV2(committed))).toEqual(
+      committed,
+    );
   });
 
   it("fails the identity golden when a derivation label changes", () => {

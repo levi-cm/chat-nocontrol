@@ -127,12 +127,29 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   );
   await expect(page.locator(".word-grid li")).toHaveCount(0);
   await page.locator("#onboarding-recovery-qr-file").setInputFiles(qrPath);
-  await expect(
-    page.getByRole("button", { name: "Verify private QR recovery" }),
-  ).toBeEnabled({ timeout: 45_000 });
-  await page
-    .getByRole("button", { name: "Verify private QR recovery" })
-    .click();
+  const qrPracticeButton = page.getByRole("button", {
+    name: "Verify private QR recovery",
+  });
+  const qrImportError = page.locator(".qr-import [role='alert']");
+  await page.waitForFunction(
+    () => {
+      const button = [...document.querySelectorAll("button")].find(
+        (candidate) =>
+          candidate.textContent?.trim() === "Verify private QR recovery",
+      );
+      const error = document.querySelector(".qr-import [role='alert']");
+      return button?.hasAttribute("disabled") === false || Boolean(error);
+    },
+    undefined,
+    { timeout: 15_000 },
+  );
+  const qrImportErrorText =
+    (await qrImportError.count()) === 0
+      ? null
+      : await qrImportError.textContent();
+  expect(qrImportErrorText, `QR import error: ${qrImportErrorText}`).toBeNull();
+  await expect(qrPracticeButton).toBeEnabled();
+  await qrPracticeButton.click();
 
   await expect(page.getByText("Step 6 of 7")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Back" })).toHaveCount(0);
@@ -179,9 +196,6 @@ test("creates, exports, verifies, and stores recovery material through seven scr
   await expect(page).toHaveURL(/#\/encrypt$/u);
   await page.getByRole("link", { name: "Identity" }).click();
   await expect(page.getByText("Alice", { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("img", { name: "Public contact QR code" }),
-  ).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Create identity or import identity" }),

@@ -21,9 +21,6 @@ export interface StoredSettings {
   accent?:
     "blue" | "indigo" | "purple" | "teal" | "pink" | "orange" | "graphite";
   translucent?: boolean;
-  messageQrCreationEnabled?: boolean;
-  qrExportMode?: "app" | "link" | "both";
-  qrImportControls?: "camera" | "image" | "both";
   messageOutputMode?: "link" | "text" | "both";
   autoDecryptIncomingMessages?: boolean;
   /** Legacy read-only migration source. New writes omit this field. */

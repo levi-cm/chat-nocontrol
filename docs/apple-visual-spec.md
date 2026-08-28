@@ -1,6 +1,6 @@
 # Chat NoControl Apple-Inspired Visual Specification
 
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the user-approved visual direction for Chat NoControl v1.
+> **Authority:** User-approved visual direction for CAT-5/V2 target `0.2.0-beta.1`.
 > **Status:** User-approved direction, 2026-07-12
 > **Boundary:** Apple-inspired web design. This is not Apple UI, an Apple-endorsed design, or official Liquid Glass.
 

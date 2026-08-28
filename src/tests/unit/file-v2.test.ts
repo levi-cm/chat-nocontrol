@@ -8,6 +8,7 @@ import {
   createFileRecordAadV2,
   createFileRecordNonceV2,
   decryptFileV2,
+  encryptFileToBlobV2,
   encryptFileV2,
   FileOperationCancelledV2,
 } from "../../crypto/file-v2";
@@ -326,6 +327,80 @@ describe("PPXF Cat-5 V2 file cryptography", () => {
     expect(constructedBlobs).toBe(0);
     expect(retained.at(-1)).toBe(0);
     expect(capability.kemSecretKey).toEqual(new Uint8Array(3168));
+  });
+
+  it("stops object release after the first immutable Blob part when cancellation races its construction", async () => {
+    const object = await encrypt(new Uint8Array(1_048_577).fill(8));
+    const OriginalBlob = Blob;
+    let immutableParts = 0;
+    let cancelled = false;
+    class CancellingBlob extends OriginalBlob {
+      constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        immutableParts += 1;
+        cancelled = true;
+      }
+    }
+    vi.stubGlobal("Blob", CancellingBlob);
+    const retained: number[] = [];
+    const capability = createDecapsulationCapabilityV2(recipientIdentity);
+
+    await expect(
+      decryptFileV2(
+        { object, activeIdentity: capability },
+        {
+          isCancelled: () => cancelled,
+          onPlaintextRetained: (bytes) => retained.push(bytes),
+        },
+      ),
+    ).rejects.toBeInstanceOf(FileOperationCancelledV2);
+
+    expect(immutableParts).toBe(1);
+    expect(retained.at(-1)).toBe(0);
+    expect(capability.kemSecretKey).toEqual(new Uint8Array(3168));
+  });
+
+  it("stops encoded-Blob release after the first immutable plaintext part", async () => {
+    const capability = createSenderSigningCapabilityV2(senderIdentity);
+    const encrypted = await encryptFileToBlobV2({
+      sender,
+      senderSigningCapability: capability,
+      recipient,
+      file: new Blob([new Uint8Array(1_048_577).fill(9)]),
+      filename: "encoded.bin",
+      mimeHint: "application/octet-stream",
+      caption: "",
+      fileLength: 1_048_577n,
+    });
+    const OriginalBlob = Blob;
+    let immutableParts = 0;
+    let cancelled = false;
+    class CancellingBlob extends OriginalBlob {
+      constructor(parts?: BlobPart[], options?: BlobPropertyBag) {
+        super(parts, options);
+        immutableParts += 1;
+        cancelled = true;
+      }
+    }
+    vi.stubGlobal("Blob", CancellingBlob);
+    Object.setPrototypeOf(encrypted.blob, CancellingBlob.prototype);
+    const retained: number[] = [];
+    const decryptCapability =
+      createDecapsulationCapabilityV2(recipientIdentity);
+
+    await expect(
+      decryptFileV2(
+        { object: encrypted.blob, activeIdentity: decryptCapability },
+        {
+          isCancelled: () => cancelled,
+          onPlaintextRetained: (bytes) => retained.push(bytes),
+        },
+      ),
+    ).rejects.toBeInstanceOf(FileOperationCancelledV2);
+
+    expect(immutableParts).toBe(1);
+    expect(retained.at(-1)).toBe(0);
+    expect(decryptCapability.kemSecretKey).toEqual(new Uint8Array(3168));
   });
 
   it("uses a private ciphertext snapshot across verify and release passes", async () => {

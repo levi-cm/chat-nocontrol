@@ -1,9 +1,9 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { validateCanonicalAppBase } from "./src/app/canonical-app-base";
-import { isAllowedShellCachePath } from "./src/sw/cache-policy";
-import manifest from "./package.json";
+import { validateCanonicalAppBase } from "./src/app/canonical-app-base.ts";
+import { isAllowedShellCachePath } from "./src/sw/cache-policy.ts";
+import manifest from "./package.json" with { type: "json" };
 
 const canonicalAppBase = validateCanonicalAppBase(manifest.homepage);
 

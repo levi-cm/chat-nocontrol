@@ -1,0 +1,367 @@
+{
+  "schemaVersion": 2,
+  "status": "NOT RUN",
+  "reviewedCandidateSha": "<40-character reviewed candidate commit SHA>",
+  "releaseTag": "v0.2.0-beta.1",
+  "version": "0.2.0-beta.1",
+  "distSha256": "<64-character deterministic dist SHA-256>",
+  "archive": {
+    "file": "chat-nocontrol-v0.2.0-beta.1.tgz",
+    "sha256": "<64-character release archive SHA-256>"
+  },
+  "completedAt": "<ISO-8601 UTC>",
+  "operator": {
+    "name": "<physical release tester>",
+    "signingIdentity": "<trusted tester principal>"
+  },
+  "environments": [
+    {
+      "id": "android-chrome",
+      "platform": "android",
+      "mode": "browser",
+      "browser": "Chrome",
+      "deviceModel": "<physical device model>",
+      "osVersion": "<OS version>",
+      "browserVersion": "<browser version>",
+      "completedAt": "<ISO-8601 UTC>",
+      "checks": [
+        {
+          "id": "cat5-identity",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-recovery",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-text",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-files",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-contacts",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-links",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-camera",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-image-import",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxt",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxf",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxq",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-archived-camera-link",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "offline-reopen",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "silent-upgrade",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "web-share",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        }
+      ]
+    },
+    {
+      "id": "android-installed-pwa",
+      "platform": "android",
+      "mode": "installed-pwa",
+      "browser": "Chrome",
+      "deviceModel": "<physical device model>",
+      "osVersion": "<OS version>",
+      "browserVersion": "<browser version>",
+      "completedAt": "<ISO-8601 UTC>",
+      "checks": [
+        {
+          "id": "cat5-identity",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-recovery",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-text",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-files",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-contacts",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-links",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-camera",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-image-import",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxt",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxf",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxq",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-archived-camera-link",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "offline-reopen",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "silent-upgrade",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "web-share",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        }
+      ]
+    },
+    {
+      "id": "iphone-safari",
+      "platform": "ios",
+      "mode": "browser",
+      "browser": "Safari",
+      "deviceModel": "<physical device model>",
+      "osVersion": "<OS version>",
+      "browserVersion": "<browser version>",
+      "completedAt": "<ISO-8601 UTC>",
+      "checks": [
+        {
+          "id": "cat5-identity",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-recovery",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-text",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-files",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-contacts",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-links",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-camera",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-image-import",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxt",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxf",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxq",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-archived-camera-link",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "offline-reopen",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "silent-upgrade",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "web-share",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        }
+      ]
+    },
+    {
+      "id": "iphone-home-screen",
+      "platform": "ios",
+      "mode": "home-screen",
+      "browser": "Safari",
+      "deviceModel": "<physical device model>",
+      "osVersion": "<OS version>",
+      "browserVersion": "<browser version>",
+      "completedAt": "<ISO-8601 UTC>",
+      "checks": [
+        {
+          "id": "cat5-identity",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-recovery",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-text",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-files",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-contacts",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "cat5-links",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-camera",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "recovery-qr-image-import",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxt",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxf",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-ppxq",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "legacy-archived-camera-link",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "offline-reopen",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "silent-upgrade",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        },
+        {
+          "id": "web-share",
+          "status": "NOT RUN",
+          "notes": "<record the physical-device result>"
+        }
+      ]
+    }
+  ]
+}

@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { decryptFile } from "../../crypto/file";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { decryptFileV2 } from "../../crypto/file-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
-import { parseEncryptedFileObject } from "../../protocol/ppxf";
+  createDecapsulationCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
+import {
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
+import { parseEncryptedFileObjectV2 } from "../../protocol/ppxf-v2";
 import { importSessionIdentity } from "./helpers";
 
 test("encrypts one file locally and produces a decryptable PPXF download", async ({
@@ -40,12 +43,12 @@ test("encrypts one file locally and produces a decryptable PPXF download", async
     });
   });
   const aliceEntropy = new Uint8Array(32);
-  const bob = await deriveIdentityFromEntropy(
+  const bob = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(2),
     "Bob",
   );
-  const bobContact = createPublicContact(bob, "Bob", 2n);
-  const bobQr = encodePublicContactQr(bobContact);
+  const bobContact = createPublicContactV2(bob, "Bob", 2n);
+  const bobQr = encodePublicContactV2Text(bobContact);
 
   await page.goto("/");
   await importSessionIdentity(page, {
@@ -106,9 +109,9 @@ test("encrypts one file locally and produces a decryptable PPXF download", async
   const path = await download.path();
   expect(path).not.toBeNull();
   const bytes = new Uint8Array(await readFile(path));
-  const decrypted = await decryptFile({
-    object: parseEncryptedFileObject(bytes),
-    activeIdentity: bob,
+  const decrypted = await decryptFileV2({
+    object: parseEncryptedFileObjectV2(bytes),
+    activeIdentity: createDecapsulationCapabilityV2(bob),
   });
   expect(decrypted.filename).toBe("hello.txt");
   expect(decrypted.caption).toBe("Local test");

@@ -254,9 +254,11 @@ describe("Cat-5 decrypt text flow", () => {
     expect(await screen.findByDisplayValue("verified plaintext")).toBeDefined();
   });
 
-  it("has no legacy PPXQ or message scanner reachability", () => {
+  it("keeps PPXQ decode-only without message-scanner or writer reachability", () => {
+    expect(decryptFlowSource).toContain("startLegacyCompactTextDecryptJob");
+    expect(decryptFlowSource).not.toMatch(/QrImport|startDecryptQr|parseQr/u);
     expect(decryptFlowSource).not.toMatch(
-      /PPXQ|ppxq|QrImport|startDecryptQr|parseQr/u,
+      /encodeQrMessageText|encodeEncryptedQrText|createMessageQr/u,
     );
     expect(decryptFlowSource).not.toContain("qrImportControls");
   });

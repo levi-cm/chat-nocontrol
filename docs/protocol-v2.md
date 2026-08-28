@@ -1,6 +1,12 @@
-> **Authority:** Normative PPXT v2 wire-format and compatibility contract.
+> **Authority:** Legacy suite-1 adaptive-compression transport reference.
+> **Status:** Decode-only compatibility. This is not CAT-5/V2.
 
-# PPXT v2 adaptive text compression
+# Legacy PPXT format-version 2, suite 1
+
+Despite its historical name, this document describes only the V1
+`PPX-HYBRID-1` adaptive-compression transport: binary `formatVersion = 0x02`,
+suite `0x01`. CAT-5/V2 is the distinct version/suite pair `0x02/0x02` defined
+in [protocol-cat5-v2.md](protocol-cat5-v2.md). No new suite-1 object is written.
 
 PPXT v2 changes only the encrypted text transport. Contacts, vaults, recovery,
 files, and the canonical signed text inner remain version 1.

@@ -21,13 +21,12 @@ test("identity route remains single-column without horizontal overflow on mobile
   test.skip(!testInfo.project.name.startsWith("mobile"));
   await page.goto("/#/identity");
 
-  await expect(page.locator("main.identity-workspace")).toBeVisible();
-  const geometry = await page.evaluate(() => ({
+  const layout = page.locator("main.identity-workspace .identity-layout");
+  await expect(layout).toBeVisible();
+  const geometry = await layout.evaluate((element) => ({
     documentWidth: document.documentElement.scrollWidth,
     viewportWidth: document.documentElement.clientWidth,
-    layoutDisplay: getComputedStyle(
-      document.querySelector<HTMLElement>(".identity-layout")!,
-    ).display,
+    layoutDisplay: getComputedStyle(element).display,
   }));
   expect(geometry.documentWidth).toBeLessThanOrEqual(geometry.viewportWidth);
   expect(geometry.layoutDisplay).toBe("block");

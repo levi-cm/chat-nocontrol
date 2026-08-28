@@ -1,10 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { importSessionIdentity } from "../e2e/helpers";
 
 for (const route of [
@@ -29,7 +29,7 @@ for (const route of ["encrypt", "decrypt"] as const) {
   test(`unlocked ${route} file controls have no detectable WCAG A/AA violations`, async ({
     page,
   }) => {
-    const bob = await deriveIdentityFromEntropy(
+    const bob = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(2),
       "Bob",
     );
@@ -41,7 +41,7 @@ for (const route of ["encrypt", "decrypt"] as const) {
     await page.getByRole("link", { name: "Contacts" }).click();
     await page
       .getByLabel("Public contact payload")
-      .fill(encodePublicContactQr(createPublicContact(bob, "Bob", 2n)));
+      .fill(encodePublicContactV2Text(createPublicContactV2(bob, "Bob", 2n)));
     await page.getByRole("button", { name: "Save public contact" }).click();
     await page
       .getByRole("link", { name: route === "encrypt" ? "Encrypt" : "Decrypt" })

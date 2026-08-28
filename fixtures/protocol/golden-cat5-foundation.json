@@ -55,5 +55,24 @@
     "encodedLength": 15258,
     "encodedSha512": "413ab6cd95a1c1b50091e2da40e2359d8e66f4b439bb25fb4fb999d0682196d5274235d47d953b40d38412644233e3ff92dd16eef7fbdfe72a23b1a915ca469c",
     "manifestCiphertextSha512": "e84243b71bbabf5121c923a390ed332118fcca3e45e3c49bfdd56d4c5b1323e00389ca2d3421c016592b0f938bb737cdffc5659796f92d2846adc12ee908140a"
+  },
+  "recovery": {
+    "magic": "PPXR",
+    "flags": 0,
+    "encodedLength": 75,
+    "encodedSha512": "5211ba55768096dc44a5c1c7a4d1fec6eff3c541730b04b0395a2f8220c7f1ce2a04d306c6dd2695d4886d5e5272db045db47523d5226c4a12fe8b61dc007c06",
+    "encodedBase64": "UFBYUgICAAsBAgMEBQYHCAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fQ2F0NSBHb2xkZW6GWLx1UOsbrTEAajOncXSW"
+  },
+  "vault": {
+    "magic": "PPXV",
+    "flags": 1,
+    "kdfId": 1,
+    "scryptN": 65536,
+    "scryptR": 8,
+    "scryptP": 2,
+    "encodedLength": 140,
+    "encodedSha512": "5edc54a7e350f6427a809593c784c71c30bd22b52e6a20d61adc7c11e78bf6708b6af3729e737d0f65fd0b5145af280676f7080564d4149d874d4119c2f760f0",
+    "ciphertextSha512": "11966f415c7a63b45e0e5e20a6e97f43b6fa26afc839b095f18e7e66079857dd57e2cf4a8800654b1c4c02e00fd6f6b43b258e174e5be93c4589a58d00b6307e",
+    "encodedBase64": "UFBYVgICAQEAAAAAAAEAAAAAAAgAAAACEBESExQVFhcYGRobHB0eHzAxMjM0NTY3ODk6OwAAAERQYXKDlKW2x9jp+gscLT5PYHGCk6S1xtfo+QobLD1OX3CBkqO0xdbn+AkaKzxNXm+AkaKzxNXm9wgZKjtMXW5/kKGyw3IPPUDxZtLEXTy2xiIv/HU="
   }
 }

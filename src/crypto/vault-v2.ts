@@ -21,8 +21,15 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
 export interface LockVaultInputV2 {
-  identity: DerivedIdentityV2;
+  identity: VaultLockCapabilityV2;
   passphrase: string;
+}
+
+/** The minimal identity material needed to create a locked vault. */
+export interface VaultLockCapabilityV2 {
+  masterEntropy: Uint8Array;
+  creationTime: bigint;
+  pseudonym: string;
 }
 
 export interface UnlockVaultInputV2 {
@@ -46,7 +53,7 @@ function requirePassphraseV2(passphrase: string): void {
   }
 }
 
-function encodeVaultInnerV2(identity: DerivedIdentityV2): Uint8Array {
+function encodeVaultInnerV2(identity: VaultLockCapabilityV2): Uint8Array {
   const pseudonymBytes = encoder.encode(normalizePseudonym(identity.pseudonym));
   const writer = new StrictByteWriter(41 + pseudonymBytes.byteLength);
   try {

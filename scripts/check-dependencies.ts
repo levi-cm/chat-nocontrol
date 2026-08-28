@@ -15,13 +15,16 @@ const dependencyDiff = (["dependencies", "devDependencies"] as const).flatMap(
     const expected = approved[section];
     return [
       ...Object.keys(actual)
-        .filter((name) => !(name in expected))
+        .filter((name) => !Object.hasOwn(expected, name))
         .map((name) => `${section}:unexpected:${name}@${actual[name]}`),
       ...Object.keys(expected)
-        .filter((name) => !(name in actual))
+        .filter((name) => !Object.hasOwn(actual, name))
         .map((name) => `${section}:missing:${name}@${expected[name]}`),
       ...Object.keys(expected)
-        .filter((name) => name in actual && actual[name] !== expected[name])
+        .filter(
+          (name) =>
+            Object.hasOwn(actual, name) && actual[name] !== expected[name],
+        )
         .map(
           (name) =>
             `${section}:changed:${name}:${expected[name]}->${actual[name]}`,
@@ -34,7 +37,8 @@ const unpinned = Object.entries({
   ...manifest.devDependencies,
 }).filter(
   ([, version]) =>
-    !/^\d+\.\d+\.\d+$/u.test(version) && !version.startsWith("npm:"),
+    !/^\d+\.\d+\.\d+$/u.test(version) &&
+    !/^npm:(?:@[^/]+\/[^@]+|[^@]+)@\d+\.\d+\.\d+$/u.test(version),
 );
 
 if (dependencyDiff.length > 0 || unpinned.length > 0) {
@@ -47,9 +51,19 @@ if (dependencyDiff.length > 0 || unpinned.length > 0) {
 
 const audit = spawnSync(
   "npm",
-  ["audit", "--audit-level=high", "--omit=optional"],
+  ["audit", "--audit-level=high", "--include=optional"],
   { encoding: "utf8" },
 );
+if (audit.error !== undefined) {
+  throw new Error(`Dependency audit failed to start: ${audit.error.message}`);
+}
+if (audit.status === null) {
+  throw new Error(
+    audit.signal === null
+      ? "Dependency audit did not return an exit status"
+      : `Dependency audit terminated by signal ${audit.signal}`,
+  );
+}
 if (audit.status !== 0) {
   throw new Error(
     `Dependency audit failed:\n${audit.stdout.trim()}\n${audit.stderr.trim()}`,

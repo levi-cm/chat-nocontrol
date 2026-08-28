@@ -2,6 +2,11 @@ export interface PackageLockPackage {
   name?: string;
   version?: string;
   license?: string;
+  integrity?: string;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 }
 
 export interface PackageLock {
@@ -28,6 +33,76 @@ function dependencyName(path: string): string {
   return segments.at(-1) ?? path;
 }
 
+function packagePurl(name: string, version: string): string {
+  const encodedName = name.startsWith("@")
+    ? `%40${name
+        .slice(1)
+        .split("/")
+        .map((part) => encodeURIComponent(part))
+        .join("/")}`
+    : encodeURIComponent(name);
+  return `pkg:npm/${encodedName}@${encodeURIComponent(version)}`;
+}
+
+function integrityHashes(integrity: string | undefined) {
+  if (!integrity) return undefined;
+  const algorithms = new Map([
+    ["sha256", { cyclonedx: "SHA-256", bytes: 32 }],
+    ["sha384", { cyclonedx: "SHA-384", bytes: 48 }],
+    ["sha512", { cyclonedx: "SHA-512", bytes: 64 }],
+  ]);
+  const hashes = integrity.split(/\s+/u).map((entry) => {
+    const match = /^(sha256|sha384|sha512)-([A-Za-z0-9+/]+={0,2})$/u.exec(
+      entry,
+    );
+    const algorithm = match ? algorithms.get(match[1]!) : undefined;
+    const bytes = match ? Buffer.from(match[2]!, "base64") : Buffer.alloc(0);
+    if (
+      !match ||
+      !algorithm ||
+      bytes.byteLength !== algorithm.bytes ||
+      bytes.toString("base64") !== match[2]
+    ) {
+      throw new Error("Package lock contains invalid dependency integrity");
+    }
+    return {
+      alg: algorithm.cyclonedx,
+      content: bytes.toString("hex"),
+    };
+  });
+  return hashes.sort((left, right) => left.alg.localeCompare(right.alg));
+}
+
+function dependencyNames(value: PackageLockPackage | undefined): string[] {
+  return [
+    ...Object.keys(value?.dependencies ?? {}),
+    ...Object.keys(value?.devDependencies ?? {}),
+    ...Object.keys(value?.optionalDependencies ?? {}),
+    ...Object.keys(value?.peerDependencies ?? {}),
+  ].filter((name, index, all) => all.indexOf(name) === index);
+}
+
+function parentPackagePath(path: string): string | null {
+  const match = /^(.*?)(?:\/)?node_modules\/(?:@[^/]+\/)?[^/]+$/u.exec(path);
+  return match ? (match[1] ?? "") : null;
+}
+
+function resolveDependencyPath(
+  packages: PackageLock["packages"],
+  parentPath: string,
+  dependency: string,
+): string | null {
+  let base: string | null = parentPath;
+  while (base !== null) {
+    const candidate = base
+      ? `${base}/node_modules/${dependency}`
+      : `node_modules/${dependency}`;
+    if (packages[candidate]?.version) return candidate;
+    base = parentPackagePath(base);
+  }
+  return null;
+}
+
 export function serializeEvidence(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
@@ -38,17 +113,60 @@ export function buildSbom(lock: PackageLock) {
   const version = root?.version ?? lock.version;
   if (!name || !version) throw new Error("Package lock lacks root metadata");
 
+  const rootRef = packagePurl(name, version);
   const components = Object.entries(lock.packages)
     .filter(([path, value]) => path.includes("node_modules/") && value.version)
-    .map(([path, value]) => ({
-      type: "library",
-      "bom-ref": `npm-path:${path}@${value.version}`,
-      name: dependencyName(path),
-      version: value.version as string,
-      licenses: [{ license: { name: value.license ?? "UNKNOWN" } }],
-      properties: [{ name: "npm:package-lock-path", value: path }],
-    }))
+    .map(([path, value]) => {
+      const componentName = dependencyName(path);
+      const componentVersion = value.version as string;
+      const hashes = integrityHashes(value.integrity);
+      return {
+        type: "library",
+        "bom-ref": `npm-path:${path}@${componentVersion}`,
+        name: componentName,
+        version: componentVersion,
+        purl: packagePurl(componentName, componentVersion),
+        ...(hashes ? { hashes } : {}),
+        licenses: [{ license: { name: value.license ?? "UNKNOWN" } }],
+        properties: [{ name: "npm:package-lock-path", value: path }],
+      };
+    })
     .sort((left, right) => left["bom-ref"].localeCompare(right["bom-ref"]));
+  const componentRefByPath = new Map(
+    components.map((component) => [
+      component.properties[0]!.value,
+      component["bom-ref"],
+    ]),
+  );
+  const dependencies = [
+    {
+      ref: rootRef,
+      dependsOn: dependencyNames(root)
+        .map((dependency) =>
+          resolveDependencyPath(lock.packages, "", dependency),
+        )
+        .filter((path): path is string => path !== null)
+        .map((path) => componentRefByPath.get(path)!)
+        .sort(),
+    },
+    ...Object.entries(lock.packages)
+      .filter(
+        ([path, value]) => path.includes("node_modules/") && value.version,
+      )
+      .map(([path, value]) => ({
+        ref: componentRefByPath.get(path)!,
+        dependsOn: dependencyNames(value)
+          .map((dependency) =>
+            resolveDependencyPath(lock.packages, path, dependency),
+          )
+          .filter((dependencyPath): dependencyPath is string =>
+            Boolean(dependencyPath),
+          )
+          .map((dependencyPath) => componentRefByPath.get(dependencyPath)!)
+          .sort(),
+      }))
+      .sort((left, right) => left.ref.localeCompare(right.ref)),
+  ];
 
   return {
     bomFormat: "CycloneDX",
@@ -58,12 +176,15 @@ export function buildSbom(lock: PackageLock) {
     metadata: {
       component: {
         type: "application",
+        "bom-ref": rootRef,
         name,
         version,
+        purl: rootRef,
         licenses: [{ license: { id: root?.license ?? "AGPL-3.0-or-later" } }],
       },
     },
     components,
+    dependencies,
   } as const;
 }
 

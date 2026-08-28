@@ -3,7 +3,7 @@ import { deriveIdentityFromEntropy } from "../../crypto/identity";
 import { lockVault } from "../../crypto/vault";
 import { encodeRecoveryObject } from "../../protocol/ppxr";
 import { encodeLockedVault } from "../../protocol/ppxv";
-import { parsePublicContact } from "../../protocol/ppxc";
+import { parsePublicContactV2 } from "../../protocol/ppxc-v2";
 import { readFile } from "node:fs/promises";
 
 test("validates the new public pseudonym for every import source", async ({
@@ -91,7 +91,7 @@ test("imports a PPXR file with its signed pseudonym and creation time", async ({
   const downloaded = await download;
   const path = await downloaded.path();
   expect(path).not.toBeNull();
-  const contact = parsePublicContact(new Uint8Array(await readFile(path)));
+  const contact = parsePublicContactV2(new Uint8Array(await readFile(path)));
   expect(contact.creationTime).toBe(1n);
 });
 

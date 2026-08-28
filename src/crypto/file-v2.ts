@@ -632,6 +632,7 @@ export async function decryptFileV2(
   let manifestDigest: Uint8Array | undefined;
   let parsedManifest: FileManifestV2 | undefined;
   let objectSnapshot: EncryptedFileObjectV2 | undefined;
+  let plaintextParts: Blob[] | undefined;
   try {
     throwIfCancelled(hooks);
     validateEncryptedFileObjectV2(input.object);
@@ -727,8 +728,9 @@ export async function decryptFileV2(
     // The first pass above verifies every AEAD record, the signed manifest,
     // recipient binding and the whole-file digest while retaining only a
     // mutable chunk. Only after that gate may immutable Blob parts exist.
-    const plaintextParts: Blob[] = [];
+    plaintextParts = [];
     for (const chunk of object.chunks) {
+      throwIfCancelled(hooks);
       const nonce = createFileRecordNonceV2(
         object.header.noncePrefix,
         chunk.chunkIndex,
@@ -748,15 +750,27 @@ export async function decryptFileV2(
       }
       try {
         hooks?.onPlaintextRetained?.(plaintext.byteLength);
-        plaintextParts.push(new Blob([Uint8Array.from(plaintext).buffer]));
+        throwIfCancelled(hooks);
+        const immutableSource = Uint8Array.from(plaintext);
+        try {
+          plaintextParts.push(new Blob([immutableSource.buffer]));
+          // Blob construction copies into immutable browser-managed memory.
+          // Cancellation cannot wipe an already-created part, so stop before
+          // decrypting another chunk and release every reference in `finally`.
+          throwIfCancelled(hooks);
+        } finally {
+          zeroize(immutableSource);
+        }
       } finally {
         zeroize(plaintext);
         hooks?.onPlaintextRetained?.(0);
       }
     }
+    throwIfCancelled(hooks);
     const blob = new Blob(plaintextParts, {
       type: manifest.mimeHint || "application/octet-stream",
     });
+    throwIfCancelled(hooks);
     return {
       senderContact: manifest.senderContact,
       recipientId: Uint8Array.from(manifest.recipientId),
@@ -791,6 +805,7 @@ export async function decryptFileV2(
       );
       for (const chunk of objectSnapshot.chunks) zeroize(chunk.ciphertext);
     }
+    if (plaintextParts) plaintextParts.length = 0;
     zeroize(input.activeIdentity.kemSecretKey);
     hooks?.onPlaintextRetained?.(0);
   }
@@ -1005,6 +1020,7 @@ async function decryptEncodedFileBlobV2(
   let fileDigest: Uint8Array | undefined;
   let manifestDigest: Uint8Array | undefined;
   let parsedManifest: FileManifestV2 | undefined;
+  let plaintextParts: Blob[] | undefined;
   try {
     const object = await inspectEncodedFileBlobV2(file, hooks);
     throwIfCancelled(hooks);
@@ -1103,16 +1119,17 @@ async function decryptEncodedFileBlobV2(
     throwIfCancelled(hooks);
 
     // Blob input is immutable. A second pass begins only after complete
-    // cryptographic verification, so no immutable plaintext exists on any
-    // authentication, binding, digest, or cancellation failure path.
-    const plaintextParts: Blob[] = [];
+    // cryptographic verification, so authentication, binding, and digest
+    // failures create no immutable plaintext. Cancellation can race one Blob
+    // construction; that unavoidable part is dereferenced before propagating.
+    plaintextParts = [];
     for (const chunk of object.chunks) {
+      throwIfCancelled(hooks);
       const ciphertext = await readEncodedSliceV2(
         file,
         chunk.ciphertextOffset,
         chunk.ciphertextOffset + chunk.ciphertextLength,
         hooks,
-        false,
       );
       let plaintext: Uint8Array | undefined;
       const nonce = createFileRecordNonceV2(
@@ -1129,7 +1146,16 @@ async function decryptEncodedFileBlobV2(
       try {
         plaintext = await decryptAesGcm(key, nonce, ciphertext, aad);
         hooks?.onPlaintextRetained?.(plaintext.byteLength);
-        plaintextParts.push(new Blob([Uint8Array.from(plaintext).buffer]));
+        throwIfCancelled(hooks);
+        const immutableSource = Uint8Array.from(plaintext);
+        try {
+          plaintextParts.push(new Blob([immutableSource.buffer]));
+          // Immutable Blob bytes cannot be zeroized. On cancellation, retain
+          // no reference and do not decrypt or construct another part.
+          throwIfCancelled(hooks);
+        } finally {
+          zeroize(immutableSource);
+        }
       } finally {
         releaseEncodedSliceV2(ciphertext, hooks);
         zeroize(nonce, aad);
@@ -1137,9 +1163,11 @@ async function decryptEncodedFileBlobV2(
         hooks?.onPlaintextRetained?.(0);
       }
     }
+    throwIfCancelled(hooks);
     const blob = new Blob(plaintextParts, {
       type: manifest.mimeHint || "application/octet-stream",
     });
+    throwIfCancelled(hooks);
     return {
       senderContact: manifest.senderContact,
       recipientId: Uint8Array.from(manifest.recipientId),
@@ -1163,6 +1191,7 @@ async function decryptEncodedFileBlobV2(
     if (parsedManifest) {
       zeroize(parsedManifest.recipientId, parsedManifest.signature);
     }
+    if (plaintextParts) plaintextParts.length = 0;
     zeroize(activeIdentity.kemSecretKey);
     hooks?.onPlaintextRetained?.(0);
     hooks?.onCiphertextRetained?.(0);

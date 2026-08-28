@@ -58,6 +58,86 @@ describe("production artifact inspection", () => {
     ]);
   });
 
+  it("rejects map files case-insensitively", async () => {
+    const root = await fixture();
+    await writeFile(join(root, "assets", "APP.JS.MAP"), "{}");
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "source map file: assets/APP.JS.MAP",
+    ]);
+  });
+
+  it("rejects source map directives in CSS, HTML, and manifests", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "assets", "app.css"),
+      "body{}\n/*# sourceMappingURL=data:application/json;base64,e30= */",
+    );
+    await writeFile(
+      join(root, "inline.html"),
+      "<script>console.log('bad')//# sourceURL=inline-worker.js</script>",
+    );
+    await writeFile(
+      join(root, "manifest.webmanifest"),
+      '{"debug":"//# sourceMappingURL=manifest.json.map"}',
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "sourceMappingURL reference: assets/app.css",
+      "sourceMappingURL reference: manifest.webmanifest",
+      "sourceURL reference: inline.html",
+    ]);
+  });
+
+  it("rejects source map directives embedded in SVG", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "assets", "icon.svg"),
+      '<svg xmlns="http://www.w3.org/2000/svg"><script><![CDATA[//# sourceMappingURL=icon.svg.map]]></script></svg>',
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "sourceMappingURL reference: assets/icon.svg",
+    ]);
+  });
+
+  it("accepts harmless source directive words in text artifacts", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "assets", "diagnostics.js"),
+      'console.log("sourceMappingURL", "sourceURL");',
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([]);
+  });
+
+  it("finds a binary source map directive across bounded scan chunks", async () => {
+    const root = await fixture();
+    const prefix = Buffer.alloc(64 * 1024 - 7, 0);
+    const directive = Buffer.from(
+      "//# sourceMappingURL=data:application/json,{}",
+      "ascii",
+    );
+    await writeFile(
+      join(root, "assets", "binary-worker.js"),
+      Buffer.concat([prefix, directive]),
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([
+      "sourceMappingURL reference: assets/binary-worker.js",
+    ]);
+  });
+
+  it("does not interpret binary asset payloads as source directives", async () => {
+    const root = await fixture();
+    await writeFile(
+      join(root, "assets", "image.png"),
+      Buffer.from("\0sourceMappingURL=not-a-map\0", "ascii"),
+    );
+
+    expect(inspectProductionArtifacts(root)).toEqual([]);
+  });
+
   it("rejects a missing production shell file", async () => {
     const root = await fixture();
     await rm(join(root, "sw.js"));

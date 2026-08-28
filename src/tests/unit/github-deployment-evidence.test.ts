@@ -1,16 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  appendPagesReleaseAuthorization,
   appendRecordedPagesDeployment,
   type DeploymentLedger,
   findSuccessfulPagesDeployment,
+  requirePagesReleaseAuthorization,
+  type PagesReleaseAuthorization,
   serializeDeploymentLedger,
   type RecordedPagesDeployment,
   verifyRecordedPagesDeployment,
 } from "../../../scripts/github-deployment-evidence";
 
+const authorization: PagesReleaseAuthorization = {
+  tag: "v0.2.0-beta.1",
+  commit: "a".repeat(40),
+  artifactId: "123456",
+  artifactDigest: `sha256:${"b".repeat(64)}`,
+  physicalEvidenceSha256: "c".repeat(64),
+  workflowRunId: "789",
+  authorizedAt: "2026-07-13T00:55:00.000Z",
+  status: "authorized",
+};
+
 const record: RecordedPagesDeployment = {
-  tag: "v0.1.0-beta.1",
+  tag: "v0.2.0-beta.1",
   commit: "a".repeat(40),
   deployedAt: "2026-07-13T01:02:03.000Z",
   deploymentUrl: "https://levi-cm.github.io/chat-nocontrol/",
@@ -293,8 +307,22 @@ describe("GitHub Pages deployment evidence", () => {
   });
 
   it("appends deterministically, deduplicates retries, and retains same-tag redeployments", () => {
-    const empty: DeploymentLedger = { schemaVersion: 2, deployments: [] };
-    const first = appendRecordedPagesDeployment(empty, record);
+    const empty: DeploymentLedger = {
+      schemaVersion: 3,
+      authorizations: [],
+      deployments: [],
+    };
+    expect(() => appendRecordedPagesDeployment(empty, record)).toThrow(
+      "pre-deployment authorization",
+    );
+    const authorized = appendPagesReleaseAuthorization(empty, authorization);
+    expect(
+      appendPagesReleaseAuthorization(authorized, { ...authorization }),
+    ).toEqual(authorized);
+    expect(requirePagesReleaseAuthorization(authorized, authorization)).toEqual(
+      authorization,
+    );
+    const first = appendRecordedPagesDeployment(authorized, record);
     expect(appendRecordedPagesDeployment(first, { ...record })).toEqual(first);
 
     const redeployment: RecordedPagesDeployment = {
@@ -312,7 +340,8 @@ describe("GitHub Pages deployment evidence", () => {
 
   it("rejects conflicting deployment or status IDs and unsupported ledgers", () => {
     const ledger: DeploymentLedger = {
-      schemaVersion: 2,
+      schemaVersion: 3,
+      authorizations: [authorization],
       deployments: [record],
     };
     expect(() =>
@@ -332,6 +361,31 @@ describe("GitHub Pages deployment evidence", () => {
         { schemaVersion: 1, deployments: [] } as never,
         record,
       ),
-    ).toThrow("schema version 2");
+    ).toThrow("schema version 3");
+  });
+
+  it("rejects deployment authorization substitution and retains parallel retry intents", () => {
+    const empty: DeploymentLedger = {
+      schemaVersion: 3,
+      authorizations: [],
+      deployments: [],
+    };
+    const first = appendPagesReleaseAuthorization(empty, authorization);
+    expect(() =>
+      requirePagesReleaseAuthorization(first, {
+        ...authorization,
+        artifactDigest: `sha256:${"d".repeat(64)}`,
+      }),
+    ).toThrow("exact pre-deployment authorization");
+
+    const retry: PagesReleaseAuthorization = {
+      ...authorization,
+      artifactId: "123457",
+      artifactDigest: `sha256:${"e".repeat(64)}`,
+      workflowRunId: "790",
+      authorizedAt: "2026-07-13T00:56:00.000Z",
+    };
+    const retried = appendPagesReleaseAuthorization(first, retry);
+    expect(retried.authorizations).toEqual([authorization, retry]);
   });
 });

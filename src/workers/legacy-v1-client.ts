@@ -102,7 +102,12 @@ function startLegacyV1Job<T>(
     "message",
     (message: MessageEvent<LegacyV1WorkerEvent>) => {
       const event = message.data;
-      if (event.requestId !== request.requestId || settled) return;
+      if (event.requestId !== request.requestId || settled) {
+        if (event.kind === "completed" && isDerivedIdentityV2(event.result)) {
+          zeroizeIdentitySecretsV2(event.result);
+        }
+        return;
+      }
       if (event.kind === "progress") {
         onProgress?.(event);
         return;

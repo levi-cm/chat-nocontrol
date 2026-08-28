@@ -7,11 +7,8 @@ import {
 import { createPublicContact } from "../../protocol/ppxc";
 import { encodeEncryptedFileObject } from "../../protocol/ppxf";
 import { importSessionIdentity } from "./helpers";
-import { displayIdentityId } from "../../components/cards/contact-management-card";
 
-test("validates one PPXF file before exposing its download", async ({
-  page,
-}) => {
+test("decrypts one legacy PPXF as download-only content", async ({ page }) => {
   const alice = await deriveIdentityFromEntropy(
     new Uint8Array(32).fill(1),
     "Alice",
@@ -49,17 +46,16 @@ test("validates one PPXF file before exposing its download", async ({
   await expect(page.getByText("verified.txt", { exact: true })).toBeVisible();
   await expect(page.getByText("Authenticated caption")).toBeVisible();
   await expect(
-    page.getByText("Preview only after full authentication", { exact: true }),
+    page.getByText(
+      "Legacy V1 content—decryption supported; new encryption uses CAT-5.",
+      { exact: true },
+    ),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Unknown sender" }),
-  ).toBeVisible();
-  const senderCard = page.getByLabel("Authenticated sender");
-  await expect(senderCard).toContainText("Alice");
-  await expect(senderCard).toContainText(
-    displayIdentityId(aliceContact.identityId),
+  await expect(page.getByLabel("Authenticated sender")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save contact" })).toHaveCount(
+    0,
   );
-  await expect(senderCard).toContainText("Unknown sender");
+  await expect(page.getByLabel("File preview")).toHaveCount(0);
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download decrypted file" }).click();
   expect((await downloadPromise).suggestedFilename()).toBe("verified.txt");

@@ -1,14 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { encryptFile } from "../../crypto/file";
+import { encryptFileV2 } from "../../crypto/file-v2";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../../crypto/identity";
-import { createPublicContact } from "../../protocol/ppxc";
-import { encodeEncryptedFileObject } from "../../protocol/ppxf";
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
+import { encodeEncryptedFileObjectV2 } from "../../protocol/ppxf-v2";
 import { importSessionIdentity } from "../e2e/helpers";
 
-const PREVIEW_ORIGIN = "http://127.0.0.1:4173";
+const PREVIEW_ORIGIN = "https://127.0.0.1:4173";
 
 function allowedStaticPath(pathname: string): boolean {
   return (
@@ -92,10 +92,10 @@ test("network harness denies API-like, non-GET, other-port, and external request
       fetch("/api/telemetry", { method: "POST", body: "no" }),
     ]);
   });
-  expect(denied).toEqual(["POST http://127.0.0.1:4173/api/telemetry"]);
+  expect(denied).toEqual(["POST https://127.0.0.1:4173/api/telemetry"]);
   expect(isAllowedRequest("http://127.0.0.1:9999/probe", "GET")).toBe(false);
   expect(isAllowedRequest("https://example.invalid/probe", "GET")).toBe(false);
-  expect(isAllowedRequest("http://127.0.0.1:4173/api/telemetry", "GET")).toBe(
+  expect(isAllowedRequest("https://127.0.0.1:4173/api/telemetry", "GET")).toBe(
     false,
   );
 });
@@ -104,17 +104,17 @@ test("validated hostile playlist content stays download-only and never fetches",
   page,
 }) => {
   const denied = await installNetworkDenial(page);
-  const alice = await deriveIdentityFromEntropy(
+  const alice = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(41),
     "Alice",
   );
   const bobEntropy = new Uint8Array(32).fill(42);
-  const bob = await deriveIdentityFromEntropy(bobEntropy, "Bob");
+  const bob = await deriveIdentityV2FromEntropy(bobEntropy, "Bob");
   const playlist = "#EXTM3U\nhttps://attacker.invalid/tracker.ts\n";
-  const encrypted = await encryptFile({
-    sender: createPublicContact(alice, "Alice", 1n),
-    senderSigningCapability: createSenderSigningCapability(alice),
-    recipient: createPublicContact(bob, "Bob", 2n),
+  const encrypted = await encryptFileV2({
+    sender: createPublicContactV2(alice, "Alice", 1n),
+    senderSigningCapability: createSenderSigningCapabilityV2(alice),
+    recipient: createPublicContactV2(bob, "Bob", 2n),
     file: new Blob([playlist]),
     filename: "hostile.m3u8",
     mimeHint: "application/vnd.apple.mpegurl",
@@ -128,7 +128,7 @@ test("validated hostile playlist content stays download-only and never fetches",
   await page.getByLabel("Encrypted file").setInputFiles({
     name: "hostile.ppxfile",
     mimeType: "application/x-ppx-file",
-    buffer: Buffer.from(encodeEncryptedFileObject(encrypted)),
+    buffer: Buffer.from(encodeEncryptedFileObjectV2(encrypted)),
   });
   await page.getByRole("button", { name: "Decrypt locally" }).click();
   await expect(page.getByText(/No safe inline preview/u)).toBeVisible();

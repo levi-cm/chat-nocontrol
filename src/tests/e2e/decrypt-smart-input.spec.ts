@@ -13,10 +13,8 @@ import {
   PPXT_ARMOR_MAXIMUM_CHARS,
 } from "../../protocol/ppxt-armor";
 import { importSessionIdentity } from "./helpers";
-import { displayIdentityId } from "../../components/cards/contact-management-card";
-import { formatFingerprintBytes } from "../../components/cards/public-contact-card";
 
-test("validates then decrypts armored text with unknown-sender warning", async ({
+test("decrypts legacy text and files without V1 contact persistence", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -100,25 +98,15 @@ test("validates then decrypts armored text with unknown-sender warning", async (
     await page.evaluate(() => localStorage.getItem("legacy-decrypted-copy")),
   ).toBe("yes");
   await expect(
-    page.getByRole("heading", { name: "Unknown sender" }),
-  ).toBeVisible();
-  const senderCard = page.getByLabel("Authenticated sender");
-  await expect(senderCard.getByText("Alice", { exact: true })).toBeVisible();
-  await expect(senderCard).toContainText(
-    displayIdentityId(aliceContact.identityId),
-  );
-  await expect(senderCard).toContainText("Unknown sender");
-  await senderCard.getByText("Fingerprint", { exact: true }).click();
-  await expect(senderCard).toContainText(
-    formatFingerprintBytes(aliceContact.fingerprint, 32),
-  );
-  await expect(
     page.getByText(
-      "This message is cryptographically valid, but you have not saved this sender yet.",
+      "Legacy V1 content—decryption supported; new encryption uses CAT-5.",
+      { exact: true },
     ),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Save contact" }).click();
-  await expect(senderCard).toContainText("Known contact");
+  await expect(page.getByLabel("Authenticated sender")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save contact" })).toHaveCount(
+    0,
+  );
 
   await page.evaluate((droppedArmor) => {
     const area = document.querySelector<HTMLElement>(
@@ -157,9 +145,8 @@ test("validates then decrypts armored text with unknown-sender warning", async (
   await expect(page.getByLabel("Encrypted item")).toHaveValue("");
   await page.getByRole("button", { name: "Decrypt locally" }).click();
   await expect(page.getByText("renamed.txt", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Authenticated sender")).toContainText(
-    "Known contact",
-  );
+  await expect(page.getByLabel("Authenticated sender")).toHaveCount(0);
+  await expect(page.getByLabel("File preview")).toHaveCount(0);
 });
 
 test("rejects oversized dropped text before retaining it in component state", async ({

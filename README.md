@@ -1,205 +1,99 @@
 <!-- markdownlint-disable MD033 MD041 -->
 
-<p align="center">
-  <img src="logo.png" alt="Chat NoControl logo" width="144">
-</p>
-
+<p align="center"><img src="logo.png" alt="Chat NoControl logo" width="144"></p>
 <h1 align="center">Chat NoControl</h1>
-
-<p align="center">
-  Encrypt text and files in your browser. No account, message server, tracking,
-  or cloud history.
-</p>
-
-<p align="center">
-  <a href="https://levi-cm.github.io/chat-nocontrol/">
-    <strong>Open the live beta preview</strong>
-  </a>
-  ·
-  <a href="docs/user-guide.en.md">English guide</a>
-  ·
-  <a href="docs/user-guide.de.md">Deutsche Anleitung</a>
-</p>
-
-<p align="center">
-  <img
-    src="https://img.shields.io/badge/version-0.1.0--beta.1-2563eb"
-    alt="Version 0.1.0-beta.1"
-  >
-  <img
-    src="https://img.shields.io/badge/status-beta_preview-f59e0b"
-    alt="Status: beta preview"
-  >
-  <img
-    src="https://img.shields.io/badge/license-AGPL--3.0--or--later-0f766e"
-    alt="License: AGPL-3.0-or-later"
-  >
-</p>
+<p align="center">Local browser encryption for text and files. No account, relay, tracking, or cloud history.</p>
+<p align="center"><a href="https://levi-cm.github.io/chat-nocontrol/"><strong>Open canonical GitHub Pages beta</strong></a> · <a href="docs/user-guide.en.md">English</a> · <a href="docs/user-guide.de.md">Deutsch</a></p>
 
 <!-- markdownlint-enable MD033 MD041 -->
 
 > [!WARNING]
-> Chat NoControl is a beta preview, not a stable or independently reviewed
-> release. Do not rely on it for high-risk secrets. Read the
-> [security notes](SECURITY.md) and [current project status](docs/implementation-status.md)
-> before evaluating it for real use.
+> Target version `0.2.0-beta.1` is beta software. Independent security review
+> and physical-device gates are **BLOCKED / NOT RUN** until real evidence
+> exists. Do not treat this branch, README, or preview as a reviewed release.
 
-## What is Chat NoControl?
+## Use
 
-Chat NoControl is an accountless tool for exchanging encrypted text and files.
-Encryption and decryption happen locally in your browser. You move the encrypted
-result through any channel you already use: email, chat, USB storage, a QR code,
-or something else.
+1. Create or restore one local identity; save private recovery material.
+2. Exchange a V2 public contact as `.ppxcontact` file or `PPX2:CONTACT:` text.
+3. Encrypt locally. Send PPXT text, a PPXT/PPXM message link, or `.ppxfile`.
+4. Recipient opens it in Chat NoControl and decrypts locally.
 
-It is deliberately not a messaging platform. There is no Chat NoControl server
-holding accounts, contacts, messages, or keys.
+New CAT-5/V2 contact and message QR codes do not exist. Recovery QR remains
+because it is private identity recovery. Old `#/decrypt/qr/...` links are
+decode-only V1 compatibility.
 
-## How it works
+## CAT-5/V2
 
-1. **Create or restore an identity.** Save the recovery materials and choose
-   whether to keep an encrypted browser vault.
-2. **Exchange public contacts.** Shareable QR codes or files let people encrypt
-   something specifically for you.
-3. **Encrypt and decrypt locally.** Copy or download the encrypted output, send
-   it using another channel, then let the recipient open it in Chat NoControl.
+CAT-5/V2 is sole create/write/encrypt path: `formatVersion 0x02`, suite `0x02`
+`PPX-PQ-5`, ML-KEM-1024, ML-DSA-87, HKDF-SHA-512, and AES-256-GCM. Strict
+parsers bound input before allocation and reject unknown flags, downgrade,
+cross-family, and mixed-suite objects.
 
-## What you can do
+| Object | V2 purpose | Creation transport |
+| --- | --- | --- |
+| `PPXC` | Public contact | File or text |
+| `PPXT` | Full-contact encrypted text | Armor or `#/m/` link |
+| `PPXM` | Saved-contact encrypted text | `#/m/` link |
+| `PPXF` | Encrypted file/caption | File |
+| `PPXR` | Unencrypted private recovery | File, text, words, PDF, recovery QR |
+| `PPXV` | Password-encrypted vault | File/local storage/private vault QR |
 
-- Encrypt text up to `256 KiB` and files up to `100 MiB` for one recipient.
-- Add an optional file caption up to `16 KiB`.
-- Exchange public contacts by QR code, image, or file.
-- Save an encrypted identity vault in the browser or use session-only mode.
-- Recover an identity from a private QR, `.ppxrecovery` file, recovery code, or
-  24 English recovery words.
-- Receive compact encrypted-message QR codes. Creating them is an optional
-  setting and remains off by default.
-- Use the installed app shell offline after it has loaded successfully once.
-- Use the interface in English or German on desktop and mobile browsers.
+Read-old/write-new support lets this app itself decrypt V1 PPXT text, PPXF
+files, full links, and compact PPXQ when its exact V1 sender contact is supplied.
+It migrates V1 PPXR/PPXV/recovery words to V2. Temporary V1 sender contacts are
+decrypt-only, memory-only for the unlocked identity session, cleared on
+lock/session end, and never saved. Legacy `#/m/<BASE64URL>` may carry PPXT or
+PPXQ. No old app is required; no V1 contact, message, link, vault, or recovery
+artifact is newly written.
 
-## Protect your recovery material
+Details: [CAT-5/V2 protocol](docs/protocol-cat5-v2.md) and
+[V1 compatibility matrix](docs/legacy-v1-compatibility.md).
 
-> [!CAUTION]
-> A private recovery QR, `.ppxrecovery` file, recovery code, set of 24 recovery
-> words, and recovery sheet all grant the power to restore your identity.
-> Anyone who gets one may decrypt messages intended for that identity.
+## Security boundary
 
-Recovery QR codes, `.ppxrecovery` files, recovery codes, and recovery words are
-not protected by the browser-vault password. Store them like private keys. The
-recovery PDF also contains the separate browser-vault password; never share it.
+- Browser/device compromise can expose plaintext or keys.
+- Contact authenticity still needs an out-of-band check.
+- No forward secrecy, ratchet, group encryption, delivery service, or secure
+  deletion guarantee.
+- Recovery material grants identity authority; store it offline and never share.
+- Implementation claims are not proof of long-term or “quantum-proof” security.
 
-If every recovery copy and the remembered browser vault are lost, the identity
-and messages encrypted for it cannot be recovered.
+See [security architecture](docs/security-architecture.md),
+[threat model](docs/threat-model.md), and
+[release gates](docs/testing-and-release.md).
 
-## Privacy and security
+## PWA and hosting
 
-Chat NoControl has no backend, relay, account service, key server, analytics,
-telemetry, remote fonts, remote scripts, crash reporting, or cloud sync. The
-static app performs cryptographic work in dedicated browser workers and stores
-data locally only when you choose to.
+Canonical URL remains <https://levi-cm.github.io/chat-nocontrol/>. No custom
+domain is authorized. PWA updates activate silently: no banner or user choice,
+and no same-version interruption. During a version transition, the worker may
+perform one controlled same-origin navigation into CAT5. A supported incoming
+fragment stays local, is captured in memory, and is immediately scrubbed from
+the URL and history; no ciphertext is requested or persisted.
+Deployment requires explicit user approval and passed release gates.
 
-PPX currently combines:
+## Development
 
-- **ML-KEM-512 + X25519** for hybrid confidentiality.
-- **Ed25519** for classical sender authentication.
-- **AES-256-GCM** for encrypted content and integrity protection.
-- Strict, versioned binary formats with bounded parsers and size limits.
-
-These are narrow implementation claims, not a promise that the product is
-quantum-proof or equivalent to Signal. Security still depends on an
-uncompromised device and browser, authentic public contacts, safe recovery
-storage, and independent review of the exact release.
-
-### Important limits
-
-| Chat NoControl has | Chat NoControl does not have |
-| --- | --- |
-| One active identity | Accounts or cloud identity recovery |
-| One recipient per output | Group or multi-recipient messaging |
-| Portable encrypted text and files | Delivery service or message history |
-| Classical sender signatures | Post-quantum signatures |
-| Local encrypted vault storage | Forward secrecy, ratchet, or secure deletion |
-
-See the full [security architecture](docs/security-architecture.md) and
-[threat model](docs/threat-model.md) for exact boundaries.
-
-## Current project status
-
-- Repository version: **`0.1.0-beta.1`**.
-- Core identity, recovery, contact, text, file, QR, offline, English, and German
-  flows are implemented.
-- The Pages site is a live preview, not a recorded reviewed release.
-- The latest local checkpoint records a timeout in the long browser suite's
-  recovery-QR path, while focused reruns passed.
-- Physical-device QR evidence, completed independent review, signed release
-  provenance, and final deployment evidence remain open release gates.
-
-Follow [implementation status](docs/implementation-status.md) for current test
-evidence and blockers. GitHub [Releases](https://github.com/levi-cm/chat-nocontrol/releases)
-is the source for any future published release.
-
-## For protocol enthusiasts
-
-PPX uses small, versioned objects for different jobs:
-
-| Object | Purpose |
-| --- | --- |
-| `PPXC` | Shareable public contact |
-| `PPXT` | Encrypted text |
-| `PPXF` | Encrypted file and optional caption |
-| `PPXQ` | Compact encrypted-message QR |
-| `PPXR` | Unencrypted identity recovery object |
-| `PPXV` | Password-encrypted identity vault |
-
-Start with [PPX Protocol v1](docs/protocol-v1.md). Adaptive text compression is
-documented in [Protocol v2](docs/protocol-v2.md), and compact message QR details
-live in the [PPXQ protocol document](docs/protocol-qr-message-v1.md).
-
-## Local development
-
-Requirements:
-
-- Node.js `^22.12.0` or `>=24.0.0`
-- npm
-- Tailscale for the default phone-friendly HTTPS development command
+Use exact version in `.node-version`.
 
 ```bash
 npm ci
 npm run dev
-```
-
-The default command binds Vite to `127.0.0.1:5173` and exposes it through
-foreground Tailscale Serve. It prints the HTTPS URL to open. HTTPS is required
-for reliable camera and clipboard permissions on phones.
-
-For explicit raw-LAN testing, `npm run dev:lan` binds to `0.0.0.0`. This exposes
-the development server more broadly, and camera or clipboard features may not
-work over plain HTTP.
-
-Useful checks:
-
-```bash
-npm run build
-npm run test
+npm run docs:check
 npm run verify:quality
-npm run verify
 ```
 
-`npm run verify:quality` runs the full local quality suite. `npm run verify`
-also enforces independent-review, release, SBOM, and reproducibility gates, so
-it correctly remains blocked until genuine release evidence exists.
+`npm run verify` includes independent-review/release evidence and correctly
+remains blocked until genuine artifacts exist.
 
-## Learn more
+## Documentation
 
 - [English user guide](docs/user-guide.en.md)
 - [German user guide](docs/user-guide.de.md)
 - [Product specification](docs/product-spec.md)
-- [Security architecture](docs/security-architecture.md)
-- [Threat model](docs/threat-model.md)
-- [Testing and release contract](docs/testing-and-release.md)
-- [Contributing](CONTRIBUTING.md)
+- [Implementation status](docs/implementation-status.md)
+- [GitHub Pages contract](docs/github-pages-deployment.md)
 - [Security reporting](SECURITY.md)
 
-## License
-
-Chat NoControl is licensed under
-[AGPL-3.0-or-later](LICENSE).
+AGPL-3.0-or-later. See [LICENSE](LICENSE).

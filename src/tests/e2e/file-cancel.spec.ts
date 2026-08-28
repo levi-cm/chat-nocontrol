@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { importSessionIdentity } from "./helpers";
 
 test("cancels active file encryption without a partial download", async ({
@@ -13,12 +13,12 @@ test("cancels active file encryption without a partial download", async ({
     await new Promise((resolve) => setTimeout(resolve, 500));
     await route.continue().catch(() => undefined);
   });
-  const bob = await deriveIdentityFromEntropy(
+  const bob = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(2),
     "Bob",
   );
-  const bobContact = createPublicContact(bob, "Bob", 2n);
-  const bobQr = encodePublicContactQr(bobContact);
+  const bobContact = createPublicContactV2(bob, "Bob", 2n);
+  const bobQr = encodePublicContactV2Text(bobContact);
   let downloads = 0;
   page.on("download", () => {
     downloads += 1;

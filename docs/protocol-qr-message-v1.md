@@ -1,6 +1,12 @@
-> **Authority:** Normative compact encrypted-message QR and encrypted-link transport contract.
+> **Authority:** Legacy V1 PPXQ decode-only compatibility reference.
+> **Status:** No QR/link creation. Old `#/decrypt/qr` remains decode-only.
 
-# Compact encrypted message QR and link transport v1
+# Legacy compact PPXQ message and link transport V1
+
+Everything below defines historical bytes accepted by the isolated V1 reader.
+Current CAT-5/V2 code creates none of these QR, PPXQ, or V1 link outputs. Words
+such as “uses,” “encodes,” and “generation” describe the historical format so
+the compatibility parser can be tested; they are not current product actions.
 
 `PPXQ` is a contact-referenced encrypted text envelope sized for one
 high-recovery QR. It retains the established hybrid ML-KEM + X25519 key
@@ -49,7 +55,10 @@ known-sender lookup, signature verification, and recipient validation, and is
 stream-bounded to 262,144 bytes. Exact decoded length and fatal canonical UTF-8
 are required.
 
-## QR transports
+## Historical accepted QR encodings
+
+The reader accepts these canonical historical encodings. No current writer or
+download action emits them.
 
 Bytes use canonical URL-safe base37 alphabet
 `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-`, preserving leading zero bytes.
@@ -58,18 +67,19 @@ Bytes use canonical URL-safe base37 alphabet
 - Camera link: an HTTPS byte-mode prefix ending `#/decrypt/qr/`, followed by
   one base37 alphanumeric segment.
 
-Both always use error correction H, a four-module quiet zone, black modules on
-white, and the smallest version 1–40 that fits. Output is one 2048-square PNG.
-Overflow produces no download action and an encoded-byte overage. A received
-link payload exists only in the fragment, is copied to bounded memory, and is
-immediately scrubbed to `#/decrypt`.
+Historical QR creators used error correction H, a four-module quiet zone,
+black modules on white, and the smallest version 1–40 that fit. Historical
+output was one 2048-square PNG. Current app only accepts/decrypts such payloads;
+it exposes no generation or download action. A received link payload exists
+only in the fragment, is copied to bounded memory, and is immediately scrubbed
+to `#/decrypt`.
 
-Current PPXT cannot fit version-40/H. PPXQ fit depends on ciphertext and
-compression; four A4 pages are not guaranteed.
+Legacy full PPXT did not fit version-40/H. Historical PPXQ fit depended on
+ciphertext and compression; four A4 pages were not guaranteed.
 
-## Encrypted message links
+## Historical accepted encrypted-message links
 
-The backend-free message-link transport is:
+The historically accepted backend-free message-link shape is:
 
 ```text
 https://canonical-app.example/#/m/<BASE64URL>
@@ -81,13 +91,16 @@ decoder determines the object family from the decoded `PPXT` or `PPXQ` magic
 and then applies the existing strict object parser. The link therefore changes
 transport only; it does not change PPXT or PPXQ cryptography or wire bytes.
 
-- Contact inclusion on encodes PPXT. Its encrypted inner contains the sender's
-  public contact, so an unknown sender can be authenticated after decryption.
-- Contact inclusion off encodes compact PPXQ. The recipient must already have
-  the exact sender fingerprint in contacts; unknown senders fail closed.
-- Generation uses only the build-defined canonical HTTPS app base. Credentials,
-  query parameters, non-HTTPS destinations, user-configured destinations, and
-  silent development-origin substitution are rejected.
+- Historical contact inclusion on encoded PPXT. Its encrypted inner contains
+  the sender's public contact, so the compatibility reader can authenticate an
+  unknown sender after decryption.
+- Historical contact inclusion off encoded compact PPXQ. Current compatibility
+  decryption requires the exact temporary V1 sender contact; unknown or
+  mismatched senders fail closed and the contact is never persisted.
+- Historical generation used only the build-defined canonical HTTPS app base.
+  Current parsing still rejects credentials, query parameters, non-HTTPS
+  destinations, user-configured destinations, and silent development-origin
+  substitution.
 - The base64url input is bounded to 400,000 characters before decoding.
   Padding, noncanonical alphabet, empty or truncated input, impossible lengths,
   trailing data, unknown magic, and query-bearing reserved links are rejected.

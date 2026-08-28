@@ -1,4 +1,7 @@
-# Resolved PPXF contract correction
+# Legacy suite-1 PPXF contract record
+
+> This file records historical V1/X25519 PPXF work. Current CAT-5/V2 authority
+> is [protocol-cat5-v2.md](protocol-cat5-v2.md).
 
 > **Authority:** Archived implementation-decision record subordinate to the normative protocol and security documents.
 

@@ -17,6 +17,12 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const cat5File = () =>
+  new File(
+    [Uint8Array.of(0x50, 0x50, 0x58, 0x46, 0x02, 0x02, 0x00)],
+    "encrypted.ppxf",
+  );
+
 describe("decrypted file sender contact preference", () => {
   it("defaults a newly saved authenticated sender to contact-inclusive links", async () => {
     const identity = await deriveIdentityV2FromEntropy(
@@ -58,7 +64,7 @@ describe("decrypted file sender contact preference", () => {
         identity={identity}
         contacts={[]}
         onContactsChange={onContactsChange}
-        file={new File([new Uint8Array([1])], "encrypted.ppxf")}
+        file={cat5File()}
         startToken={1}
         onBusyChange={vi.fn()}
         cancellationHandle={cancellationHandle}
@@ -100,7 +106,7 @@ describe("decrypted file sender contact preference", () => {
         identity={identity}
         contacts={[]}
         onContactsChange={() => Promise.resolve(true)}
-        file={new File([new Uint8Array([1])], "encrypted.ppxf")}
+        file={cat5File()}
         startToken={1}
         onBusyChange={vi.fn()}
         cancellationHandle={cancellationHandle}

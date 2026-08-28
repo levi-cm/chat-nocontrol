@@ -11,6 +11,12 @@ import {
   createPublicContactV2,
   encodePublicContactV2,
 } from "../../protocol/ppxc-v2";
+import { checksum16 } from "../../protocol/checksum";
+import { encodeRecoveryObjectV2 } from "../../protocol/ppxr-v2";
+import {
+  encodeLockedVaultHeaderV2,
+  encodeLockedVaultV2,
+} from "../../protocol/ppxv-v2";
 import { ObjectFamilyV2 } from "../../protocol/types-v2";
 import { encodeEncryptedTextOuterV2 } from "../../protocol/text-v2-outer";
 import { encodeEncryptedFileObjectV2 } from "../../protocol/ppxf-v2";
@@ -57,8 +63,57 @@ export async function canonicalCat5ContactBytes(): Promise<Uint8Array> {
   return (await canonicalIdentityAndContact()).encoded;
 }
 
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(
+    parts.reduce((total, part) => total + part.byteLength, 0),
+  );
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.byteLength;
+  }
+  return output;
+}
+
+export function canonicalCat5RecoveryBytes(): Uint8Array {
+  return encodeRecoveryObjectV2({
+    magic: "PPXR",
+    formatVersion: 2,
+    suite: 2,
+    flags: 0,
+    masterEntropy: cat5GoldenInputs.masterEntropy,
+    creationTime: cat5GoldenInputs.creationTime,
+    pseudonym: cat5GoldenInputs.pseudonym,
+    checksum: new Uint8Array(16),
+  });
+}
+
+export function canonicalCat5VaultBytes(): Uint8Array {
+  const base = {
+    magic: "PPXV" as const,
+    formatVersion: 2 as const,
+    suite: 2 as const,
+    flags: 1 as const,
+    kdfId: 1 as const,
+    scryptN: 65_536 as const,
+    scryptR: 8 as const,
+    scryptP: 2 as const,
+    salt: Uint8Array.from({ length: 16 }, (_, index) => 0x10 + index),
+    nonce: Uint8Array.from({ length: 12 }, (_, index) => 0x30 + index),
+    ciphertextLength: 68,
+    ciphertext: Uint8Array.from(
+      { length: 68 },
+      (_, index) => (index * 17 + 0x50) & 0xff,
+    ),
+  };
+  const payload = concat(encodeLockedVaultHeaderV2(base), base.ciphertext);
+  return encodeLockedVaultV2({ ...base, checksum: checksum16(payload) });
+}
+
 export async function canonicalCat5Foundation() {
   const { identity, contact, encoded } = await canonicalIdentityAndContact();
+  const recoveryBytes = canonicalCat5RecoveryBytes();
+  const vaultBytes = canonicalCat5VaultBytes();
   const aes256Key = deriveMlKemKeyV2({
     objectFamily: ObjectFamilyV2.CompactText,
     recipientFingerprint: cat5GoldenInputs.recipientFingerprint,
@@ -191,6 +246,25 @@ export async function canonicalCat5Foundation() {
       encodedLength: fileBytes.byteLength,
       encodedSha512: hex(sha512(fileBytes)),
       manifestCiphertextSha512: hex(sha512(fileObject.manifest.ciphertext)),
+    },
+    recovery: {
+      magic: "PPXR",
+      flags: 0,
+      encodedLength: recoveryBytes.byteLength,
+      encodedSha512: hex(sha512(recoveryBytes)),
+      encodedBase64: Buffer.from(recoveryBytes).toString("base64"),
+    },
+    vault: {
+      magic: "PPXV",
+      flags: 1,
+      kdfId: 1,
+      scryptN: 65_536,
+      scryptR: 8,
+      scryptP: 2,
+      encodedLength: vaultBytes.byteLength,
+      encodedSha512: hex(sha512(vaultBytes)),
+      ciphertextSha512: hex(sha512(vaultBytes.subarray(56, -16))),
+      encodedBase64: Buffer.from(vaultBytes).toString("base64"),
     },
   };
 }

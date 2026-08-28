@@ -9,9 +9,11 @@ import {
   serializeEvidence,
 } from "./release-evidence";
 import {
-  type RecordedPagesDeployment,
+  type DeploymentLedger,
+  serializeDeploymentLedger,
   verifyRecordedPagesDeployment,
 } from "./github-deployment-evidence";
+import { validateAllowedSignerRolePolicy } from "./independent-review-evidence";
 
 function git(args: string[]): string {
   const result = spawnSync("git", args, { encoding: "utf8" });
@@ -69,6 +71,13 @@ if (
 ) {
   throw new Error(`Release blocked: ${expectedTag} has no signature material`);
 }
+const signerRoleFailures = validateAllowedSignerRolePolicy(
+  readFileSync(".github/allowed_signers", "utf8"),
+  { requireGitSigner: true },
+);
+if (signerRoleFailures.length > 0) {
+  throw new Error(`Release blocked: ${signerRoleFailures.join("; ")}`);
+}
 git([
   "-c",
   "gpg.ssh.allowedSignersFile=.github/allowed_signers",
@@ -90,6 +99,31 @@ if (remoteTagObjectId && remoteTagObjectId !== localTagObjectId) {
 }
 if (process.env.REQUIRE_REMOTE_TAG === "1" && !remoteTagObjectId) {
   throw new Error("Release blocked: signed tag is missing from origin");
+}
+const mainFetch = spawnSync(
+  "git",
+  [
+    "fetch",
+    "--quiet",
+    "--no-tags",
+    "origin",
+    "+refs/heads/main:refs/remotes/origin/main",
+  ],
+  { encoding: "utf8" },
+);
+if (mainFetch.status !== 0) {
+  throw new Error("Release blocked: could not fetch origin/main");
+}
+if (
+  spawnSync(
+    "git",
+    ["merge-base", "--is-ancestor", commit, "refs/remotes/origin/main"],
+    { encoding: "utf8" },
+  ).status !== 0
+) {
+  throw new Error(
+    "Release blocked: exact tagged commit is not contained in origin/main",
+  );
 }
 
 const outputDirectory = "output/release";
@@ -144,19 +178,26 @@ if (
 
 const deploymentLedger = JSON.parse(
   readFileSync("docs/deployed-releases.json", "utf8"),
-) as {
-  schemaVersion?: number;
-  deployments?: Partial<RecordedPagesDeployment>[];
-};
-if (
-  deploymentLedger.schemaVersion !== 2 ||
-  !Array.isArray(deploymentLedger.deployments)
-) {
+) as DeploymentLedger;
+try {
+  serializeDeploymentLedger(deploymentLedger);
+} catch {
   throw new Error("Release blocked: deployed release ledger is invalid");
 }
 const provenDeployments = (
   await Promise.all(
     deploymentLedger.deployments.map(async (deployment) => {
+      if (
+        !deploymentLedger.authorizations.some(
+          (authorization) =>
+            authorization.tag === deployment.tag &&
+            authorization.commit === deployment.commit,
+        )
+      ) {
+        throw new Error(
+          "Release blocked: deployed release lacks pre-deployment authorization",
+        );
+      }
       const deployedAt = Date.parse(deployment.deployedAt ?? "");
       if (
         !/^v\d+\.\d+\.\d+-beta\.\d+$/u.test(deployment.tag ?? "") ||
@@ -176,10 +217,7 @@ const provenDeployments = (
           "Release blocked: deployed release ledger entry is invalid",
         );
       }
-      if (
-        git(["rev-list", "-n", "1", deployment.tag as string]) !==
-        deployment.commit
-      ) {
+      if (git(["rev-list", "-n", "1", deployment.tag]) !== deployment.commit) {
         throw new Error(
           "Release blocked: deployed release tag/commit mismatch",
         );
@@ -188,7 +226,7 @@ const provenDeployments = (
         "-c",
         "gpg.ssh.allowedSignersFile=.github/allowed_signers",
         "verify-tag",
-        deployment.tag as string,
+        deployment.tag,
       ]);
       const localDeploymentTagObjectId = git([
         "rev-parse",
@@ -213,13 +251,12 @@ const provenDeployments = (
           "Release blocked: deployed release tag object differs from origin",
         );
       }
-      const provenDeployment = deployment as RecordedPagesDeployment;
-      await verifyRecordedPagesDeployment(provenDeployment, {
+      await verifyRecordedPagesDeployment(deployment, {
         owner: repositoryOwner,
         repository: repositoryName,
         token: process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN,
       });
-      return provenDeployment;
+      return deployment;
     }),
   )
 )

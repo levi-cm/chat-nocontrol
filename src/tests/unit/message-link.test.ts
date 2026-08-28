@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { routeFromHash } from "../../app/routes";
 import { checksum16 } from "../../protocol/checksum";
+import { captureIncomingEncryptedIntent } from "../../protocol/message-link";
 import {
   captureIncomingMessageIntentV2,
   encodeMessageLinkV2,
@@ -67,21 +68,48 @@ describe("Cat-5 encrypted message links", () => {
     }
   });
 
-  it.each(["#/m", "#/message", "#/decrypt/qr/ABC"])(
-    "does not reserve obsolete or truncated route %s",
+  it.each(["#/m", "#/decrypt/qr/ABC"])(
+    "scrubs malformed reserved route %s",
     (hash) => {
       const replaceState = vi.fn();
       expect(
-        captureIncomingMessageIntentV2(
-          { pathname: "/app/", search: "", hash, username: "", password: "" },
+        captureIncomingEncryptedIntent(
+          {
+            protocol: "https:",
+            pathname: "/app/",
+            search: "",
+            hash,
+            username: "",
+            password: "",
+          },
           { replaceState },
           42,
         ),
-      ).toBeNull();
-      expect(replaceState).not.toHaveBeenCalled();
-      expect(routeFromHash(hash)).toBe("identity");
+      ).toEqual({ kind: "invalid" });
+      expect(replaceState).toHaveBeenCalledWith(null, "", "/app/#/decrypt");
+      expect(routeFromHash(hash)).toBe("decrypt");
     },
   );
+
+  it("does not reserve unrelated obsolete routes", () => {
+    const replaceState = vi.fn();
+    expect(
+      captureIncomingEncryptedIntent(
+        {
+          protocol: "https:",
+          pathname: "/app/",
+          search: "",
+          hash: "#/message",
+          username: "",
+          password: "",
+        },
+        { replaceState },
+        42,
+      ),
+    ).toBeNull();
+    expect(replaceState).not.toHaveBeenCalled();
+    expect(routeFromHash("#/message")).toBe("identity");
+  });
 
   it("rejects query parameters and credentials after scrubbing", () => {
     const hash = new URL(

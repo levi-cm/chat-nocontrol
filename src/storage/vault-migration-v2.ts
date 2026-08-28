@@ -1,19 +1,13 @@
-import { deriveIdentityV2FromEntropy } from "../crypto/identity-v2";
-import { unlockVault } from "../crypto/vault";
 import { lockVaultV2, unlockVaultV2 } from "../crypto/vault-v2";
-import {
-  zeroize,
-  zeroizeIdentitySecrets,
-  zeroizeIdentitySecretsV2,
-} from "../crypto/zeroize";
+import { zeroize, zeroizeIdentitySecretsV2 } from "../crypto/zeroize";
 import { equalBytes } from "../protocol/checksum";
 import { encodeLockedVault } from "../protocol/ppxv";
 import { encodeLockedVaultV2, parseLockedVaultV2 } from "../protocol/ppxv-v2";
-import type { DerivedIdentity, LockedVaultObject } from "../protocol/types";
 import type {
   DerivedIdentityV2,
   LockedVaultObjectV2,
 } from "../protocol/types-v2";
+import { startLegacyVaultMigrationJob } from "../workers/legacy-v1-client";
 import type { PpxDatabase, StoredVaultObject } from "./db";
 
 export interface VaultMigrationV2Result {
@@ -22,15 +16,7 @@ export interface VaultMigrationV2Result {
 }
 
 export interface VaultMigrationV2Dependencies {
-  unlockLegacy(input: {
-    vault: LockedVaultObject;
-    passphrase: string;
-  }): Promise<DerivedIdentity>;
-  deriveV2(
-    entropy: Uint8Array,
-    pseudonym: string,
-    creationTime: bigint,
-  ): Promise<DerivedIdentityV2>;
+  startLegacyVaultMigrationJob: typeof startLegacyVaultMigrationJob;
   lockV2(input: {
     identity: DerivedIdentityV2;
     passphrase: string;
@@ -43,21 +29,28 @@ export interface VaultMigrationV2Dependencies {
 }
 
 const DEFAULT_DEPENDENCIES: VaultMigrationV2Dependencies = {
-  unlockLegacy: unlockVault,
-  deriveV2: deriveIdentityV2FromEntropy,
+  startLegacyVaultMigrationJob,
   lockV2: lockVaultV2,
   unlockV2: unlockVaultV2,
 };
 
+function migrationAbortError(): Error {
+  const error = new Error("vault-migration-cancelled");
+  error.name = "AbortError";
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw migrationAbortError();
+}
+
 function exactLegacyBytes(value: StoredVaultObject | undefined): {
-  vault: LockedVaultObject;
   bytes: Uint8Array;
 } {
   if (value?.formatVersion !== 1 || value.suite !== 1) {
     throw new Error("not-exact-v1-active-vault");
   }
-  const vault = value;
-  return { vault, bytes: encodeLockedVault(vault) };
+  return { bytes: encodeLockedVault(value) };
 }
 
 function sameMigratedIdentity(
@@ -80,34 +73,52 @@ export async function migrateV1VaultToV2(
   db: PpxDatabase,
   passphrase: string,
   overrides: Partial<VaultMigrationV2Dependencies> = {},
+  signal?: AbortSignal,
 ): Promise<VaultMigrationV2Result> {
   const dependencies = { ...DEFAULT_DEPENDENCIES, ...overrides };
-  let original: { vault: LockedVaultObject; bytes: Uint8Array } | undefined;
-  let legacyIdentity: DerivedIdentity | undefined;
+  let original: { bytes: Uint8Array } | undefined;
+  let workerRequestBytes: Uint8Array | undefined;
   let derivedIdentity: DerivedIdentityV2 | undefined;
   let verifiedIdentity: DerivedIdentityV2 | undefined;
   let candidateBytes: Uint8Array | undefined;
   let committed = false;
-  try {
-    original = exactLegacyBytes(await db.get("vaults", "active"));
+  let cancelWorker: (() => void) | undefined;
+  let abortTransaction: (() => void) | undefined;
+  const abortOperation = () => {
+    cancelWorker?.();
     try {
-      legacyIdentity = await dependencies.unlockLegacy({
-        vault: original.vault,
+      abortTransaction?.();
+    } catch {
+      // The transaction may already be committed or aborted.
+    }
+  };
+  signal?.addEventListener("abort", abortOperation, { once: true });
+  try {
+    throwIfAborted(signal);
+    original = exactLegacyBytes(await db.get("vaults", "active"));
+    throwIfAborted(signal);
+    try {
+      workerRequestBytes = Uint8Array.from(original.bytes);
+      const migrationJob = dependencies.startLegacyVaultMigrationJob({
+        bytes: workerRequestBytes,
         passphrase,
       });
-      derivedIdentity = await dependencies.deriveV2(
-        legacyIdentity.masterEntropy,
-        legacyIdentity.pseudonym,
-        legacyIdentity.creationTime,
-      );
+      cancelWorker = () => migrationJob.cancel();
+      throwIfAborted(signal);
+      derivedIdentity = await migrationJob.promise;
+      cancelWorker = undefined;
+      throwIfAborted(signal);
       const candidate = await dependencies.lockV2({
         identity: derivedIdentity,
         passphrase,
       });
+      throwIfAborted(signal);
       candidateBytes = encodeLockedVaultV2(candidate);
       await db.put("vaults", candidate, "migration-v2");
+      throwIfAborted(signal);
 
       const reread = await db.get("vaults", "migration-v2");
+      throwIfAborted(signal);
       if (reread?.formatVersion !== 2 || reread.suite !== 2) {
         throw new Error("vault-migration-failed");
       }
@@ -118,13 +129,17 @@ export async function migrateV1VaultToV2(
         vault: canonicalCandidate,
         passphrase,
       });
+      throwIfAborted(signal);
       if (!sameMigratedIdentity(derivedIdentity, verifiedIdentity)) {
         throw new Error("vault-migration-failed");
       }
       await dependencies.afterCandidateVerified?.();
+      throwIfAborted(signal);
 
       const transaction = db.transaction(["vaults", "contacts"], "readwrite");
+      abortTransaction = () => transaction.abort();
       const current = await transaction.objectStore("vaults").get("active");
+      throwIfAborted(signal);
       let currentBytes: Uint8Array | undefined;
       try {
         currentBytes = exactLegacyBytes(current).bytes;
@@ -136,30 +151,41 @@ export async function migrateV1VaultToV2(
       } finally {
         if (currentBytes) zeroize(currentBytes);
       }
+      throwIfAborted(signal);
       await transaction.objectStore("vaults").put(reread, "active");
       await transaction.objectStore("vaults").delete("migration-v2");
       await transaction.objectStore("contacts").clear();
       await transaction.done;
+      abortTransaction = undefined;
       committed = true;
 
       const result = { identity: verifiedIdentity, vault: canonicalCandidate };
       verifiedIdentity = undefined;
       return result;
     } catch (error) {
+      if (
+        signal?.aborted ||
+        (error instanceof Error && error.name === "AbortError")
+      ) {
+        throw migrationAbortError();
+      }
       if (error instanceof Error && error.message === "vault-migration-race") {
         throw error;
       }
       throw new Error("vault-migration-failed");
     }
   } finally {
+    signal?.removeEventListener("abort", abortOperation);
+    cancelWorker = undefined;
+    abortTransaction = undefined;
     try {
       if (!committed) {
         await db.delete("vaults", "migration-v2");
       }
     } finally {
       if (original) zeroize(original.bytes);
+      if (workerRequestBytes?.byteLength) zeroize(workerRequestBytes);
       if (candidateBytes) zeroize(candidateBytes);
-      if (legacyIdentity) zeroizeIdentitySecrets(legacyIdentity);
       if (derivedIdentity) zeroizeIdentitySecretsV2(derivedIdentity);
       if (verifiedIdentity) zeroizeIdentitySecretsV2(verifiedIdentity);
     }

@@ -13,6 +13,7 @@ import { ObjectFamilyV2 } from "../../protocol/types-v2";
 import type {
   EncryptFileInputV2,
   EncryptTextInputV2,
+  PublicContactV2,
   SenderSigningCapabilityV2,
 } from "../../protocol/types-v2";
 import { startEncryptTextJob } from "../../workers/crypto-client";
@@ -29,6 +30,22 @@ function signingCapability(value: number): SenderSigningCapabilityV2 {
     fingerprint: new Uint8Array(32).fill(1),
     signingPublicKey: new Uint8Array(2592).fill(2),
     signingSecretKey: new Uint8Array(4896).fill(value),
+  };
+}
+
+function publicContact(value: number): PublicContactV2 {
+  return {
+    magic: "PPXC",
+    formatVersion: 2,
+    suite: 2,
+    creationTime: 1n,
+    pseudonym: "Test",
+    kemPublicKey: new Uint8Array(1568).fill(value),
+    signingPublicKey: new Uint8Array(2592).fill(value),
+    selfSignature: new Uint8Array(4627).fill(value),
+    checksum: new Uint8Array(16).fill(value),
+    fingerprint: new Uint8Array(32).fill(value),
+    identityId: new Uint8Array(20).fill(value),
   };
 }
 
@@ -109,7 +126,7 @@ describe("Cat-5 V2 secret failure cleanup", () => {
     expect(encapsulate).not.toHaveBeenCalled();
   });
 
-  it("wipes V2 text signing authority when Worker construction fails", () => {
+  it("wipes caller-owned V2 text authority when Worker construction fails", () => {
     const senderSigningCapability = signingCapability(31);
     vi.stubGlobal(
       "Worker",
@@ -119,7 +136,16 @@ describe("Cat-5 V2 secret failure cleanup", () => {
         }
       },
     );
-    const input = { senderSigningCapability } as EncryptTextInputV2;
+    const input: EncryptTextInputV2 = {
+      compact: false,
+      sender: publicContact(41),
+      senderSigningCapability,
+      recipient: publicContact(42),
+      plaintext: "secret",
+      messageId: new Uint8Array(16).fill(43),
+      sentAt: 1n,
+      createdAt: 1n,
+    };
 
     expect(() => startEncryptTextJob(input)).toThrow("injected Worker failure");
     expect(senderSigningCapability.signingSecretKey).toEqual(

@@ -267,7 +267,7 @@ describe("contact import source ownership", () => {
     });
     await userEvent.click(save);
     expect((await screen.findByRole("alert")).textContent).toBe(
-      "invalidContact",
+      "legacyContactUnsupported",
     );
     expect(onChange).not.toHaveBeenCalled();
 

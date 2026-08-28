@@ -2,11 +2,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { importSessionIdentity } from "../e2e/helpers";
 
 const labels = {
@@ -108,7 +108,7 @@ for (const locale of ["en", "de"] as const) {
     // Startup errors were captured above; discard only that harness noise.
     consoleErrors.length = 0;
 
-    const bob = await deriveIdentityFromEntropy(
+    const bob = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(2),
       "Bob",
     );
@@ -120,7 +120,7 @@ for (const locale of ["en", "de"] as const) {
     await page.getByRole("link", { name: labels[locale].contacts }).click();
     await page
       .getByLabel(labels[locale].contactPayload)
-      .fill(encodePublicContactQr(createPublicContact(bob, "Bob", 2n)));
+      .fill(encodePublicContactV2Text(createPublicContactV2(bob, "Bob", 2n)));
     await page
       .getByRole("button", { name: labels[locale].saveContact })
       .click();

@@ -39,10 +39,6 @@ const en = {
   autoDecryptIncomingMessages: "Auto-decrypt incoming message links and QRs",
   autoDecryptIncomingMessagesHint:
     "Decrypt locally after authentication. No message is saved by this setting.",
-  messageQrSettings: "Message QR",
-  messageQrCreationEnabled: "Offer message QR after text encryption",
-  messageQrCreationEnabledHint:
-    "Optional output after ordinary encrypted text. Receiving message QRs remains available.",
   qrExportSetting: "Export",
   qrExportApp: "In-app QR",
   qrExportLink: "Phone camera link",
@@ -59,8 +55,6 @@ const en = {
   publicPrivateTitle: "Know what to share",
   publicLabel: "Public contact",
   publicAuthority: "Safe to share",
-  publicQrAlt: "Public contact QR code",
-  saveContactQr: "Save contact QR as PNG",
   showLargerQr: "Show larger QR",
   closeLargerQr: "Close larger QR",
   downloadContact: "Download public contact",
@@ -241,6 +235,25 @@ const en = {
   recoveryFile: "Private recovery file",
   recoveryImportWarning:
     "This recovery material is unencrypted. Anyone who gets it can recover your private identity.",
+  legacyRecoveryUpgradeNotice:
+    "Legacy V1 recovery detected. It will be upgraded to CAT-5 V2. Old ciphertext remains readable, but you must share your new V2 public contact.",
+  legacyContentNotice:
+    "Legacy V1 content—decryption supported; new encryption uses CAT-5.",
+  authenticatedLegacySenderLabel: "Authenticated legacy sender",
+  legacyCompactContactRequired:
+    "Import the legacy sender's public contact temporarily below, then try again.",
+  temporaryLegacyContactTitle: "Temporary legacy sender contact",
+  temporaryLegacyContactHelper:
+    "Used only for one V1 sender during this unlocked identity session. It is never saved to Contacts and is cleared when you lock, reload, or replace it.",
+  temporaryLegacyContact: "Legacy sender contact payload",
+  temporaryLegacyContactFile: "Legacy sender contact file",
+  useTemporaryLegacyContact: "Use temporary legacy contact",
+  clearTemporaryLegacyContact: "Clear temporary legacy contact",
+  temporaryLegacyContactReady: "Temporary legacy sender contact ready.",
+  invalidTemporaryLegacyContact:
+    "This legacy sender contact is invalid or damaged.",
+  legacyContactUnsupported:
+    "Legacy V1 public contacts cannot be used. Ask this person to share their new CAT-5 V2 public contact.",
   importFile: "Import private file",
   importError: "Could not import this identity",
   importErrorSummaryTitle: "Check identity import",
@@ -292,8 +305,8 @@ const en = {
   cameraUnavailable:
     "The camera could not start. Try again or upload the saved QR image.",
   qrScanError: "Could not read this QR image.",
-  qrUnknownSender: "Import this sender's public contact first.",
-  messageQrReady: "Encrypted message QR ready for local decryption.",
+  compactV2UnknownSender:
+    "Import this sender's CAT-5 V2 public contact before decrypting this compact message.",
   importScannedQr: "Import scanned QR",
   paste: "Paste",
   pasteUnavailable: "Clipboard paste is unavailable in this browser context.",
@@ -344,12 +357,6 @@ const en = {
   copyFailed: "Could not copy. Select the encrypted output manually.",
   saveOutput: "Save encrypted output",
   shareOutput: "Share encrypted output",
-  qrKnownSenderGuidance:
-    "The recipient must already have your public contact to verify and decrypt this compact QR.",
-  downloadAppMessageQr: "Download in-app message QR",
-  downloadLinkMessageQr: "Download phone camera link QR",
-  messageQrTooLarge: "Encrypted QR is",
-  messageQrTooLargeSuffix: "encoded bytes too large; shorten the message.",
   identityRequired: "Create or import an identity first.",
   noContactsYet: "Import a public contact before encrypting.",
   encryptFileTitle: "Encrypt a file",
@@ -492,10 +499,6 @@ const de: Record<keyof typeof en, string> = {
     "Eingehende Nachrichtenlinks und QRs automatisch entschlüsseln",
   autoDecryptIncomingMessagesHint:
     "Nach der Authentifizierung lokal entschlüsseln. Diese Einstellung speichert keine Nachricht.",
-  messageQrSettings: "Nachrichten-QR",
-  messageQrCreationEnabled: "Nachrichten-QR nach Textverschlüsselung anbieten",
-  messageQrCreationEnabledHint:
-    "Optionale Ausgabe nach normalem verschlüsseltem Text. Der Empfang von Nachrichten-QRs bleibt verfügbar.",
   qrExportSetting: "Export",
   qrExportApp: "In-App-QR",
   qrExportLink: "Link für die Handykamera",
@@ -512,8 +515,6 @@ const de: Record<keyof typeof en, string> = {
   publicPrivateTitle: "Erkenne, was du teilen darfst",
   publicLabel: "Öffentlicher Kontakt",
   publicAuthority: "Darf geteilt werden",
-  publicQrAlt: "QR-Code des öffentlichen Kontakts",
-  saveContactQr: "Kontakt-QR als PNG speichern",
   showLargerQr: "QR-Code größer anzeigen",
   closeLargerQr: "Großen QR-Code schließen",
   downloadContact: "Öffentlichen Kontakt herunterladen",
@@ -704,6 +705,25 @@ const de: Record<keyof typeof en, string> = {
   recoveryFile: "Private Wiederherstellungsdatei",
   recoveryImportWarning:
     "Dieses Wiederherstellungsmaterial ist unverschlüsselt. Wer es bekommt, kann deine private Identität wiederherstellen.",
+  legacyRecoveryUpgradeNotice:
+    "Alte V1-Wiederherstellung erkannt. Sie wird auf CAT-5 V2 aktualisiert. Alte verschlüsselte Inhalte bleiben lesbar, aber du musst deinen neuen öffentlichen V2-Kontakt teilen.",
+  legacyContentNotice:
+    "Alter V1-Inhalt—Entschlüsselung wird unterstützt; neue Verschlüsselung verwendet CAT-5.",
+  authenticatedLegacySenderLabel: "Authentifizierter alter Absender",
+  legacyCompactContactRequired:
+    "Importiere unten vorübergehend den alten öffentlichen Kontakt des Absenders und versuche es erneut.",
+  temporaryLegacyContactTitle: "Temporärer alter Absenderkontakt",
+  temporaryLegacyContactHelper:
+    "Wird während dieser entsperrten Identitätssitzung nur für einen V1-Absender verwendet. Er wird nie in Kontakte gespeichert und beim Sperren, Neuladen oder Ersetzen gelöscht.",
+  temporaryLegacyContact: "Alter Absenderkontakt",
+  temporaryLegacyContactFile: "Datei des alten Absenderkontakts",
+  useTemporaryLegacyContact: "Temporären alten Kontakt verwenden",
+  clearTemporaryLegacyContact: "Temporären alten Kontakt löschen",
+  temporaryLegacyContactReady: "Temporärer alter Absenderkontakt ist bereit.",
+  invalidTemporaryLegacyContact:
+    "Dieser alte Absenderkontakt ist ungültig oder beschädigt.",
+  legacyContactUnsupported:
+    "Alte öffentliche V1-Kontakte können nicht verwendet werden. Bitte diese Person, ihren neuen öffentlichen CAT-5-V2-Kontakt zu teilen.",
   importFile: "Private Datei importieren",
   importError: "Diese Identität konnte nicht importiert werden",
   importErrorSummaryTitle: "Identitätsimport prüfen",
@@ -756,10 +776,8 @@ const de: Record<keyof typeof en, string> = {
   cameraUnavailable:
     "Die Kamera konnte nicht gestartet werden. Versuche es erneut oder lade das gespeicherte QR-Bild hoch.",
   qrScanError: "Dieses QR-Bild konnte nicht gelesen werden.",
-  qrUnknownSender:
-    "Importiere zuerst den öffentlichen Kontakt dieses Absenders.",
-  messageQrReady:
-    "Der verschlüsselte Nachrichten-QR ist zur lokalen Entschlüsselung bereit.",
+  compactV2UnknownSender:
+    "Importiere vor der Entschlüsselung dieser kompakten Nachricht den öffentlichen CAT-5-V2-Kontakt des Absenders.",
   importScannedQr: "Gescannten QR-Code importieren",
   paste: "Einfügen",
   pasteUnavailable:
@@ -816,12 +834,6 @@ const de: Record<keyof typeof en, string> = {
     "Kopieren nicht möglich. Wähle die verschlüsselte Ausgabe manuell aus.",
   saveOutput: "Verschlüsselte Ausgabe speichern",
   shareOutput: "Verschlüsselte Ausgabe teilen",
-  qrKnownSenderGuidance:
-    "Der Empfänger muss deinen öffentlichen Kontakt bereits besitzen, um diesen kompakten QR zu prüfen und zu entschlüsseln.",
-  downloadAppMessageQr: "In-App-Nachrichten-QR herunterladen",
-  downloadLinkMessageQr: "QR-Link für die Handykamera herunterladen",
-  messageQrTooLarge: "Der verschlüsselte QR ist",
-  messageQrTooLargeSuffix: "kodierte Bytes zu groß; kürze die Nachricht.",
   identityRequired: "Erstelle oder importiere zuerst eine Identität.",
   noContactsYet: "Importiere vor dem Verschlüsseln einen öffentlichen Kontakt.",
   encryptFileTitle: "Datei verschlüsseln",

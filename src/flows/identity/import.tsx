@@ -11,10 +11,19 @@ import { zeroize, zeroizeIdentitySecretsV2 } from "../../crypto/zeroize";
 import type { MessageKey } from "../../i18n";
 import { decodeBase45Upper } from "../../protocol/base45";
 import {
+  parseRecoveryObject,
+  PPXR_MAXIMUM_BASE45_CHARS,
+} from "../../protocol/ppxr";
+import {
   parseRecoveryObjectV2,
   PPXR_V2_MAXIMUM_BASE45_CHARS,
   PPXR_V2_TEXT_PREFIX,
 } from "../../protocol/ppxr-v2";
+import {
+  parseLockedVault,
+  PPXV_MAXIMUM_BASE45_CHARS,
+  PPXV_MAXIMUM_SIZE,
+} from "../../protocol/ppxv";
 import {
   parseLockedVaultV2,
   PPXV_V2_MAXIMUM_BASE45_CHARS,
@@ -31,6 +40,11 @@ import {
   type CryptoWorkerJob,
   startUnlockVaultJob,
 } from "../../workers/crypto-client";
+import {
+  type LegacyV1WorkerJob,
+  startLegacyRecoveryMigrationJob,
+  startLegacyVaultMigrationJob,
+} from "../../workers/legacy-v1-client";
 
 interface IdentityImportProps {
   t: (key: MessageKey) => string;
@@ -42,6 +56,8 @@ interface IdentityImportProps {
     acceptOwnership?: () => boolean,
   ) => Promise<void> | void;
   readPrivateFileMagic?: (file: File) => Promise<string>;
+  legacyRecoveryMigrationJobFactory?: typeof startLegacyRecoveryMigrationJob;
+  legacyVaultMigrationJobFactory?: typeof startLegacyVaultMigrationJob;
 }
 
 async function defaultReadPrivateFileMagic(file: File): Promise<string> {
@@ -56,11 +72,11 @@ export interface RecoveryWordsImportOutputV2 {
   importedAt: bigint;
 }
 
-type ClassifiedPrivateQrV2 =
-  | { kind: "recovery"; payload: Uint8Array }
-  | { kind: "private-vault"; payload: Uint8Array };
+export type ClassifiedPrivateQr =
+  | { kind: "recovery"; suite: 1 | 2; payload: Uint8Array }
+  | { kind: "private-vault"; suite: 1 | 2; payload: Uint8Array };
 
-function classifyPrivateQrV2(raw: string): ClassifiedPrivateQrV2 {
+export function classifyPrivateQr(raw: string): ClassifiedPrivateQr {
   if (raw.startsWith(PPXR_V2_TEXT_PREFIX)) {
     const encoded = raw.slice(PPXR_V2_TEXT_PREFIX.length);
     if (encoded.length > PPXR_V2_MAXIMUM_BASE45_CHARS) {
@@ -69,7 +85,7 @@ function classifyPrivateQrV2(raw: string): ClassifiedPrivateQrV2 {
     const payload = decodeBase45Upper(encoded);
     const recovery = parseRecoveryObjectV2(payload);
     zeroize(recovery.masterEntropy);
-    return { kind: "recovery", payload };
+    return { kind: "recovery", suite: 2, payload };
   }
   const vaultPrefix = "PPX2:PRIVATE:";
   if (raw.startsWith(vaultPrefix)) {
@@ -79,7 +95,28 @@ function classifyPrivateQrV2(raw: string): ClassifiedPrivateQrV2 {
     }
     const payload = decodeBase45Upper(encoded);
     parseLockedVaultV2(payload);
-    return { kind: "private-vault", payload };
+    return { kind: "private-vault", suite: 2, payload };
+  }
+  const legacyRecoveryPrefix = "PPX1:RECOVERY:";
+  if (raw.startsWith(legacyRecoveryPrefix)) {
+    const encoded = raw.slice(legacyRecoveryPrefix.length);
+    if (encoded.length > PPXR_MAXIMUM_BASE45_CHARS) {
+      throw new Error("oversize private QR");
+    }
+    const payload = decodeBase45Upper(encoded);
+    const recovery = parseRecoveryObject(payload);
+    zeroize(recovery.masterEntropy);
+    return { kind: "recovery", suite: 1, payload };
+  }
+  const legacyVaultPrefix = "PPX1:PRIVATE:";
+  if (raw.startsWith(legacyVaultPrefix)) {
+    const encoded = raw.slice(legacyVaultPrefix.length);
+    if (encoded.length > PPXV_MAXIMUM_BASE45_CHARS) {
+      throw new Error("oversize private QR");
+    }
+    const payload = decodeBase45Upper(encoded);
+    parseLockedVault(payload);
+    return { kind: "private-vault", suite: 1, payload };
   }
   throw new Error("unsupported private QR");
 }
@@ -127,20 +164,28 @@ export function IdentityImport({
   onBack,
   onReady,
   readPrivateFileMagic = defaultReadPrivateFileMagic,
+  legacyRecoveryMigrationJobFactory = startLegacyRecoveryMigrationJob,
+  legacyVaultMigrationJobFactory = startLegacyVaultMigrationJob,
 }: IdentityImportProps) {
   const [pseudonym, setPseudonym] = useState("");
   const [words, setWords] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [fileKind, setFileKind] = useState<"recovery" | "vault" | null>(null);
+  const [fileSuite, setFileSuite] = useState<1 | 2 | null>(null);
   const [passphrase, setPassphrase] = useState("");
   const passphraseBytes = new TextEncoder().encode(passphrase).byteLength;
   const [scannedQr, setScannedQr] = useState("");
   const [qrKind, setQrKind] = useState<"recovery" | "vault" | null>(null);
+  const [qrSuite, setQrSuite] = useState<1 | 2 | null>(null);
   const [busy, setBusy] = useState(false);
   const [routingPrivateFile, setRoutingPrivateFile] = useState(false);
   const [error, setError] = useState("");
   const errorSummary = useRef<HTMLElement | null>(null);
-  const unlockJob = useRef<CryptoWorkerJob<DerivedIdentityV2> | null>(null);
+  const unlockJob = useRef<
+    | CryptoWorkerJob<DerivedIdentityV2>
+    | LegacyV1WorkerJob<DerivedIdentityV2>
+    | null
+  >(null);
   const mounted = useRef(true);
   const fileGeneration = useRef(0);
   let normalizedPseudonym = "";
@@ -250,23 +295,44 @@ export function IdentityImport({
   const importFile = async () => {
     if (!file) return;
     fileGeneration.current += 1;
-    let operation: CryptoWorkerJob<DerivedIdentityV2> | null = null;
+    let operation:
+      | CryptoWorkerJob<DerivedIdentityV2>
+      | LegacyV1WorkerJob<DerivedIdentityV2>
+      | null = null;
     let bytes: Uint8Array | undefined;
     let recovery: RecoveryObjectV2 | undefined;
     setBusy(true);
     setError("");
     try {
-      if (file.size > PPXV_V2_MAXIMUM_SIZE)
+      if (file.size > Math.max(PPXV_MAXIMUM_SIZE, PPXV_V2_MAXIMUM_SIZE))
         throw new Error("oversize private file");
       bytes = new Uint8Array(await file.arrayBuffer());
       const magic = new TextDecoder().decode(bytes.slice(0, 4));
-      if (magic === "PPXR") {
+      if (magic === "PPXR" && fileSuite === 1) {
+        operation = legacyRecoveryMigrationJobFactory(bytes);
+        unlockJob.current = operation;
+        const identity = await operation.promise;
+        if (unlockJob.current !== operation) {
+          zeroizeIdentitySecretsV2(identity);
+          return;
+        }
+        await complete(identity, identity.pseudonym, identity.creationTime);
+      } else if (magic === "PPXV" && fileSuite === 1) {
+        operation = legacyVaultMigrationJobFactory({ bytes, passphrase });
+        unlockJob.current = operation;
+        const identity = await operation.promise;
+        if (unlockJob.current !== operation) {
+          zeroizeIdentitySecretsV2(identity);
+          return;
+        }
+        await complete(identity, identity.pseudonym, identity.creationTime);
+      } else if (magic === "PPXR" && fileSuite === 2) {
         recovery = parseRecoveryObjectV2(bytes);
         const identity = await defaultCryptoProvider.deriveIdentity(
           recovery.masterEntropy,
         );
         await complete(identity, recovery.pseudonym, recovery.creationTime);
-      } else if (magic === "PPXV") {
+      } else if (magic === "PPXV" && fileSuite === 2) {
         operation = startUnlockVaultJob({
           vault: parseLockedVaultV2(bytes),
           passphrase,
@@ -300,19 +366,26 @@ export function IdentityImport({
     fileGeneration.current = generation;
     setFile(null);
     setFileKind(null);
+    setFileSuite(null);
     setError("");
     if (!next) return;
     setRoutingPrivateFile(true);
     try {
-      if (next.size > PPXV_V2_MAXIMUM_SIZE)
+      if (next.size > Math.max(PPXV_MAXIMUM_SIZE, PPXV_V2_MAXIMUM_SIZE))
         throw new Error("oversize private file");
       const magic = await readPrivateFileMagic(next);
       if (!mounted.current || fileGeneration.current !== generation) return;
-      if (magic !== "PPXR\u0002\u0002" && magic !== "PPXV\u0002\u0002") {
+      if (
+        magic !== "PPXR\u0001\u0001" &&
+        magic !== "PPXV\u0001\u0001" &&
+        magic !== "PPXR\u0002\u0002" &&
+        magic !== "PPXV\u0002\u0002"
+      ) {
         throw new Error("unsupported private file");
       }
       setFile(next);
       setFileKind(magic.startsWith("PPXR") ? "recovery" : "vault");
+      setFileSuite(magic.charCodeAt(4) === 1 ? 1 : 2);
     } catch {
       if (mounted.current && fileGeneration.current === generation) {
         setError(t("importError"));
@@ -328,11 +401,13 @@ export function IdentityImport({
     if (busy) return;
     setScannedQr("");
     setQrKind(null);
+    setQrSuite(null);
     setError("");
     let privatePayload: Uint8Array | undefined;
     try {
-      const classified = classifyPrivateQrV2(value);
+      const classified = classifyPrivateQr(value);
       privatePayload = classified.payload;
+      setQrSuite(classified.suite);
       if (classified.kind === "recovery") setQrKind("recovery");
       else if (classified.kind === "private-vault") setQrKind("vault");
       else throw new Error("public contact is not a private identity");
@@ -345,21 +420,51 @@ export function IdentityImport({
   };
 
   const importQr = async () => {
-    let operation: CryptoWorkerJob<DerivedIdentityV2> | null = null;
+    let operation:
+      | CryptoWorkerJob<DerivedIdentityV2>
+      | LegacyV1WorkerJob<DerivedIdentityV2>
+      | null = null;
     let privatePayload: Uint8Array | undefined;
     let recovery: RecoveryObjectV2 | undefined;
     setBusy(true);
     setError("");
     try {
-      const classified = classifyPrivateQrV2(scannedQr);
+      const classified = classifyPrivateQr(scannedQr);
       privatePayload = classified.payload;
-      if (classified.kind === "recovery") {
+      if (classified.kind === "recovery" && classified.suite === 1) {
+        operation = legacyRecoveryMigrationJobFactory(privatePayload);
+        unlockJob.current = operation;
+        const identity = await operation.promise;
+        if (unlockJob.current !== operation) {
+          zeroizeIdentitySecretsV2(identity);
+          return;
+        }
+        await complete(identity, identity.pseudonym, identity.creationTime);
+      } else if (
+        classified.kind === "private-vault" &&
+        classified.suite === 1
+      ) {
+        operation = legacyVaultMigrationJobFactory({
+          bytes: privatePayload,
+          passphrase,
+        });
+        unlockJob.current = operation;
+        const identity = await operation.promise;
+        if (unlockJob.current !== operation) {
+          zeroizeIdentitySecretsV2(identity);
+          return;
+        }
+        await complete(identity, identity.pseudonym, identity.creationTime);
+      } else if (classified.kind === "recovery" && classified.suite === 2) {
         recovery = parseRecoveryObjectV2(classified.payload);
         const identity = await defaultCryptoProvider.deriveIdentity(
           recovery.masterEntropy,
         );
         await complete(identity, recovery.pseudonym, recovery.creationTime);
-      } else if (classified.kind === "private-vault") {
+      } else if (
+        classified.kind === "private-vault" &&
+        classified.suite === 2
+      ) {
         operation = startUnlockVaultJob({
           vault: parseLockedVaultV2(classified.payload),
           passphrase,
@@ -451,6 +556,11 @@ export function IdentityImport({
           {t("selectedFile")}: {file.name}
         </p>
       )}
+      {fileSuite === 1 && (
+        <div class="warning-panel" role="note">
+          <p>{t("legacyRecoveryUpgradeNotice")}</p>
+        </div>
+      )}
       {fileKind === "recovery" && (
         <div class="warning-panel danger-copy" role="alert">
           <strong>{t("recoveryHint")}</strong>
@@ -492,6 +602,11 @@ export function IdentityImport({
       </button>
       <div class="flow-divider" aria-hidden="true" />
       <QrImport idPrefix="identity" t={t} onDecoded={acceptScannedQr} />
+      {qrSuite === 1 && (
+        <div class="warning-panel" role="note">
+          <p>{t("legacyRecoveryUpgradeNotice")}</p>
+        </div>
+      )}
       {qrKind === "recovery" && (
         <div class="warning-panel danger-copy" role="alert">
           <strong>{t("recoveryHint")}</strong>
