@@ -14,7 +14,11 @@ export default defineConfig({
   plugins: [preact()],
   test: {
     environment: "jsdom",
-    maxWorkers: 4,
+    // Vault tests deliberately exercise production-strength scrypt. Running
+    // several of them concurrently makes individual wall time depend on CI
+    // runner contention and can exceed the real test timeout without a logic
+    // failure. One worker keeps coverage deterministic and fail-closed.
+    maxWorkers: 1,
     testTimeout: 30_000,
     setupFiles: ["./src/tests/setup.ts"],
     include: ["src/tests/**/*.{test,property}.{ts,tsx}"],
