@@ -1,12 +1,16 @@
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { LockedVaultObject, PublicContact } from "../protocol/types";
+import type { LockedVaultObject } from "../protocol/types";
+import type {
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../protocol/types-v2";
 import { SessionStorage } from "./session";
 
 export const DATABASE_NAME = "chat-nocontrol-ppx";
 
 export interface StoredContact {
   id: string;
-  contact: PublicContact;
+  contact: PublicContactV2;
   nickname: string;
   includeSenderContactInLinks?: boolean;
 }
@@ -17,14 +21,13 @@ export interface StoredSettings {
   accent?:
     "blue" | "indigo" | "purple" | "teal" | "pink" | "orange" | "graphite";
   translucent?: boolean;
-  messageQrCreationEnabled?: boolean;
-  qrExportMode?: "app" | "link" | "both";
-  qrImportControls?: "camera" | "image" | "both";
   messageOutputMode?: "link" | "text" | "both";
   autoDecryptIncomingMessages?: boolean;
   /** Legacy read-only migration source. New writes omit this field. */
   qrAutoDecrypt?: boolean;
 }
+
+export type StoredVaultObject = LockedVaultObject | LockedVaultObjectV2;
 
 export interface PpxDatabaseSchema extends DBSchema {
   contacts: {
@@ -32,7 +35,10 @@ export interface PpxDatabaseSchema extends DBSchema {
     value: StoredContact;
     indexes: { "by-pseudonym": string };
   };
-  vaults: { key: "active"; value: LockedVaultObject };
+  vaults: {
+    key: "active" | "migration-v2";
+    value: StoredVaultObject;
+  };
   settings: { key: "preferences"; value: StoredSettings };
 }
 

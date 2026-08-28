@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic PPX-PQ-5 identity, KEM, contact, text, and file golden.",
+  "suite": 2,
+  "formatVersion": 2,
+  "identity": {
+    "masterEntropy": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "kemPublicKeySha512": "e68ce825efa58096152c32054d03b6984ab6f84ac91175507afa652d41a26bc305ad4b713f90b78f91a0f1bfbea77cb23b5570bc73eba8da04a408ffaad051c6",
+    "signingPublicKeySha512": "aa7dfa41e7313f77d76e906bec197bc12d28fd2132b6b3660a7919fa5bf0bf3aadf20308bc434a91a80a84bb975b37fa0d0252fdd56048785e9c8f2c4f0524d1",
+    "fingerprint": "0724fa41626e5ccd9b3d2d2194e2681d94128c5c6e0daa0ab196b90b5cac1318",
+    "identityId": "0724fa41626e5ccd9b3d2d2194e2681d94128c5c"
+  },
+  "kem": {
+    "objectFamily": 3,
+    "salt": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "recipientFingerprint": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "ciphertextSha512": "ac586031762a02df74087822003c1a27067412e2207acb4cd694d188e17c8db27a9bb5c6a99c950ea8d1ae64d92f27e6984d4e0106e7b59db98f07cba1230316",
+    "sharedSecret": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+    "aes256Key": "cafcc8b613ba322240b189af6bd6dacafffc73e2f72e1139fb214cb6b5774fac"
+  },
+  "contact": {
+    "pseudonym": "Cat5 Golden",
+    "creationTime": "72623859790382856",
+    "signatureEntropy": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "signatureSha512": "095e25baedef36c32e2f5c8f8a9dbbe32367024cff2448ca7aeee0d482b92fcdc029fceac11e20338db422ea012248c58bc0161a30e0486a64424e9a4c358610",
+    "encodedLength": 8830,
+    "encodedSha512": "f27952e49ee37399b159d8f2ab9a88f723ea820c5034b6e2782ff9759fa9f8c103f660de8fe9c6a157e7942968c078d97c7c567541c4c2860f8073a114dcdbf2"
+  },
+  "text": {
+    "signatureContexts": {
+      "full": "PPX/TEXT/FULL/V2",
+      "compact": "PPX/TEXT/COMPACT/V2"
+    },
+    "full": {
+      "magic": "PPXT",
+      "flags": 0,
+      "encodedLength": 15163,
+      "encodedSha512": "ba4d77ceb4f1dbb54dd4ca591f4a92dd7e1392f7fb081c434ea9410c4b40621bdec63cabbf6871248034db67244fd728d858c214a6287f618a5985843fa856e1",
+      "ciphertextSha512": "b9890b6ed7af336be1607f6f00d8049914cb563ff71d9a7adaddbe535e78fc1aadde3fd54b987ce6f63ab1bd5b8d81a6fc44bd2fdaa1f4095b6d5364c497795c"
+    },
+    "compact": {
+      "magic": "PPXM",
+      "flags": 0,
+      "encodedLength": 6370,
+      "encodedSha512": "664d9fca2465e15eb5513808c53ef71894975b1622d401f3912010afa30f28b5f4c717134f4b4a380a00197d8d9cb92f1f3d39432388475b79c40a6b9997beba",
+      "ciphertextSha512": "8254b38cc6c9bad3c5efcb89f5a7734e885057c410add0df7143667f26948cd71f16d4b752f1fb1ddb5a38ac7cb3c1933088e65a58957687ad548ab660ce0b64"
+    }
+  },
+  "file": {
+    "magic": "PPXF",
+    "objectFamily": 4,
+    "headerBytes": 1651,
+    "chunkBytes": 1048576,
+    "signatureContext": "PPX/FILE/MANIFEST/V2",
+    "encodedLength": 15258,
+    "encodedSha512": "413ab6cd95a1c1b50091e2da40e2359d8e66f4b439bb25fb4fb999d0682196d5274235d47d953b40d38412644233e3ff92dd16eef7fbdfe72a23b1a915ca469c",
+    "manifestCiphertextSha512": "e84243b71bbabf5121c923a390ed332118fcca3e45e3c49bfdd56d4c5b1323e00389ca2d3421c016592b0f938bb737cdffc5659796f92d2846adc12ee908140a"
+  },
+  "recovery": {
+    "magic": "PPXR",
+    "flags": 0,
+    "encodedLength": 75,
+    "encodedSha512": "5211ba55768096dc44a5c1c7a4d1fec6eff3c541730b04b0395a2f8220c7f1ce2a04d306c6dd2695d4886d5e5272db045db47523d5226c4a12fe8b61dc007c06",
+    "encodedBase64": "UFBYUgICAAsBAgMEBQYHCAABAgMEBQYHCAkKCwwNDg8QERITFBUWFxgZGhscHR4fQ2F0NSBHb2xkZW6GWLx1UOsbrTEAajOncXSW"
+  },
+  "vault": {
+    "magic": "PPXV",
+    "flags": 1,
+    "kdfId": 1,
+    "scryptN": 65536,
+    "scryptR": 8,
+    "scryptP": 2,
+    "encodedLength": 140,
+    "encodedSha512": "5edc54a7e350f6427a809593c784c71c30bd22b52e6a20d61adc7c11e78bf6708b6af3729e737d0f65fd0b5145af280676f7080564d4149d874d4119c2f760f0",
+    "ciphertextSha512": "11966f415c7a63b45e0e5e20a6e97f43b6fa26afc839b095f18e7e66079857dd57e2cf4a8800654b1c4c02e00fd6f6b43b258e174e5be93c4589a58d00b6307e",
+    "encodedBase64": "UFBYVgICAQEAAAAAAAEAAAAAAAgAAAACEBESExQVFhcYGRobHB0eHzAxMjM0NTY3ODk6OwAAAERQYXKDlKW2x9jp+gscLT5PYHGCk6S1xtfo+QobLD1OX3CBkqO0xdbn+AkaKzxNXm+AkaKzxNXm9wgZKjtMXW5/kKGyw3IPPUDxZtLEXTy2xiIv/HU="
+  }
+}

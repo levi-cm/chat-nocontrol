@@ -1,21 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  deriveIdentityFromEntropy,
-  type IdentityDerivationPrimitives,
-} from "../../crypto/identity";
+  deriveIdentityV2FromEntropy,
+  type IdentityV2DerivationPrimitives,
+} from "../../crypto/identity-v2";
 import {
-  encapsulateHybrid,
-  type HybridEncapsulationPrimitives,
-} from "../../crypto/hybrid";
-import {
-  deriveHkdfSha512,
-  ed25519PublicKey,
-  mlKem512Encapsulate,
-  mlKem512Keygen,
-  x25519PublicKey,
-  x25519SharedSecret,
-} from "../../crypto/noble-provider";
-import type { EncryptFileInput, EncryptTextInput } from "../../protocol/types";
+  encapsulateMlKemV2,
+  type MlKemV2EncapsulationPrimitives,
+} from "../../crypto/kem-v2";
+import { deriveHkdfSha512 } from "../../crypto/noble-provider";
+import { PPXError } from "../../protocol/types";
+import { ObjectFamilyV2 } from "../../protocol/types-v2";
+import type {
+  EncryptFileInputV2,
+  EncryptTextInputV2,
+  PublicContactV2,
+  SenderSigningCapabilityV2,
+} from "../../protocol/types-v2";
 import { startEncryptTextJob } from "../../workers/crypto-client";
 import { startEncryptFileJob } from "../../workers/file-client";
 
@@ -24,110 +24,110 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("secret failure cleanup", () => {
-  it("wipes derived identity secrets if derivation fails", async () => {
+function signingCapability(value: number): SenderSigningCapabilityV2 {
+  return {
+    suite: 0x02,
+    fingerprint: new Uint8Array(32).fill(1),
+    signingPublicKey: new Uint8Array(2592).fill(2),
+    signingSecretKey: new Uint8Array(4896).fill(value),
+  };
+}
+
+function publicContact(value: number): PublicContactV2 {
+  return {
+    magic: "PPXC",
+    formatVersion: 2,
+    suite: 2,
+    creationTime: 1n,
+    pseudonym: "Test",
+    kemPublicKey: new Uint8Array(1568).fill(value),
+    signingPublicKey: new Uint8Array(2592).fill(value),
+    selfSignature: new Uint8Array(4627).fill(value),
+    checksum: new Uint8Array(16).fill(value),
+    fingerprint: new Uint8Array(32).fill(value),
+    identityId: new Uint8Array(20).fill(value),
+  };
+}
+
+describe("Cat-5 V2 secret failure cleanup", () => {
+  it("wipes derived seeds and ML-KEM-1024 secret if identity derivation fails", async () => {
     const derived: Uint8Array[] = [];
-    const primitives: IdentityDerivationPrimitives = {
+    const kemSecretKey = new Uint8Array(3168).fill(11);
+    const primitives: IdentityV2DerivationPrimitives = {
       deriveKey(input, salt, info, length) {
         const output = deriveHkdfSha512(input, salt, info, length);
         derived.push(output);
         return output;
       },
-      keygen: mlKem512Keygen,
-      xPublicKey: () => {
-        throw new Error("injected public-key failure");
+      kemKeygen: () => ({
+        publicKey: new Uint8Array(1568),
+        secretKey: kemSecretKey,
+      }),
+      dsaKeygen: () => {
+        throw new Error("injected ML-DSA keygen failure");
       },
-      signingPublicKey: ed25519PublicKey,
     };
 
     await expect(
-      deriveIdentityFromEntropy(
+      deriveIdentityV2FromEntropy(
         new Uint8Array(32).fill(9),
         "Alice",
         0n,
         primitives,
       ),
-    ).rejects.toThrow("injected public-key failure");
-    expect(derived).toHaveLength(4);
-    for (const buffer of derived)
+    ).rejects.toThrow("injected ML-DSA keygen failure");
+    expect(derived).toHaveLength(2);
+    for (const buffer of derived) {
       expect(buffer.every((byte) => byte === 0)).toBe(true);
+    }
+    expect(kemSecretKey).toEqual(new Uint8Array(3168));
   });
 
-  it("wipes post-KEM secrets when X25519 fails", () => {
-    const kemShared = new Uint8Array(32).fill(11);
-    const primitives: HybridEncapsulationPrimitives = {
-      publicKey: x25519PublicKey,
+  it("wipes ML-KEM shared secret when V2 key derivation fails", () => {
+    const sharedSecret = new Uint8Array(31).fill(11);
+    const primitives: MlKemV2EncapsulationPrimitives = {
+      randomBytes: (length) => new Uint8Array(length).fill(12),
       encapsulate: () => ({
-        cipherText: new Uint8Array(768),
-        sharedSecret: kemShared,
+        cipherText: new Uint8Array(1568),
+        sharedSecret,
       }),
-      sharedSecret: () => {
-        throw new Error("injected X25519 failure");
-      },
-      deriveKey: vi.fn(),
     };
 
     expect(() =>
-      encapsulateHybrid(
+      encapsulateMlKemV2(
         {
+          objectFamily: ObjectFamilyV2.Text,
           recipientFingerprint: new Uint8Array(32),
-          recipientKemPublicKey: new Uint8Array(800),
-          recipientX25519PublicKey: new Uint8Array(32),
+          recipientKemPublicKey: new Uint8Array(1568),
         },
         primitives,
       ),
-    ).toThrow("invalid-hybrid-encapsulation");
-    expect(kemShared).toEqual(new Uint8Array(32));
+    ).toThrow(PPXError);
+    expect(sharedSecret).toEqual(new Uint8Array(31));
   });
 
-  it("rejects malformed recipients before ML-KEM work", () => {
-    const encapsulate = vi.fn(mlKem512Encapsulate);
-    const primitives: HybridEncapsulationPrimitives = {
-      publicKey: x25519PublicKey,
+  it("rejects malformed recipients before ML-KEM-1024 work", () => {
+    const encapsulate = vi.fn();
+    const primitives: MlKemV2EncapsulationPrimitives = {
+      randomBytes: (length) => new Uint8Array(length),
       encapsulate,
-      sharedSecret: x25519SharedSecret,
-      deriveKey: vi.fn(),
     };
+
     expect(() =>
-      encapsulateHybrid(
+      encapsulateMlKemV2(
         {
+          objectFamily: ObjectFamilyV2.Text,
           recipientFingerprint: new Uint8Array(31),
-          recipientKemPublicKey: new Uint8Array(800),
-          recipientX25519PublicKey: new Uint8Array(32),
+          recipientKemPublicKey: new Uint8Array(1568),
         },
         primitives,
       ),
-    ).toThrow("invalid-hybrid-encapsulation");
+    ).toThrow(PPXError);
     expect(encapsulate).not.toHaveBeenCalled();
   });
 
-  it("wipes the ephemeral X25519 secret when salt generation fails", () => {
-    let ephemeralSecret: Uint8Array | undefined;
-    let calls = 0;
-    vi.spyOn(globalThis.crypto, "getRandomValues").mockImplementation(((
-      output: Uint8Array,
-    ) => {
-      calls += 1;
-      if (calls === 1) {
-        output.fill(23);
-        ephemeralSecret = output;
-        return output;
-      }
-      throw new Error("injected salt RNG failure");
-    }) as typeof crypto.getRandomValues);
-
-    expect(() =>
-      encapsulateHybrid({
-        recipientFingerprint: new Uint8Array(32),
-        recipientKemPublicKey: new Uint8Array(800),
-        recipientX25519PublicKey: new Uint8Array(32),
-      }),
-    ).toThrow("invalid-hybrid-encapsulation");
-    expect(ephemeralSecret).toEqual(new Uint8Array(32));
-  });
-
-  it("wipes a text signing capability when Worker construction fails", () => {
-    const signingSecretKey = new Uint8Array(32).fill(31);
+  it("wipes caller-owned V2 text authority when Worker construction fails", () => {
+    const senderSigningCapability = signingCapability(31);
     vi.stubGlobal(
       "Worker",
       class {
@@ -136,16 +136,25 @@ describe("secret failure cleanup", () => {
         }
       },
     );
-    const input = {
-      senderSigningCapability: { signingSecretKey },
-    } as EncryptTextInput;
+    const input: EncryptTextInputV2 = {
+      compact: false,
+      sender: publicContact(41),
+      senderSigningCapability,
+      recipient: publicContact(42),
+      plaintext: "secret",
+      messageId: new Uint8Array(16).fill(43),
+      sentAt: 1n,
+      createdAt: 1n,
+    };
 
     expect(() => startEncryptTextJob(input)).toThrow("injected Worker failure");
-    expect(signingSecretKey).toEqual(new Uint8Array(32));
+    expect(senderSigningCapability.signingSecretKey).toEqual(
+      new Uint8Array(4896),
+    );
   });
 
-  it("wipes a file signing capability when Worker construction fails", () => {
-    const signingSecretKey = new Uint8Array(32).fill(37);
+  it("wipes V2 file signing authority when Worker construction fails", () => {
+    const senderSigningCapability = signingCapability(37);
     vi.stubGlobal(
       "Worker",
       class {
@@ -154,11 +163,11 @@ describe("secret failure cleanup", () => {
         }
       },
     );
-    const input = {
-      senderSigningCapability: { signingSecretKey },
-    } as EncryptFileInput;
+    const input = { senderSigningCapability } as EncryptFileInputV2;
 
     expect(() => startEncryptFileJob(input)).toThrow("injected Worker failure");
-    expect(signingSecretKey).toEqual(new Uint8Array(32));
+    expect(senderSigningCapability.signingSecretKey).toEqual(
+      new Uint8Array(4896),
+    );
   });
 });

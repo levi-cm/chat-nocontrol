@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { displayIdentityId } from "../../components/cards/contact-management-card";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 
 test("encrypts text to one selected contact locally", async ({ page }) => {
   await page.addInitScript(() => {
@@ -24,18 +24,18 @@ test("encrypts text to one selected contact locally", async ({ page }) => {
       },
     });
   });
-  const bob = await deriveIdentityFromEntropy(
+  const bob = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(2),
     "Bob",
   );
-  const bobContact = createPublicContact(bob, "Bob", 2n);
-  const bobQr = encodePublicContactQr(bobContact);
+  const bobContact = createPublicContactV2(bob, "Bob", 2n);
+  const bobQr = encodePublicContactV2Text(bobContact);
   const bobOptionValue = Buffer.from(bobContact.fingerprint).toString("hex");
-  const secondBob = await deriveIdentityFromEntropy(
+  const secondBob = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(3),
     "Bob",
   );
-  const secondBobContact = createPublicContact(secondBob, "Bob", 3n);
+  const secondBobContact = createPublicContactV2(secondBob, "Bob", 3n);
 
   await page.goto("/");
   await page.getByRole("button", { name: "Import identity" }).click();
@@ -90,7 +90,7 @@ test("encrypts text to one selected contact locally", async ({ page }) => {
   await page.getByRole("link", { name: "Contacts" }).click();
   await page
     .getByLabel("Public contact payload")
-    .fill(encodePublicContactQr(secondBobContact));
+    .fill(encodePublicContactV2Text(secondBobContact));
   await page.getByRole("button", { name: "Save public contact" }).click();
   await page.getByRole("link", { name: "Encrypt" }).click();
   const bobOptions = await page

@@ -1,65 +1,69 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../../crypto/identity";
-import { encryptText } from "../../crypto/text";
-import { encryptQrText } from "../../crypto/qr-text";
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
+import { encryptTextV2 } from "../../crypto/text-v2";
 import { createRecoveryWordCodec } from "../../crypto/recovery-words";
-import { encodeMessageLink } from "../../protocol/message-link";
+import { encodeMessageLinkV2 } from "../../protocol/message-link-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { importSessionIdentity } from "./helpers";
 
 async function messageLink(recipientEntropy: Uint8Array, plaintext: string) {
-  const sender = await deriveIdentityFromEntropy(
+  const sender = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(71),
     "Link Alice",
   );
-  const recipient = await deriveIdentityFromEntropy(
+  const recipient = await deriveIdentityV2FromEntropy(
     recipientEntropy,
     "Link Bob",
   );
-  const object = await encryptText({
-    sender: createPublicContact(sender, "Link Alice", 71n),
-    senderSigningCapability: createSenderSigningCapability(sender),
-    recipient: createPublicContact(recipient, "Link Bob", 72n),
+  const object = await encryptTextV2({
+    compact: false,
+    sender: createPublicContactV2(sender, "Link Alice", 71n),
+    senderSigningCapability: createSenderSigningCapabilityV2(sender),
+    recipient: createPublicContactV2(recipient, "Link Bob", 72n),
     plaintext,
     messageId: new Uint8Array(16).fill(73),
     sentAt: 74n,
     createdAt: 74n,
   });
-  return encodeMessageLink({ kind: "ppxt", object }, "https://sender.example/");
+  return encodeMessageLinkV2(
+    { kind: "ppxt", object },
+    "https://sender.example/",
+  );
 }
 
 async function compactMessageLink(
   recipientEntropy: Uint8Array,
   plaintext: string,
 ) {
-  const sender = await deriveIdentityFromEntropy(
+  const sender = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(81),
     "Compact Alice",
   );
-  const recipient = await deriveIdentityFromEntropy(
+  const recipient = await deriveIdentityV2FromEntropy(
     recipientEntropy,
     "Compact Bob",
   );
-  const senderContact = createPublicContact(sender, "Compact Alice", 81n);
-  const object = await encryptQrText({
+  const senderContact = createPublicContactV2(sender, "Compact Alice", 81n);
+  const object = await encryptTextV2({
+    compact: true,
     sender: senderContact,
-    senderSigningCapability: createSenderSigningCapability(sender),
-    recipient: createPublicContact(recipient, "Compact Bob", 82n),
+    senderSigningCapability: createSenderSigningCapabilityV2(sender),
+    recipient: createPublicContactV2(recipient, "Compact Bob", 82n),
     plaintext,
     messageId: new Uint8Array(16).fill(83),
     sentAt: 84n,
     createdAt: 84n,
   });
   return {
-    link: encodeMessageLink(
-      { kind: "ppxq", object },
+    link: encodeMessageLinkV2(
+      { kind: "ppxm", object },
       "https://sender.example/",
     ),
     senderContact,
@@ -355,13 +359,13 @@ test("compact links fail closed for unknown senders and decrypt for saved sender
     window.location.hash = hash;
   }, new URL(link).hash);
   await expect(page.getByRole("alert")).toContainText(
-    "Import this sender's public contact first",
+    "Import this sender's CAT-5 V2 public contact before decrypting this compact message",
   );
 
   await page.getByRole("link", { name: "Contacts" }).click();
   await page
     .getByLabel("Public contact payload")
-    .fill(encodePublicContactQr(senderContact));
+    .fill(encodePublicContactV2Text(senderContact));
   await page.getByRole("button", { name: "Save public contact" }).click();
   await page.getByRole("link", { name: "Decrypt" }).click();
   await page.getByLabel("Encrypted item").fill(link);

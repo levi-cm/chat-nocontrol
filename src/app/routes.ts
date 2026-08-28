@@ -1,4 +1,4 @@
-import { isReservedMessageLinkHash } from "../protocol/message-link";
+import { isReservedIncomingEncryptedHash } from "../protocol/message-link";
 
 export type RouteName =
   "encrypt" | "decrypt" | "contacts" | "identity" | "help" | "settings";
@@ -62,18 +62,9 @@ export function routeAfterUnlock(
 }
 
 export function routeFromHash(hash: string): RouteName {
-  if (isReservedMessageLinkHash(hash)) return "decrypt";
+  if (isReservedIncomingEncryptedHash(hash)) return "decrypt";
   const match = (Object.entries(ROUTES) as [RouteName, string][]).find(
     ([, value]) => value === hash,
   );
   return match?.[0] ?? "identity";
-}
-
-export function captureQrMessageLink(location: Location): string | null {
-  if (!location.hash.startsWith("#/decrypt/qr/")) return null;
-  const encoded = location.hash.slice("#/decrypt/qr/".length);
-  if (!encoded || encoded.length > 120_000 || !/^[0-9A-Z-]+$/.test(encoded)) {
-    return null;
-  }
-  return `${location.origin}${location.pathname}${location.search}#/decrypt/qr/${encoded}`;
 }

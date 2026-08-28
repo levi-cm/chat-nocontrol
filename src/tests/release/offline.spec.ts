@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { createServer, type Server } from "node:http";
+import { createServer, type Server } from "node:https";
 import { extname, join, resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 import {
@@ -9,6 +9,7 @@ import {
 import { encryptText } from "../../crypto/text";
 import { encodeMessageLink } from "../../protocol/message-link";
 import { createPublicContact } from "../../protocol/ppxc";
+import { testTlsCredentials } from "../helpers/test-tls";
 
 const contentTypes: Readonly<Record<string, string>> = {
   ".css": "text/css; charset=utf-8",
@@ -31,10 +32,10 @@ async function startEphemeralStaticServer(): Promise<{
   stop(): Promise<void>;
 }> {
   const distRoot = resolve(process.cwd(), "dist");
-  const server = createServer((request, response) => {
+  const server = createServer(testTlsCredentials(), (request, response) => {
     void (async () => {
       try {
-        const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+        const requestUrl = new URL(request.url ?? "/", "https://127.0.0.1");
         const relativePath =
           requestUrl.pathname === "/"
             ? "index.html"
@@ -73,7 +74,7 @@ async function startEphemeralStaticServer(): Promise<{
   }
   let stopped = false;
   return {
-    origin: `http://127.0.0.1:${address.port}`,
+    origin: `https://127.0.0.1:${address.port}`,
     async stop() {
       if (stopped) return;
       stopped = true;

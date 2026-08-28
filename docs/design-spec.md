@@ -1,10 +1,14 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the system design boundaries for Chat NoControl v1.
-> **Version:** 1.0-draft
+> **Authority:** System design boundaries for CAT-5/V2 target `0.2.0-beta.1`.
+> **Version:** 0.2.0-beta.1 target
 > **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [apple-visual-spec.md](apple-visual-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
+> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-cat5-v2.md](protocol-cat5-v2.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [apple-visual-spec.md](apple-visual-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
 # Design Specification
+
+CAT-5 contacts use file/text; CAT-5 messages use PPXT armor or PPXT/PPXM
+links. Design must expose no V2 contact/message QR creation. Recovery and
+encrypted private-vault QR remain danger/private flows.
 
 ## 1. Design scope
 
@@ -66,7 +70,7 @@ Identity creation is a state-machine wizard, not one vertically scrollable secre
 
 After step 4, plaintext password, recovery words, recovery code, QR presentation, and print/PDF model are cleared and cannot be recreated through Back navigation. A confirmed expert action may skip only steps 5 and 6. The flow uses no press-and-hold control or typed export phrase.
 
-The recovery PNG is `1024 x 1280`, adds the username and localized `PRIVATE KEY — NEVER SHARE` warning above a dark-red `#7f1d1d` QR, and retains the required quiet zone and error correction. The password, date, words, and long recovery code are excluded from this PNG.
+The recovery PNG is `1024 x 1280`, adds the username and localized `PRIVATE KEY — NEVER SHARE` warning, retains the crimson `#7f1d1d` card treatment, and renders QR modules in the scanner-tested high-contrast fallback `#220008` with the required quiet zone and error correction. The password, date, words, and long recovery code are excluded from this PNG.
 
 The embedded preview and direct PDF download share one recovery-document byte sequence so their contents cannot drift. Desktop shows those exact bytes in an A4-ratio PDF iframe; screens at or below `640px` omit the iframe while keeping the words and the same single full-width Download action. There is no custom Print action. Direct offline PDF generation uses the pinned local `pdf-lib` `1.17.1` dependency and standard PDF fonts; it must not introduce a reloadable secret-bearing URL.
 
@@ -148,7 +152,7 @@ The wizard must explain that the QR, `.ppxrecovery`, recovery code, 24 words, an
 - Versioned assets may be cached for reloads.
 - Identities, contacts, decrypted content, and QR payloads must never be cached as application assets.
 - A discovered service-worker update must activate silently without user approval.
-- The app must never force-reload the current document; the newest activated build loads on the next manual reload or app reopen.
+- An exact same-version document must remain open. A legacy or different-version document may be navigated once to the same-origin CAT5 shell with a bounded version marker; supported fragments are captured in memory and scrubbed without requests or persistence.
 
 ## 8. Error model
 

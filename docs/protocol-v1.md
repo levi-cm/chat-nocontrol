@@ -1,10 +1,13 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the brand-neutral PPX Protocol v1.
+> **Authority:** Legacy PPX Protocol V1 decode/migration reference.
+> **Status:** Decode/migration-only compatibility. No V1 creation or write path.
+> CAT-5/V2 authority is
+> [protocol-cat5-v2.md](protocol-cat5-v2.md).
 > **Version:** 1.0-draft
 > **Status:** Public beta channel / stable release unavailable / operational status is external
 > **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
-# PPX Protocol v1
+# Legacy PPX Protocol V1
 
 ## 1. Scope and naming
 
@@ -127,6 +130,10 @@ On word import, the user must choose or re-enter a valid pseudonym in the 1..48 
 The implementation then creates a new signed `PPXC` for the same fingerprint.
 
 The import time is local metadata only and must not be presented as the original creation time.
+
+Because words do not encode original creation time, word imports place the
+explicit `0n` unknown sentinel in the new identity and signed PPXC creation-time
+fields. Local wall-clock import time remains separate `importedAt` metadata.
 
 ## 4. Object families
 

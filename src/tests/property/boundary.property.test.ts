@@ -24,8 +24,35 @@ import { checksum16 } from "../../protocol/checksum";
 import { StrictByteWriter } from "../../protocol/bytes";
 import { parseFileHeader } from "../../protocol/ppxf-header";
 import {
+  parsePublicContactV2,
+  PPXC_V2_MAXIMUM_SIZE,
+} from "../../protocol/ppxc-v2";
+import {
+  parseEncryptedFileObjectV2,
+  PPXF_V2_ENCODED_MAX_BYTES,
+} from "../../protocol/ppxf-v2";
+import {
+  parseRecoveryObjectV2,
+  PPXR_V2_MAXIMUM_SIZE,
+} from "../../protocol/ppxr-v2";
+import {
+  parseEncryptedTextOuterV2,
+  PPX_TEXT_V2_MAXIMUM_OBJECT_SIZE,
+} from "../../protocol/text-v2-outer";
+import {
+  parseLockedVaultV2,
+  PPXV_V2_MAXIMUM_SIZE,
+} from "../../protocol/ppxv-v2";
+import {
+  canonicalCat5ProtocolBytes,
+  cat5ProtocolFamilies,
+  parseCat5ForCanonicalRoundTrip,
+  type Cat5ProtocolFamily,
+} from "../helpers/canonical-cat5-protocol";
+import {
   canonicalProtocolBytes,
   parseForCanonicalRoundTrip,
+  type ProtocolFamily,
 } from "../helpers/canonical-protocol";
 
 describe("declared protocol boundaries", () => {
@@ -46,6 +73,70 @@ describe("declared protocol boundaries", () => {
       );
     }
   });
+
+  it("rejects oversize CAT5 PPXC/PPXT/PPXM/PPXF/PPXR/PPXV before allocation", () => {
+    const oversized = (byteLength: number) =>
+      ({ byteLength }) as unknown as Uint8Array;
+    const cases = [
+      [parsePublicContactV2, PPXC_V2_MAXIMUM_SIZE],
+      [parseEncryptedTextOuterV2, PPX_TEXT_V2_MAXIMUM_OBJECT_SIZE],
+      [parseEncryptedFileObjectV2, PPXF_V2_ENCODED_MAX_BYTES],
+      [parseRecoveryObjectV2, PPXR_V2_MAXIMUM_SIZE],
+      [parseLockedVaultV2, PPXV_V2_MAXIMUM_SIZE],
+    ] as const;
+    for (const [parse, maximum] of cases) {
+      expect(() => parse(oversized(maximum + 1))).toThrow(
+        "oversize-before-allocation",
+      );
+    }
+  });
+
+  it("rejects every sampled non-CAT5 version and suite downgrade label", async () => {
+    const fixtures = await canonicalCat5ProtocolBytes();
+    for (const family of cat5ProtocolFamilies) {
+      const discriminators = [
+        { offset: 4, code: "unknown-format-version" },
+        { offset: 5, code: "unknown-suite" },
+      ] as const;
+      for (const { offset, code } of discriminators) {
+        for (const value of [0, 1, 3, 0xff]) {
+          const mutated = Uint8Array.from(fixtures[family]);
+          mutated[offset] = value;
+          if (family === "ppxf") {
+            mutated.set(
+              checksum16(mutated.subarray(0, -16)),
+              mutated.length - 16,
+            );
+          }
+          expect(
+            () => parseCat5ForCanonicalRoundTrip(family, mutated),
+            `${family} offset ${offset} value ${value}`,
+          ).toThrow(code);
+        }
+      }
+    }
+  }, 30_000);
+
+  it("rejects V1/V2 mixed-family parser downgrade attempts", async () => {
+    const legacy = await canonicalProtocolBytes();
+    const cat5 = await canonicalCat5ProtocolBytes();
+    const sharedFamilies: readonly (ProtocolFamily & Cat5ProtocolFamily)[] = [
+      "ppxc",
+      "ppxt",
+      "ppxf",
+      "ppxr",
+      "ppxv",
+    ];
+    for (const family of sharedFamilies) {
+      expect(() =>
+        parseCat5ForCanonicalRoundTrip(family, legacy[family]),
+      ).toThrow();
+      expect(() => parseForCanonicalRoundTrip(family, cat5[family])).toThrow();
+    }
+    expect(() => parseForCanonicalRoundTrip("ppxt", cat5.ppxm)).toThrow();
+    expect(() => parseCat5ForCanonicalRoundTrip("ppxt", cat5.ppxm)).toThrow();
+    expect(() => parseCat5ForCanonicalRoundTrip("ppxm", cat5.ppxt)).toThrow();
+  }, 30_000);
 
   it("rejects checksum-valid noncanonical PPXV ciphertext before KDF", () => {
     const ciphertextLength = 106;

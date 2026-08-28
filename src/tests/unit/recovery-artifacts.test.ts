@@ -49,6 +49,7 @@ describe("recovery artifact model", () => {
       qrTop: 256,
       qrSize: 768,
       dark: "#7f1d1d",
+      qrDark: "#220008",
       light: "#ffffff",
     });
     const { border, header, headerText } = privateRecoveryCardLayout;

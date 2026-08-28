@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createSenderSigningCapability,
@@ -6,6 +6,8 @@ import {
 } from "../../crypto/identity";
 import { decryptQrText, encryptQrText } from "../../crypto/qr-text";
 import { createPublicContact } from "../../protocol/ppxc";
+
+afterEach(() => vi.restoreAllMocks());
 
 async function identities() {
   const alice = await deriveIdentityFromEntropy(
@@ -61,4 +63,55 @@ describe("compact encrypted QR text", () => {
       decryptQrText({ object, activeIdentity: bob, knownSenders: [] }),
     ).rejects.toThrow("unknown-sender-contact");
   });
+
+  it.each([
+    ["success", false],
+    ["canonical UTF-8 error", true],
+  ] as const)(
+    "zeroizes the plaintext re-encoding on %s",
+    async (_case, forceLengthMismatch) => {
+      const plaintext = "zeroize this plaintext copy 🔐";
+      const { alice, bob, sender, recipient } = await identities();
+      const object = await encryptQrText({
+        sender,
+        senderSigningCapability: createSenderSigningCapability(alice),
+        recipient,
+        plaintext,
+        messageId: new Uint8Array(16).fill(11),
+        sentAt: 12n,
+        createdAt: 12n,
+      });
+      const originalEncode = TextEncoder.prototype.encode.bind(
+        new TextEncoder(),
+      );
+      let reencoded: Uint8Array<ArrayBuffer> | undefined;
+      vi.spyOn(TextEncoder.prototype, "encode").mockImplementation(
+        (input?: string): Uint8Array<ArrayBuffer> => {
+          const output = originalEncode(input);
+          if (input === plaintext) {
+            reencoded = forceLengthMismatch
+              ? Uint8Array.from([...output, 0])
+              : output;
+            return reencoded;
+          }
+          return output;
+        },
+      );
+
+      const decryption = decryptQrText({
+        object,
+        activeIdentity: bob,
+        knownSenders: [sender],
+      });
+      if (forceLengthMismatch) {
+        await expect(decryption).rejects.toThrow(
+          "wrong-identity-or-corruption",
+        );
+      } else {
+        await expect(decryption).resolves.toMatchObject({ plaintext });
+      }
+      expect(reencoded).toBeDefined();
+      expect(reencoded?.every((byte) => byte === 0)).toBe(true);
+    },
+  );
 });

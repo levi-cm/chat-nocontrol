@@ -1,9 +1,41 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  readSync,
+  readdirSync,
+} from "node:fs";
+import { basename, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const EXPECTED_SHELL_FILES = ["index.html", "sw.js"] as const;
-const JAVASCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
+const SOURCE_DIRECTIVE_EXTENSIONS = new Set([
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".css",
+  ".html",
+  ".htm",
+  ".json",
+  ".webmanifest",
+  ".worker",
+  ".svg",
+  ".xml",
+  ".xhtml",
+]);
+const SOURCE_DIRECTIVES = [
+  {
+    pattern: /(?:\/\/[@#]|\/\*[@#])[\t ]*sourceMappingURL[\t ]*=/u,
+    issue: "sourceMappingURL reference",
+  },
+  {
+    pattern: /(?:\/\/[@#]|\/\*[@#])[\t ]*sourceURL[\t ]*=/u,
+    issue: "sourceURL reference",
+  },
+] as const;
+const SOURCE_SCAN_CHUNK_BYTES = 64 * 1024;
+const SOURCE_SCAN_OVERLAP_BYTES = SOURCE_SCAN_CHUNK_BYTES;
 
 function normalizedRelative(root: string, path: string): string {
   return relative(root, path).split("\\").join("/");
@@ -12,7 +44,50 @@ function normalizedRelative(root: string, path: string): string {
 function extension(path: string): string {
   const name = path.slice(path.lastIndexOf("/") + 1);
   const dot = name.lastIndexOf(".");
-  return dot === -1 ? "" : name.slice(dot);
+  return dot === -1 ? "" : name.slice(dot).toLowerCase();
+}
+
+function shouldScanSourceDirectives(path: string): boolean {
+  if (SOURCE_DIRECTIVE_EXTENSIONS.has(extension(path))) return true;
+  return /^(?:manifest|service-worker|sw|worker)$/u.test(
+    basename(path).toLowerCase(),
+  );
+}
+
+function sourceDirectiveIssues(path: string): string[] {
+  const found = new Set<string>();
+  const readBuffer = Buffer.allocUnsafe(SOURCE_SCAN_CHUNK_BYTES);
+  let overlap = Buffer.alloc(0);
+  const descriptor = openSync(path, "r");
+  try {
+    let bytesRead = 0;
+    while (
+      (bytesRead = readSync(
+        descriptor,
+        readBuffer,
+        0,
+        SOURCE_SCAN_CHUNK_BYTES,
+        null,
+      )) > 0
+    ) {
+      const bytes =
+        overlap.length === 0
+          ? readBuffer.subarray(0, bytesRead)
+          : Buffer.concat([overlap, readBuffer.subarray(0, bytesRead)]);
+      const text = bytes.toString("latin1");
+      for (const directive of SOURCE_DIRECTIVES) {
+        if (directive.pattern.test(text)) {
+          found.add(directive.issue);
+        }
+      }
+      overlap = Buffer.from(
+        bytes.subarray(Math.max(0, bytes.length - SOURCE_SCAN_OVERLAP_BYTES)),
+      );
+    }
+  } finally {
+    closeSync(descriptor);
+  }
+  return [...found];
 }
 
 function filesUnder(root: string): string[] {
@@ -49,7 +124,7 @@ export function inspectProductionArtifacts(root: string): string[] {
     if (!/\bself\.skipWaiting\(\)/u.test(serviceWorker)) {
       issues.push("service worker does not activate updates automatically");
     }
-    if (!/\.clientsClaim\(\)/u.test(serviceWorker)) {
+    if (!/(?:\.clientsClaim|\.clients\.claim)\(\)/u.test(serviceWorker)) {
       issues.push("service worker does not claim clients automatically");
     }
     if (/SKIP_WAITING/u.test(serviceWorker)) {
@@ -58,14 +133,13 @@ export function inspectProductionArtifacts(root: string): string[] {
   }
   for (const path of filesUnder(absoluteRoot)) {
     const relativePath = normalizedRelative(absoluteRoot, path);
-    if (relativePath.endsWith(".map")) {
+    if (relativePath.toLowerCase().endsWith(".map")) {
       issues.push(`source map file: ${relativePath}`);
     }
-    if (
-      JAVASCRIPT_EXTENSIONS.has(extension(relativePath)) &&
-      /sourceMappingURL/u.test(readFileSync(path, "utf8"))
-    ) {
-      issues.push(`sourceMappingURL reference: ${relativePath}`);
+    if (shouldScanSourceDirectives(relativePath)) {
+      for (const issue of sourceDirectiveIssues(path)) {
+        issues.push(`${issue}: ${relativePath}`);
+      }
     }
   }
   return issues.sort();

@@ -33,6 +33,7 @@ export class PPXError extends Error {
 export interface DerivedIdentity {
   suite: 0x01;
   creationTime: bigint;
+  importedAt?: bigint;
   masterEntropy: Uint8Array;
   kemPublicKey: Uint8Array;
   kemSecretKey: Uint8Array;
@@ -114,6 +115,14 @@ export interface SenderSigningCapability {
   signingSecretKey: Uint8Array;
 }
 
+export interface DecapsulationCapability {
+  suite: 0x01;
+  fingerprint: Uint8Array;
+  identityId: Uint8Array;
+  kemSecretKey: Uint8Array;
+  x25519SecretKey: Uint8Array;
+}
+
 export interface EncryptTextInput {
   sender: PublicContact;
   senderSigningCapability: SenderSigningCapability;
@@ -126,7 +135,7 @@ export interface EncryptTextInput {
 
 export interface DecryptTextInput {
   object: EncryptedTextObject;
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
 }
 
 interface EncryptedTextObjectBase {
@@ -180,7 +189,7 @@ export interface EncryptQrTextInput {
 
 export interface DecryptQrTextInput {
   object: EncryptedQrTextObject;
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
   knownSenders: PublicContact[];
 }
 
@@ -207,7 +216,7 @@ export interface EncryptFileInput {
 
 export interface DecryptFileInput {
   object: EncryptedFileObject | Blob;
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
 }
 
 export interface FileHeader {

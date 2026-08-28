@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { IncomingMessageIntent } from "../../protocol/message-link";
+import type { IncomingMessageIntentV2 } from "../../protocol/message-link-v2";
 import {
   consumeExpectedIncomingIntent,
   incomingIntentIsExpired,
@@ -7,9 +7,9 @@ import {
   scheduleIncomingIntentExpiry,
 } from "../../app/incoming-intent";
 
-const intent: IncomingMessageIntent = {
-  kind: "ppxq",
-  object: {} as IncomingMessageIntent extends { object: infer T } ? T : never,
+const intent: IncomingMessageIntentV2 = {
+  kind: "ppxm",
+  object: {} as IncomingMessageIntentV2 extends { object: infer T } ? T : never,
   capturedAt: 1_000,
 };
 
@@ -22,7 +22,7 @@ describe("incoming message intent lifetime", () => {
   });
 
   it("treats malformed intents as immediately consumable rather than timed payloads", () => {
-    const invalid: IncomingMessageIntent = { kind: "invalid" };
+    const invalid: IncomingMessageIntentV2 = { kind: "invalid" };
     expect(incomingIntentIsExpired(invalid, Number.MAX_SAFE_INTEGER)).toBe(
       false,
     );

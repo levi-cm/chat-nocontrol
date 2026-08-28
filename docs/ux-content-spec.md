@@ -1,459 +1,65 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the screen, flow, state, and copy contract for Chat NoControl v1.
-> **Version:** 1.0-draft
-> **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
-> **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
+> **Authority:** Normative EN/DE content contract for `0.2.0-beta.1`.
+> **Depends on:** [product-spec.md](product-spec.md), [protocol-cat5-v2.md](protocol-cat5-v2.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md)
 
-# UX and Content Specification
+# UX content specification
 
-## 1. Contract rules
+## Global language
 
-- English and German ship complete at launch.
-- German uses friendly informal `du` consistently.
-- Protocol strings, object names, magic values, and exact protocol labels are not translated.
-- User-facing copy uses the product terms `identity`, `public contact`, `private recovery card`, `encrypted text`, and `encrypted file`.
-- Never use `account` or `seed card` in user copy for these concepts.
-- Visual style is not specified here beyond semantic distinctness, state visibility, and responsive behavior.
+Use “beta”, “encrypt locally”, “public contact”, “private recovery”, and exact
+artifact names. Never claim independently reviewed, quantum-proof, anonymous,
+secure deletion, device verified, or deployed without evidence.
 
-### 1.1 Optional message-QR controls
+Target version: `0.2.0-beta.1`.
 
-Ordinary PPXT remains the primary text output. Settings expose an EN/DE native
-toggle for `Offer message QR after text encryption`; it defaults off. The
-app/link/both export selector is hidden while creation is disabled. When
-enabled, output uses translated text buttons with a decorative QR icon and no
-QR preview; oversize guidance appears only in that enabled flow.
+## Transport copy
 
-Camera/image import and local authenticated auto-decrypt remain separate
-controls and stay available regardless of the creation setting. Unknown-sender
-copy directs the user to import that sender's public contact; it never implies
-plaintext was partially recovered.
+| Context | English | German |
+| --- | --- | --- |
+| Share contact | Share contact file or text | Kontaktdatei oder -text teilen |
+| Contact QR absence | CAT-5 contacts use file or text, not QR. | CAT-5-Kontakte nutzen Datei oder Text, keinen QR. |
+| Share message | Copy encrypted link or PPXT text | Verschlüsselten Link oder PPXT-Text kopieren |
+| Message QR absence | CAT-5 messages do not create QR codes. | CAT-5-Nachrichten erstellen keine QR-Codes. |
+| Recovery warning | Private recovery — never share | Private Wiederherstellung — niemals teilen |
+| Legacy link | Legacy V1 input: decrypt only | Alte V1-Eingabe: nur entschlüsseln |
 
-## 2. Global navigation
+Recovery QR remains and must always use private-danger styling. Public contact
+file/text uses neutral share styling. Message armor/link uses encrypted-output
+styling. Never visually label a V1 sender contact as saved/current.
 
-- Mobile navigation is bottom-aligned.
-- Desktop navigation is a left rail.
-- Nav items are Encrypt, Decrypt, Contacts, Identity, Help.
-- The active destination must always be visibly clear without relying on color alone.
-- The app should open on Create identity / Import identity for first-time use.
-- When the user is ready to work, Encrypt is the first operational screen.
-
-## 3. Identity setup flow
-
-### 3.1 First screen
+## Legacy flow copy
 
 English:
 
-- Title: `Create identity or import identity`
-- Primary action: `Create new identity`
-- Secondary action: `Import identity`
+- “This older message can be decrypted here. No older app is required.”
+- “Provide the sender’s exact V1 contact for this decrypt only. It will not be saved.”
+- “Older private material will be upgraded to CAT-5/V2. Share your new contact afterward.”
+- “New messages, contacts, vaults, and recovery files are always CAT-5/V2.”
 
 German:
 
-- Title: `Identität erstellen oder importieren`
-- Primary action: `Neue Identität erstellen`
-- Secondary action: `Identität importieren`
-
-### 3.2 Seven-screen creation wizard
-
-The creation flow uses separate screens rather than a vertically scrollable secret page. Every screen shows `Step {n} of 7` / `Schritt {n} von 7` and uses these exact progress values:
-
-| Step | Screen | Progress |
-|---:|---|---:|
-| 1 | Username | `30%` |
-| 2 | Create password | `42%` |
-| 3 | Digital backups | `54%` |
-| 4 | Words and recovery document | `66%` |
-| 5 | QR restore practice | `78%` |
-| 6 | File and word restore practice | `90%` |
-| 7 | Local storage and finish | `100%` |
-
-Back navigation is available only where it cannot redisplay cleared secrets. After leaving step 4, browser Back and wizard Back must not recreate its password, words, recovery code, QR, or printable document model. Necessary within-screen scrolling remains available at small viewport sizes and high zoom.
-
-### 3.3 Username and password
-
-English:
-
-- Label: `Username`
-- Helper: `This name is public and not unique. Use a fictional, recognizable name if you want one.`
-- Error: `Enter a username between 1 and 48 UTF-8 bytes after normalization.`
-- Protocol note: `Username is the public pseudonym stored in PPX objects.`
-- Password title: `Create a browser-vault password`
-- Password helper: `This password protects the encrypted copy remembered by this browser. Your QR, recovery file, and recovery words do not require it.`
-- Confirmation label: `Confirm password`
-- Validation: both fields must match; the value must contain only printable ASCII, may contain internal spaces, must not start or end with a space, and must not exceed `256` bytes.
-- Strength presentation: show the existing text-and-color strength estimate as guidance. Values below the `50`-bit medium threshold remain permitted only after `Use a weak browser-vault password?` with safe action `Change password` and confirm action `Use weak password`.
-- Vault failure: show `Browser vault could not be created` with `Nothing was saved. Your identity setup is still open. Try again or restart identity creation.` Preserve both password fields and allow retry.
-
-German:
-
-- Label: `Benutzername`
-- Helper: `Dieser Name ist öffentlich und nicht eindeutig. Nimm einen erfundenen, gut wiedererkennbaren Namen, wenn du einen verwenden willst.`
-- Error: `Gib einen Benutzernamen mit 1 bis 48 UTF-8-Bytes nach Normalisierung ein.`
-- Protokollhinweis: `Der Benutzername ist das öffentliche Pseudonym in PPX-Objekten.`
-- Passworttitel: `Passwort für den Browser-Tresor erstellen`
-- Passworthilfe: `Dieses Passwort schützt die verschlüsselte Kopie, die sich dieser Browser merkt. Dein QR-Code, deine Wiederherstellungsdatei und deine Wiederherstellungswörter benötigen es nicht.`
-- Bestätigungslabel: `Passwort bestätigen`
-- Prüfung: Beide Felder müssen übereinstimmen. Der Wert darf nur druckbares ASCII enthalten, innere Leerzeichen enthalten, nicht mit einem Leerzeichen beginnen oder enden und höchstens `256` Bytes lang sein.
-- Stärkenanzeige: Werte unter der mittleren Schwelle von `50` Bit bleiben nur nach `Schwaches Browser-Tresor-Passwort verwenden?` mit `Passwort ändern` oder `Schwaches Passwort verwenden` zulässig.
-- Tresorfehler: Zeige `Browser-Tresor konnte nicht erstellt werden` und erkläre, dass nichts gespeichert wurde, die Einrichtung geöffnet bleibt und ein neuer Versuch oder Neustart möglich ist. Beide Passwortfelder bleiben erhalten.
-- Stärkedarstellung: Die vorhandene Schätzung mit Text und Farbe bleibt ein Hinweis und ist keine zusätzliche Annahmeschwelle.
-
-`Username` is UI terminology only. Implementations continue to read and write the protocol `pseudonym` field without changing PPX bytes.
-
-### 3.4 Backup and recovery-document screens
-
-English:
-
-- Warning title: `Public label, not a secret`
-- Warning text: `Your username is visible to other people. It does not protect your identity.`
-- Action: `Generate identity`
-- Equivalence text: `Your private QR image, .ppxrecovery file, private recovery code, and 24 English words are different forms of the same identity recovery secret. Any one can restore the identity.`
-- Loss warning: `If you lose every recovery copy and access to the remembered browser vault, this identity and its messages can never be decrypted again.`
-- Digital-backup gate: ordinary click actions must download both the branded private QR PNG and `.ppxrecovery` file; each has a separate safe-storage attestation.
-- Recovery-document gate: download the PDF, write all 24 words, then confirm both independently: written words and safely stored PDF. The PDF-storage confirmation stays unavailable until the download action runs; either missing confirmation blocks continuation.
-- Desktop shows the exact generated PDF in a titled iframe with one Download action and no custom Print action. At `640px` and below, omit the iframe while keeping the words and the same single full-width Download action.
-- A4 document content: product name, private warning, username, localized and ISO creation dates, private recovery QR, complete wrapped `PPX1:RECOVERY:...` value, all 24 numbered English words, and the exact plaintext browser-vault password with length and case-sensitivity guidance.
-- Standalone QR PNG: `1024 x 1280`, username above the QR, English header `PRIVATE KEY — NEVER SHARE`, dark-red `#7f1d1d` modules on white, four-module quiet zone, and high error correction. It excludes password, dates, words, and long recovery code.
-- Password warning: `This private document contains your browser-vault password. Never share it and do not reuse this password elsewhere.`
-- The password must never appear in the standalone QR PNG, `.ppxrecovery`, URL, logs, browser storage, or application-wide state.
-
-German:
-
-- Warning title: `Öffentliches Label, kein Geheimnis`
-- Warning text: `Dein Benutzername ist für andere sichtbar. Er schützt deine Identität nicht.`
-- Action: `Identität erzeugen`
-- Gleichwertigkeit: `Dein privates QR-Bild, die .ppxrecovery-Datei, der private Wiederherstellungscode und die 24 englischen Wörter sind verschiedene Formen desselben Wiederherstellungsgeheimnisses. Jede davon kann die Identität wiederherstellen.`
-- Verlustwarnung: `Wenn du alle Wiederherstellungskopien und den Zugriff auf den gemerkten Browser-Tresor verlierst, können diese Identität und ihre Nachrichten nie wieder entschlüsselt werden.`
-- Sicherungssperre: Normale Klickaktionen laden sowohl das markierte private QR-PNG als auch die `.ppxrecovery`-Datei herunter; für beide gibt es eine eigene Bestätigung der sicheren Aufbewahrung.
-- Dokument-Sperre: Die PDF herunterladen, alle 24 Wörter aufschreiben und danach beide Punkte einzeln bestätigen: aufgeschriebene Wörter und sicher verwahrte PDF. Die PDF-Bestätigung bleibt bis zum Download deaktiviert; ohne beide Bestätigungen geht es nicht weiter.
-- Auf dem Desktop erscheint die exakt erzeugte PDF in einem betitelten Iframe mit genau einer Download-Aktion und ohne eigene Druck-Aktion. Bei `640px` und weniger bleibt der Iframe weg; die Wörter und dieselbe einzelne, vollbreite Download-Aktion bleiben verfügbar.
-- A4-Inhalt: Produktname, private Warnung, Benutzername, lokales und ISO-Erstellungsdatum, privater Wiederherstellungs-QR-Code, vollständiger umbrochener `PPX1:RECOVERY:...`-Wert, alle 24 nummerierten englischen Wörter und das exakte Klartext-Passwort für den Browser-Tresor samt Längen- und Groß-/Kleinschreibungshinweis.
-- Separates QR-PNG: `1024 x 1280`, Benutzername über dem QR-Code, deutsche Überschrift `PRIVATER SCHLÜSSEL — NIEMALS TEILEN`, dunkelrote `#7f1d1d`-Module auf Weiß, vier Module Ruhezone und hohe Fehlerkorrektur. Passwort, Daten, Wörter und langer Wiederherstellungscode bleiben ausgeschlossen.
-- Passwortwarnung: `Dieses private Dokument enthält dein Passwort für den Browser-Tresor. Teile es nie und verwende dieses Passwort nirgendwo sonst.`
-- Das Passwort darf niemals im separaten QR-PNG, in `.ppxrecovery`, URLs, Protokollen, Browser-Speicher oder globalem App-Zustand stehen.
-
-No press-and-hold control or typed `EXPORT PRIVATE` / `PRIVAT EXPORTIEREN` phrase belongs in this flow. Private export surfaces remain danger-first and must never resemble the public contact card.
-
-### 3.5 Restore practice and storage choice
-
-- Step 5 teaches the cleared-browser import path and requires successful restore of the pending identity from the saved QR image, camera scan, or pasted private recovery code.
-- Step 6 first requires the saved `.ppxrecovery` file, then asks for four unique random word positions together. The positions remain stable across retries, errors identify incorrect fields, retries are unlimited, and a confirmed restart action appears after ten failed submissions.
-- Both artifact practices derive the identity locally and compare its identity ID with the pending identity; temporary recovered secrets are cleared on success, error, cancellation, and exit.
-- `I know what I'm doing` / `Ich weiß, was ich tue` is a quiet accessible action. Its warning dialog may skip only steps 5 and 6, never downloads, storage attestations, or the recovery-document attestation.
-- Step 7 preselects and recommends `Remember on this device` / `Auf diesem Gerät merken`. Only its explicit Continue action writes the already encrypted vault to IndexedDB.
-- `Session only` / `Nur für diese Sitzung` is the secondary opt-out and discards the prepared encrypted vault. If persistence is unavailable, the flow explains the fallback and continues session-only.
-
-### 3.6 Identity import
-
-English:
-
-- Import sources: `Locked PPXV vault`, `Unencrypted PPXR recovery card or PPXR QR image`, `24 recovery words`
-- Validation step: `Validate the imported material before continuing.`
-- Words step: `Enter all 24 recovery words in English.`
-- Words normalization: `The app normalizes the words with BIP39 NFKD and single ASCII spaces.`
-- Words validation: `The words must be exactly 24 valid English words and the checksum must match.`
-- PPXR warning: `This recovery material is unencrypted. Anyone who gets it can recover your private identity.`
-- PPXV prompt: `Enter the vault passphrase.`
-- Verification step: `Derive the identity and verify it matches the imported recovery material.`
-- Pseudonym prompt: `Choose or re-enter a pseudonym for this identity.`
-- Pseudonym note: `It may be different from the original, but the cryptographic identity fingerprint stays the same.`
-- Creation-time note: `Import time is local metadata only and is not the original creation time.`
-- Follow-up prompt: `Do you want to remember this identity on this device?`
-- Scope note: `Public contacts are imported in Contacts.`
-
-German:
-
-- Importquellen: `Gesperrter PPXV-Tresor`, `Unverschlüsselte PPXR-Wiederherstellungskarte oder PPXR-QR-Bild`, `24 Wiederherstellungswörter`
-- Prüfschritt: `Prüfe das importierte Material, bevor es weitergeht.`
-- Wörter-Schritt: `Gib alle 24 Wiederherstellungswörter auf Englisch ein.`
-- Wörter-Normalisierung: `Die App normalisiert die Wörter mit BIP39-NFKD und einzelnen ASCII-Leerzeichen.`
-- Wörter-Prüfung: `Die Wörter müssen genau 24 gültige englische Wörter sein und die Prüfsumme muss passen.`
-- PPXR-Warnung: `Dieses Wiederherstellungsmaterial ist unverschlüsselt. Wer es bekommt, kann deine private Identität wiederherstellen.`
-- PPXV-Abfrage: `Gib die Tresor-Passphrase ein.`
-- Verifizierungsschritt: `Leite die Identität ab und prüfe, ob sie zum importierten Wiederherstellungsmaterial passt.`
-- Pseudonym-Abfrage: `Wähle ein Pseudonym für diese Identität oder gib es erneut ein.`
-- Pseudonym-Hinweis: `Es darf anders sein als das ursprüngliche, aber der kryptografische Identitäts-Fingerabdruck bleibt gleich.`
-- Erstellungszeit-Hinweis: `Die Importzeit ist nur lokale Metadaten und nicht die ursprüngliche Erstellungszeit.`
-- Anschlussfrage: `Willst du dir diese Identität auf diesem Gerät merken?`
-- Umfangshinweis: `Öffentliche Kontakte importierst du weiterhin im Bereich Kontakte.`
-
-### 3.7 Private export variants
-
-The logged-in PPXV export card must render no real QR, QR fallback text, or
-download action until the browser-vault password has been verified again in the
-existing unlock worker. One successful check enables the PPXV QR, its PNG, and
-the `.ppxvault` download together. Wrong passwords use one generic failure.
-Leaving Identity, locking, or backgrounding the app resets the gate. This gate
-does not apply to onboarding recovery artifacts or the public-contact export.
-
-English:
-
-- Encrypted private QR label: `Private identity vault`
-- Encrypted private QR hint: `Encrypted PPXV`
-- Unencrypted recovery QR label: `Private recovery card`
-- Unencrypted recovery QR hint: `Dangerous PPXR`
-- Public contact QR label: `Public contact`
-- Public contact QR hint: `Non-dangerous PPXC`
-- Export completion: `Recovery material exported`
-- Shared treatment rule: `Both private exports are equally serious; PPXR uses the strongest warning and the required download and safe-storage attestation.`
-
-German:
-
-- Encrypted private QR label: `Privater Identitätstresor`
-- Encrypted private QR hint: `Verschlüsseltes PPXV`
-- Unencrypted recovery QR label: `Private Wiederherstellungskarte`
-- Unencrypted recovery QR hint: `Gefährliches PPXR`
-- Public contact QR label: `Öffentlicher Kontakt`
-- Public contact QR hint: `Nicht gefährliches PPXC`
-- Export completion: `Wiederherstellungsmaterial exportiert`
-- Shared treatment rule: `Beide privaten Exporte sind gleich ernst; PPXR nutzt die stärkste Warnung sowie den verpflichtenden Download mit Aufbewahrungsbestätigung.`
-
-### 3.8 Public contact card
-
-English:
-
-- Card title: `Public contact`
-- Subheading order: pseudonym first, then QR
-- Helper: `Share this contact so other people can encrypt to you.`
-
-German:
-
-- Card title: `Öffentlicher Kontakt`
-- Subheading order: pseudonym first, then QR
-- Helper: `Teile diesen Kontakt, damit andere dir verschlüsselt schreiben können.`
-
-## 4. Encrypt flow
-
-### 4.1 Main state
-
-English:
-
-- Empty state: `Choose a recipient to start encrypting`
-- Search placeholder: `Search by pseudonym, nickname, or fingerprint`
-- Mode toggle: `Text` / `File`
-- Primary button: `Encrypt`
-
-German:
-
-- Empty state: `Wähle einen Empfänger aus, um zu verschlüsseln`
-- Search placeholder: `Nach Pseudonym, Spitznamen oder Fingerabdruck suchen`
-- Mode toggle: `Text` / `Datei`
-- Primary button: `Verschlüsseln`
-
-### 4.2 Text mode
-
-English:
-
-- Input label: `Encrypted text`
-- Counter label: `Bytes used`
-- Limit note: `Maximum plaintext: 256 KiB`
-- Capability note: `Copy, save, or share when available`
-
-German:
-
-- Input label: `Verschlüsselter Text`
-- Counter label: `Verwendete Bytes`
-- Limit note: `Maximale Klartextgröße: 256 KiB`
-- Capability note: `Kopieren, speichern oder teilen, wenn verfügbar`
-
-### 4.3 File mode
-
-English:
-
-- Input label: `Encrypted file`
-- Filename label: `File name`
-- Caption label: `Caption`
-- Limit note: `Maximum file size: 100 MiB`
-- Limit note: `Caption optional, up to 16 KiB`
-- Status: `File operations restart from the beginning if interrupted`
-
-German:
-
-- Input label: `Verschlüsselte Datei`
-- Filename label: `Dateiname`
-- Caption label: `Bildunterschrift`
-- Limit note: `Maximale Dateigröße: 100 MiB`
-- Limit note: `Bildunterschrift optional, bis zu 16 KiB`
-- Status: `Dateivorgänge starten nach einer Unterbrechung von vorne neu`
-
-### 4.4 Progress and cancel
-
-English:
-
-- Progress label: `Working`
-- Cancel button: `Cancel`
-- Cancel note: `The current operation will stop safely.`
-
-German:
-
-- Progress label: `In Arbeit`
-- Cancel button: `Abbrechen`
-- Cancel note: `Der aktuelle Vorgang wird sicher beendet.`
-
-## 5. Decrypt flow
-
-### 5.1 Entry state
-
-English:
-
-- Drop area: `Paste, drop, or choose a file`
-- Helper: `The app will route armor or file automatically.`
-- Primary title after load: `Decrypt`
-
-German:
-
-- Drop area: `Einfügen, ablegen oder eine Datei auswählen`
-- Helper: `Die App leitet Text oder Datei automatisch weiter.`
-- Primary title after load: `Entschlüsseln`
-
-### 5.2 Safe failures
-
-English:
-
-- Safe failure title: `Could not decrypt`
-- Safe failure text for wrong recipient: `This item does not match your active identity or is damaged.`
-- Safe failure text for bad signature: `The item decrypted, but the sender check failed.`
-- Expander title: `Technical details`
-
-German:
-
-- Safe failure title: `Entschlüsselung nicht möglich`
-- Safe failure text for wrong recipient: `Dieses Element passt nicht zu deiner aktiven Identität oder ist beschädigt.`
-- Safe failure text for bad signature: `Das Element wurde entschlüsselt, aber die Absenderprüfung ist fehlgeschlagen.`
-- Expander title: `Technische Details`
-
-### 5.3 Success states
-
-English:
-
-- Sender warning: `Unknown sender`
-- Sender warning text: `This message is cryptographically valid, but you have not saved this sender yet.`
-- Save sender action: `Save contact`
-- File preview note: `Preview only after full authentication`
-
-German:
-
-- Sender warning: `Unbekannter Absender`
-- Sender warning text: `Diese Nachricht ist kryptografisch gültig, aber du hast diesen Absender noch nicht gespeichert.`
-- Save sender action: `Kontakt speichern`
-- File preview note: `Vorschau nur nach vollständiger Authentifizierung`
-
-## 6. Contacts flow
-
-English:
-
-- Screen title: `Contacts`
-- Empty state: `No contacts yet`
-- Local nickname label: `Nickname`
-- Path: `Contact details > Delete contact > confirmation`
-- Contact details action: `Delete contact`
-- Delete confirmation title: `Delete contact?`
-- Delete confirmation text: `This removes only the local public contact and nickname. It does not delete external files or your identity. You can import this contact again later.`
-- Merge note: `This contact key is already saved. The entry was merged.`
-- Collision warning: `Same pseudonym, different key`
-- Collision note: `Keep both entries separate until you verify which one you want.`
-
-German:
-
-- Screen title: `Kontakte`
-- Empty state: `Noch keine Kontakte`
-- Local nickname label: `Spitzname`
-- Pfad: `Kontaktdetails > Kontakt löschen > Bestätigung`
-- Contact details action: `Kontakt löschen`
-- Delete confirmation title: `Kontakt löschen?`
-- Delete confirmation text: `Dadurch werden nur der lokale öffentliche Kontakt und der Spitzname entfernt. Externe Dateien oder deine Identität werden nicht gelöscht. Du kannst diesen Kontakt später erneut importieren.`
-- Merge note: `Dieser Kontaktschlüssel ist bereits gespeichert. Der Eintrag wurde zusammengeführt.`
-- Collision warning: `Gleiches Pseudonym, anderer Schlüssel`
-- Collision note: `Lass beide Einträge getrennt, bis du geprüft hast, welchen du behalten willst.`
-
-## 7. Identity and storage states
-
-English:
-
-- State title: `Session only`
-- State text: `Nothing will be kept after you close the app.`
-- Storage-denied fallback: `Storage is unavailable, so this session will not be remembered.`
-- Lock button: `Lock now`
-- Delete vault button: `Delete vault`
-- Delete all button: `Erase everything`
-
-German:
-
-- State title: `Nur Sitzung`
-- State text: `Nichts bleibt erhalten, wenn du die App schließt.`
-- Storage-denied fallback: `Speicher ist nicht verfügbar, deshalb wird sich diese Sitzung nicht merken.`
-- Lock button: `Jetzt sperren`
-- Delete vault button: `Tresor löschen`
-- Delete all button: `Alles löschen`
-
-## 8. Update and offline states
-
-English:
-
-- Update behavior: activate silently; never force-reload the open document
-- Offline state: `You are offline, but this session can keep working.`
-
-German:
-
-- Update-Verhalten: im Hintergrund aktivieren; das geöffnete Dokument nie automatisch neu laden
-- Offline state: `Du bist offline, aber diese Sitzung kann weiterarbeiten.`
-
-## 9. Help and About
-
-English:
-
-- Help title: `Help`
-- About title: `About`
-- Claim: `Encrypts on this device. No online account.`
-- Limitation: `Version 1 has no forward secrecy.`
-- Limitation: `User names are only labels and are not unique.`
-- Limitation: `Chat NoControl hides content, not metadata.`
-- Limitation: `There is no password reset.`
-- Issue action: `Report a problem`
-- Source action: `View source and build info`
-- Explainer link: `Dedicated chat-control explainer`
-
-German:
-
-- Help title: `Hilfe`
-- About title: `Über`
-- Claim: `Verschlüsselt auf diesem Gerät. Kein Online-Konto.`
-- Limitation: `Version 1 hat kein Forward Secrecy.`
-- Limitation: `Namen sind nur Labels und nicht eindeutig.`
-- Limitation: `Chat NoControl versteckt Inhalt, nicht Metadaten.`
-- Limitation: `Es gibt keine Passwortzurücksetzung.`
-- Issue action: `Problem melden`
-- Source action: `Quellcode und Build-Infos anzeigen`
-- Explainer link: `Dedizierter Chat-Control-Erklärtext`
-
-## 10. Critical string catalog
-
-The following strings are exact and may be reused in English or German UI where the product requires a fixed phrase:
-
-- `Export the private recovery card before you finish.`
-- `This card is dangerous. Anyone who gets it can recover your private identity. Do not share it.`
-- `This item does not match your active identity or is damaged.`
-- `The item decrypted, but the sender check failed.`
-- `Storage is unavailable, so this session will not be remembered.`
-- `This contact key is already saved. The entry was merged.`
-- `Same pseudonym, different key`
-- `Unknown sender`
-- `Encrypts on this device. No online account.`
-
-## 11. Responsive behavior
-
-- On narrow screens, primary actions stay reachable without horizontal scrolling.
-- No critical action may depend on hover.
-- The navigation rail collapses into bottom navigation on mobile widths.
-- The identity card, warnings, and primary action buttons must remain readable at 200% zoom and high reflow.
-- Camera and scan controls must remain reachable with one-handed mobile use.
-
-## 12. State and copy acceptance
-
-The UX spec is accepted only if:
-
-- All critical warnings and errors appear in both English and German.
-- The German copy uses natural `du` phrasing.
-- The public/private card distinction is unmissable in copy and flow.
-- The decrypt flow stays safe-first and does not expose raw technical details by default.
-- The copy contract matches the product and design specs without inventing accounts, seed cards, or message history.
+- „Diese alte Nachricht kann hier entschlüsselt werden. Die alte App ist nicht nötig.“
+- „Gib den exakten V1-Absenderkontakt nur für diese Entschlüsselung an. Er wird nicht gespeichert.“
+- „Altes privates Material wird auf CAT-5/V2 aktualisiert. Teile danach deinen neuen Kontakt.“
+- „Neue Nachrichten, Kontakte, Tresore und Recovery-Dateien sind immer CAT-5/V2.“
+
+## Errors
+
+Show safe primary text, optional sanitized detail. Do not distinguish wrong
+vault password from corruption. Distinguish unsupported legacy contact saving
+from malformed data. Downgrade/mixed-suite input uses unsupported-format copy,
+never fallback wording.
+
+## PWA update copy
+
+No update UI exists: no banner, toast, modal, choice, “reload now,” or deferred
+prompt. Same-version clients stay open. During a version transition the app may
+navigate once automatically into CAT5; no user action is offered. Help may
+state: “Updates apply automatically. An open older version may restart once.” /
+„Updates gelten automatisch. Eine offene ältere Version kann einmal neu
+starten.“
+
+## Status copy
+
+Independent review: `BLOCKED — no qualifying evidence`. Physical-device test:
+`NOT RUN — no qualifying device evidence`. Do not translate status tokens in
+machine-readable evidence; explanatory UI text may be localized.

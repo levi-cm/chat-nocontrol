@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSerializedContactSaveQueue } from "../../app/contact-save-queue";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
-import { createPublicContact } from "../../protocol/ppxc";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 
 function deferred() {
   let resolve!: (value: boolean) => void;
@@ -14,12 +14,17 @@ function deferred() {
 
 describe("serialized contact save queue", () => {
   it("does not resurrect a concurrently deleted contact from a stale update", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(33),
       "Deleted",
     );
     const original: ManagedContact = {
-      contact: createPublicContact(identity, "Deleted", 33n),
+      contact: createPublicContactV2(
+        identity,
+        "Deleted",
+        33n,
+        new Uint8Array(32).fill(33),
+      ),
       nickname: "Before",
       includeSenderContactInLinks: true,
     };
@@ -45,12 +50,17 @@ describe("serialized contact save queue", () => {
   });
 
   it("applies an explicit same-field reversion queued from the same stale base", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(34),
       "Recipient",
     );
     const original: ManagedContact = {
-      contact: createPublicContact(identity, "Recipient", 34n),
+      contact: createPublicContactV2(
+        identity,
+        "Recipient",
+        34n,
+        new Uint8Array(32).fill(34),
+      ),
       nickname: "Recipient",
       includeSenderContactInLinks: true,
     };
@@ -102,11 +112,16 @@ describe("serialized contact save queue", () => {
   });
 
   it("treats a stale same-fingerprint add as already satisfied", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(35),
       "Known",
     );
-    const contact = createPublicContact(identity, "Known", 35n);
+    const contact = createPublicContactV2(
+      identity,
+      "Known",
+      35n,
+      new Uint8Array(32).fill(35),
+    );
     const authoritative: ManagedContact = {
       contact,
       nickname: "Authoritative nickname",

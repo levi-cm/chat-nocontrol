@@ -3,8 +3,6 @@ import type { PpxDatabase, StoredSettings } from "./db";
 export type ThemePreference = "system" | "light" | "dark";
 export type AccentPreference =
   "blue" | "indigo" | "purple" | "teal" | "pink" | "orange" | "graphite";
-export type QrExportMode = "app" | "link" | "both";
-export type QrImportControls = "camera" | "image" | "both";
 export type MessageOutputMode = "link" | "text" | "both";
 
 export interface AppSettings {
@@ -12,9 +10,6 @@ export interface AppSettings {
   theme: ThemePreference;
   accent: AccentPreference;
   translucent: boolean;
-  messageQrCreationEnabled: boolean;
-  qrExportMode: QrExportMode;
-  qrImportControls: QrImportControls;
   messageOutputMode: MessageOutputMode;
   autoDecryptIncomingMessages: boolean;
 }
@@ -24,9 +19,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: "system",
   accent: "blue",
   translucent: true,
-  messageQrCreationEnabled: false,
-  qrExportMode: "both",
-  qrImportControls: "both",
   messageOutputMode: "both",
   autoDecryptIncomingMessages: true,
 };
@@ -40,12 +32,6 @@ const accents = new Set<AccentPreference>([
   "pink",
   "orange",
   "graphite",
-]);
-const qrExportModes = new Set<QrExportMode>(["app", "link", "both"]);
-const qrImportControlValues = new Set<QrImportControls>([
-  "camera",
-  "image",
-  "both",
 ]);
 const messageOutputModes = new Set<MessageOutputMode>(["link", "text", "both"]);
 
@@ -65,18 +51,6 @@ export function normalizeSettings(
       typeof value?.translucent === "boolean"
         ? value.translucent
         : DEFAULT_SETTINGS.translucent,
-    messageQrCreationEnabled:
-      typeof value?.messageQrCreationEnabled === "boolean"
-        ? value.messageQrCreationEnabled
-        : DEFAULT_SETTINGS.messageQrCreationEnabled,
-    qrExportMode: qrExportModes.has(value?.qrExportMode as QrExportMode)
-      ? (value?.qrExportMode as QrExportMode)
-      : DEFAULT_SETTINGS.qrExportMode,
-    qrImportControls: qrImportControlValues.has(
-      value?.qrImportControls as QrImportControls,
-    )
-      ? (value?.qrImportControls as QrImportControls)
-      : DEFAULT_SETTINGS.qrImportControls,
     messageOutputMode: messageOutputModes.has(
       value?.messageOutputMode as MessageOutputMode,
     )
@@ -95,8 +69,18 @@ export function putSettings(
   db: PpxDatabase,
   settings: StoredSettings,
 ): Promise<"preferences"> {
-  const current = { ...settings };
-  delete current.qrAutoDecrypt;
+  const current: StoredSettings = { locale: settings.locale };
+  if (settings.theme !== undefined) current.theme = settings.theme;
+  if (settings.accent !== undefined) current.accent = settings.accent;
+  if (settings.translucent !== undefined) {
+    current.translucent = settings.translucent;
+  }
+  if (settings.messageOutputMode !== undefined) {
+    current.messageOutputMode = settings.messageOutputMode;
+  }
+  if (settings.autoDecryptIncomingMessages !== undefined) {
+    current.autoDecryptIncomingMessages = settings.autoDecryptIncomingMessages;
+  }
   return db.put("settings", current, "preferences");
 }
 

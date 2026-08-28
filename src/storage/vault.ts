@@ -1,16 +1,17 @@
-import type { LockedVaultObject } from "../protocol/types";
-import type { PpxDatabase } from "./db";
+import type { LockedVaultObjectV2 } from "../protocol/types-v2";
+import type { PpxDatabase, StoredVaultObject } from "./db";
 
-export function putVault(
+export async function putVault(
   db: PpxDatabase,
-  vault: LockedVaultObject,
+  vault: LockedVaultObjectV2,
 ): Promise<"active"> {
-  return db.put("vaults", vault, "active");
+  await db.put("vaults", vault, "active");
+  return "active";
 }
 
 export function getVault(
   db: PpxDatabase,
-): Promise<LockedVaultObject | undefined> {
+): Promise<StoredVaultObject | undefined> {
   return db.get("vaults", "active");
 }
 

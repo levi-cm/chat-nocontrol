@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { createRecoveryWordCodec } from "../../crypto/recovery-words";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 import { completeRecoveryConfirmation } from "./helpers";
 
 test("English and German preserve navigation and warning severity", async ({
@@ -50,9 +50,9 @@ test("German contacts encrypt and decrypt path is complete", async ({
   page,
 }) => {
   const entropy = new Uint8Array(32).fill(7);
-  const identity = await deriveIdentityFromEntropy(entropy, "Biber");
-  const contact = createPublicContact(identity, "Biber", 2n);
-  const contactQr = encodePublicContactQr(contact);
+  const identity = await deriveIdentityV2FromEntropy(entropy, "Biber");
+  const contact = createPublicContactV2(identity, "Biber", 2n);
+  const contactQr = encodePublicContactV2Text(contact);
   const words = createRecoveryWordCodec()
     .entropyToRecoveryWords(entropy)
     .join(" ");

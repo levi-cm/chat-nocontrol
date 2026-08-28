@@ -1,3 +1,6 @@
+import { CHAT_NOCONTROL_VERSION } from "../app/build-info";
+import { sanitizeDiagnosticText } from "./sanitize";
+
 export interface DiagnosticsReport {
   appVersion: string;
   locale: "en" | "de";
@@ -28,7 +31,10 @@ export function createDiagnosticsReport(input: {
 }
 
 export function formatDiagnosticsReport(report: DiagnosticsReport): string {
-  return JSON.stringify(report, null, 2);
+  return JSON.stringify(
+    report,
+    (_key, value: unknown) =>
+      typeof value === "string" ? sanitizeDiagnosticText(value) : value,
+    2,
+  );
 }
-import { CHAT_NOCONTROL_VERSION } from "../app/build-info";
-import { sanitizeDiagnosticText } from "./sanitize";

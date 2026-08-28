@@ -136,6 +136,50 @@ describe("QR camera import", () => {
     expect(stop).toHaveBeenCalledTimes(1);
   });
 
+  it("accepts only the first camera result from queued callbacks", async () => {
+    const stop = vi.fn();
+    const classifyPayload = vi.fn(() => Promise.resolve("public-contact"));
+    const decoded = vi.fn();
+    let callback:
+      | ((result: unknown, error: unknown, controls: { stop(): void }) => void)
+      | undefined;
+    render(
+      <QrImport
+        idPrefix="queued-results"
+        t={(key) => labels[key] ?? key}
+        onDecoded={decoded}
+        classifyPayload={classifyPayload}
+        createScanner={() =>
+          Promise.resolve({
+            decodeFromConstraints: vi.fn(
+              (
+                _constraints: MediaStreamConstraints,
+                _video: HTMLVideoElement | undefined,
+                onResult: NonNullable<typeof callback>,
+              ) => {
+                callback = onResult;
+                return Promise.resolve({ stop });
+              },
+            ),
+            decodeFromVideoDevice: vi.fn(() => Promise.resolve({ stop })),
+          })
+        }
+      />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Scan with camera" }),
+    );
+    await waitFor(() => expect(callback).toBeTypeOf("function"));
+    callback?.({ getText: () => "first" }, undefined, { stop });
+    callback?.({ getText: () => "second" }, undefined, { stop });
+
+    await waitFor(() => expect(decoded).toHaveBeenCalledWith("first"));
+    expect(decoded).toHaveBeenCalledTimes(1);
+    expect(classifyPayload).toHaveBeenCalledTimes(1);
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back when preferred camera constraints fail", async () => {
     const stop = vi.fn();
     const decodeFromVideoDevice = vi.fn(() => Promise.resolve({ stop }));

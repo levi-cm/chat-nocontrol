@@ -8,8 +8,20 @@ export interface RecordedPagesDeployment {
   status: "succeeded";
 }
 
+export interface PagesReleaseAuthorization {
+  tag: string;
+  commit: string;
+  artifactId: string;
+  artifactDigest: string;
+  physicalEvidenceSha256: string;
+  workflowRunId: string;
+  authorizedAt: string;
+  status: "authorized";
+}
+
 export interface DeploymentLedger {
-  schemaVersion: 2;
+  schemaVersion: 3;
+  authorizations: PagesReleaseAuthorization[];
   deployments: RecordedPagesDeployment[];
 }
 
@@ -43,6 +55,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isPositiveInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) > 0;
+}
+
+function isPositiveIntegerString(value: unknown): value is string {
+  return typeof value === "string" && /^[1-9][0-9]*$/u.test(value);
 }
 
 function timestampMillis(value: unknown): number | null {
@@ -340,15 +356,136 @@ function normalizedLedgerRecords(
   return normalized;
 }
 
+function canonicalAuthorization(
+  authorization: PagesReleaseAuthorization,
+): PagesReleaseAuthorization {
+  if (
+    authorization.status !== "authorized" ||
+    !/^v\d+\.\d+\.\d+-beta\.\d+$/u.test(authorization.tag) ||
+    !/^[0-9a-f]{40}$/u.test(authorization.commit) ||
+    !isPositiveIntegerString(authorization.artifactId) ||
+    !/^sha256:[0-9a-f]{64}$/u.test(authorization.artifactDigest) ||
+    !/^[0-9a-f]{64}$/u.test(authorization.physicalEvidenceSha256) ||
+    !isPositiveIntegerString(authorization.workflowRunId) ||
+    !isValidTimestamp(authorization.authorizedAt)
+  ) {
+    throw new Error("deployment authorization record is invalid");
+  }
+  return {
+    tag: authorization.tag,
+    commit: authorization.commit,
+    artifactId: authorization.artifactId,
+    artifactDigest: authorization.artifactDigest,
+    physicalEvidenceSha256: authorization.physicalEvidenceSha256,
+    workflowRunId: authorization.workflowRunId,
+    authorizedAt: new Date(
+      timestampMillis(authorization.authorizedAt) as number,
+    ).toISOString(),
+    status: "authorized",
+  };
+}
+
+function serializeAuthorization(
+  authorization: PagesReleaseAuthorization,
+): string {
+  return JSON.stringify(canonicalAuthorization(authorization));
+}
+
+function normalizedAuthorizations(
+  authorizations: readonly PagesReleaseAuthorization[],
+): PagesReleaseAuthorization[] {
+  const normalized: PagesReleaseAuthorization[] = [];
+  const sorted = authorizations
+    .map(canonicalAuthorization)
+    .sort(
+      (left, right) =>
+        left.authorizedAt.localeCompare(right.authorizedAt) ||
+        left.workflowRunId.length - right.workflowRunId.length ||
+        left.workflowRunId.localeCompare(right.workflowRunId),
+    );
+  for (const candidate of sorted) {
+    const collision = normalized.find(
+      (existing) =>
+        existing.artifactId === candidate.artifactId ||
+        existing.workflowRunId === candidate.workflowRunId,
+    );
+    if (!collision) {
+      normalized.push(candidate);
+      continue;
+    }
+    if (
+      serializeAuthorization(collision) === serializeAuthorization(candidate)
+    ) {
+      continue;
+    }
+    throw new Error("conflicting deployment authorization record");
+  }
+  return normalized;
+}
+
+function normalizedLedger(ledger: DeploymentLedger): DeploymentLedger {
+  if (
+    ledger.schemaVersion !== 3 ||
+    !Array.isArray(ledger.authorizations) ||
+    !Array.isArray(ledger.deployments)
+  ) {
+    throw new Error("deployment ledger must use schema version 3");
+  }
+  return {
+    schemaVersion: 3,
+    authorizations: normalizedAuthorizations(ledger.authorizations),
+    deployments: normalizedLedgerRecords(ledger.deployments),
+  };
+}
+
+export function appendPagesReleaseAuthorization(
+  ledger: DeploymentLedger,
+  authorization: PagesReleaseAuthorization,
+): DeploymentLedger {
+  const current = normalizedLedger(ledger);
+  const candidate = canonicalAuthorization(authorization);
+  return {
+    ...current,
+    authorizations: normalizedAuthorizations([
+      ...current.authorizations,
+      candidate,
+    ]),
+  };
+}
+
+export function requirePagesReleaseAuthorization(
+  ledger: DeploymentLedger,
+  expected: PagesReleaseAuthorization,
+): PagesReleaseAuthorization {
+  const current = normalizedLedger(ledger);
+  const canonicalExpected = canonicalAuthorization(expected);
+  const match = current.authorizations.find(
+    (authorization) =>
+      serializeAuthorization(authorization) ===
+      serializeAuthorization(canonicalExpected),
+  );
+  if (!match) {
+    throw new Error("exact pre-deployment authorization is missing");
+  }
+  return match;
+}
+
 export function appendRecordedPagesDeployment(
   ledger: DeploymentLedger,
   record: RecordedPagesDeployment,
 ): DeploymentLedger {
-  if (ledger.schemaVersion !== 2 || !Array.isArray(ledger.deployments)) {
-    throw new Error("deployment ledger must use schema version 2");
-  }
-  const current = normalizedLedgerRecords(ledger.deployments);
+  const normalized = normalizedLedger(ledger);
+  const current = normalized.deployments;
   const candidate = canonicalRecord(record);
+  if (
+    !normalized.authorizations.some(
+      (authorization) =>
+        authorization.tag === candidate.tag &&
+        authorization.commit === candidate.commit,
+    )
+  ) {
+    throw new Error("matching pre-deployment authorization is missing");
+  }
   for (const existing of current) {
     const reusesDeploymentId =
       existing.githubPagesDeploymentId === candidate.githubPagesDeploymentId;
@@ -361,26 +498,16 @@ export function appendRecordedPagesDeployment(
       reusesStatusId &&
       recordsEqual(existing, candidate)
     ) {
-      return { schemaVersion: 2, deployments: current };
+      return { ...normalized, deployments: current };
     }
     throw new Error("conflicting deployment ledger record");
   }
   return {
-    schemaVersion: 2,
+    ...normalized,
     deployments: normalizedLedgerRecords([...current, candidate]),
   };
 }
 
 export function serializeDeploymentLedger(ledger: DeploymentLedger): string {
-  if (ledger.schemaVersion !== 2 || !Array.isArray(ledger.deployments)) {
-    throw new Error("deployment ledger must use schema version 2");
-  }
-  return `${JSON.stringify(
-    {
-      schemaVersion: 2,
-      deployments: normalizedLedgerRecords(ledger.deployments),
-    },
-    null,
-    2,
-  )}\n`;
+  return `${JSON.stringify(normalizedLedger(ledger), null, 2)}\n`;
 }

@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
 
 test("denied IndexedDB falls back to usable session-only mode", async ({
   page,
@@ -38,12 +38,12 @@ test("denied IndexedDB falls back to usable session-only mode", async ({
 test("chosen session-only mode does not persist new contacts", async ({
   page,
 }) => {
-  const contactIdentity = await deriveIdentityFromEntropy(
+  const contactIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(4),
     "Session Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(contactIdentity, "Session Bob", 4n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(contactIdentity, "Session Bob", 4n),
   );
 
   await page.goto("/");
@@ -67,12 +67,12 @@ test("chosen session-only mode does not persist new contacts", async ({
 test("choosing session-only clears contacts that existed in IndexedDB", async ({
   page,
 }) => {
-  const contactIdentity = await deriveIdentityFromEntropy(
+  const contactIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(5),
     "Persistent Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(contactIdentity, "Persistent Bob", 5n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(contactIdentity, "Persistent Bob", 5n),
   );
 
   await page.goto("/#/contacts");
@@ -122,12 +122,12 @@ test("chosen session-only mode does not persist locale settings", async ({
 test("runtime IndexedDB write failure falls back without losing the session", async ({
   page,
 }) => {
-  const contactIdentity = await deriveIdentityFromEntropy(
+  const contactIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(6),
     "Runtime Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(contactIdentity, "Runtime Bob", 6n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(contactIdentity, "Runtime Bob", 6n),
   );
   await page.addInitScript(() => {
     // The wrapper must preserve the runtime IDBDatabase receiver.
@@ -165,12 +165,12 @@ test("runtime IndexedDB write failure falls back without losing the session", as
 test("runtime erase failure never falsely claims persistent deletion", async ({
   page,
 }) => {
-  const contactIdentity = await deriveIdentityFromEntropy(
+  const contactIdentity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(7),
     "Retained Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(contactIdentity, "Retained Bob", 7n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(contactIdentity, "Retained Bob", 7n),
   );
   await page.addInitScript(() => {
     // The wrapper must preserve the runtime IDBDatabase receiver.
@@ -214,12 +214,12 @@ test("runtime erase failure never falsely claims persistent deletion", async ({
 test("a successful erase closes confirmation and removes local data", async ({
   page,
 }) => {
-  const identity = await deriveIdentityFromEntropy(
+  const identity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(10),
     "Erase Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(identity, "Erase Bob", 10n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(identity, "Erase Bob", 10n),
   );
   await page.goto("/#/contacts");
   await page.getByLabel("Public contact payload").fill(contactQr);
@@ -235,12 +235,12 @@ test("a successful erase closes confirmation and removes local data", async ({
 test("locale deletion failure keeps confirmation open after data is erased", async ({
   page,
 }) => {
-  const identity = await deriveIdentityFromEntropy(
+  const identity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(14),
     "Locale Erase Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(identity, "Locale Erase Bob", 14n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(identity, "Locale Erase Bob", 14n),
   );
   await page.goto("/#/contacts");
   await page.getByLabel("Public contact payload").fill(contactQr);
@@ -277,12 +277,12 @@ test("locale deletion failure keeps confirmation open after data is erased", asy
 test("contact deletion failure keeps the contact and confirmation truthful", async ({
   page,
 }) => {
-  const identity = await deriveIdentityFromEntropy(
+  const identity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(11),
     "Delete Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(identity, "Delete Bob", 11n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(identity, "Delete Bob", 11n),
   );
   await page.addInitScript(() => {
     // eslint-disable-next-line @typescript-eslint/unbound-method
@@ -324,12 +324,12 @@ test("contact deletion failure keeps the contact and confirmation truthful", asy
 test("one failed persistent read preserves the other loaded store in session", async ({
   page,
 }) => {
-  const identity = await deriveIdentityFromEntropy(
+  const identity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(12),
     "Partial Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(identity, "Partial Bob", 12n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(identity, "Partial Bob", 12n),
   );
   await page.goto("/#/contacts");
   await page.getByLabel("Public contact payload").fill(contactQr);
@@ -354,12 +354,12 @@ test("one failed persistent read preserves the other loaded store in session", a
 test("erase after a partial read failure removes the retained persistent data", async ({
   page,
 }) => {
-  const identity = await deriveIdentityFromEntropy(
+  const identity = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(13),
     "Partial Erase Bob",
   );
-  const contactQr = encodePublicContactQr(
-    createPublicContact(identity, "Partial Erase Bob", 13n),
+  const contactQr = encodePublicContactV2Text(
+    createPublicContactV2(identity, "Partial Erase Bob", 13n),
   );
   await page.goto("/#/contacts");
   await page.getByLabel("Public contact payload").fill(contactQr);

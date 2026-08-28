@@ -1,174 +1,105 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the GitHub Pages deployment contract for the public beta.
-> **Version:** 1.0-draft
-> **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [product-spec.md](product-spec.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [protocol-v1.md](protocol-v1.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
-> **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
+> **Authority:** Normative GitHub Pages deployment contract.
+> **Target release:** `0.2.0-beta.1`
+> **Depends on:** [testing-and-release.md](testing-and-release.md), [security-architecture.md](security-architecture.md)
 
-# GitHub Pages Deployment Contract
+# GitHub Pages deployment
 
-Last verified: 2026-07-15.
+Canonical URL is `https://levi-cm.github.io/chat-nocontrol/`. No custom domain
+is authorized or planned by this contract. Local changes, builds, tests,
+commits, tags, and previews do not authorize deployment; explicit user request
+is required.
 
-This contract does not hardcode a live/deployed assertion. Current publication
-and deployment status is established by the
-[GitHub Releases](https://github.com/levi-cm/chat-nocontrol/releases), the
-[Pages site](https://levi-cm.github.io/chat-nocontrol/), and the corresponding
-GitHub workflow, deployment, and status records.
+## Hosting model
 
-## 1. Deployment model
+Static GitHub Actions artifact only: no backend, DB, account, telemetry, remote
+script/font/image, or secret server logic. App must work under repository base
+path with hash routing. Meta CSP is defense-in-depth because Pages cannot supply
+arbitrary project response headers.
 
-The public beta is deployed only as a static GitHub Pages site built from a GitHub Actions artifact.
+All newly generated links use only
+`https://levi-cm.github.io/chat-nocontrol/`. Incoming fragment handling never
+navigates to an encoded host. It captures a bounded fragment locally, replaces
+query/history early with same-origin `#/decrypt`, and keeps fragment/message
+bytes out of HTTP requests and referrers, history state, storage, caches,
+service-worker caches, logs, diagnostics, telemetry, and crash reports.
 
-The deployment must stay backend-free:
+Service worker may cache app shell and versioned hashed assets only. It must
+never cache identities, contacts as user data, imported/decrypted files,
+messages, link payloads, vault/recovery material, or diagnostics.
 
-- no application server;
-- no database;
-- no user account service;
-- no remote script dependency;
-- no telemetry endpoint;
-- no remote font or image dependency.
+## Legacy rollback baseline
 
-Custom domains may be added later, but the current contract remains GitHub Pages first.
+The pre-cutover Pages state verified on 2026-08-28 is:
 
-## 2. Hosting limits
+- canonical URL `https://levi-cm.github.io/chat-nocontrol/`;
+- `build_type: legacy`;
+- source branch `gh-pages`, path `/`;
+- immutable source commit
+  `1a3a5b4d5e55ab78d2bf4692eed2d3545856e291`;
+- HTTPS enforced and no CNAME.
 
-GitHub Pages constraints relevant to this design are:
+The same immutable commit is pinned by the real two-build PWA upgrade test.
+After cutover the branch remains only as an unserved emergency pointer. It may
+be restored with this exact configuration only if the first CAT-5 cutover
+fails; it is never offered as an alternate app or user-selectable version.
 
-- published sites may be no larger than 1 GB;
-- source repositories have a recommended limit of 1 GB;
-- deployments time out after 10 minutes;
-- bandwidth has a soft limit of 100 GB per month;
-- build rate limits still matter for direct Pages builds, even though custom GitHub Actions workflows follow a different path.
+## Silent update
 
-Primary references:
+Discovered update activates silently. No update banner, modal, prompt, or
+choice. A client already running the exact activated CAT5 version is not
+interrupted. A client that does not answer the bounded exact-version probe is
+navigated at most once to the same HTTPS origin and service-worker scope with a
+version-only cutover marker. Only bounded supported `#/m/...` and
+`#/decrypt/qr/...` fragments survive that navigation; CAT5 captures them in
+memory, immediately replaces the visible URL with `#/decrypt`, and removes the
+fragment-bearing history entry. Ciphertext is never placed in a request,
+storage, cache key, diagnostic, or test artifact. Rollback remains an operator
+release action.
 
-- [GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits)
-- [What is GitHub Pages?](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)
+Release evidence must exercise the pinned real deployed legacy tree as build
+one and current production `dist` as build two on the same origin. It proves
+tree/hash pins, one bounded forced legacy cutover, no actionable legacy banner,
+no reload loop or same-version interruption, no fragment leak or retained
+fragment history, removal of every known legacy-only cache entry, retention of
+current precache assets, the current bundle before and after manual reload, and
+the current bundle after offline close/reopen. The focused real-build gate
+passed on 2026-08-28; this does not close independent-review, physical-device,
+or deployment gates.
 
-## 3. Path, routing, and assets
+## Candidate, review, and tag chain
 
-The app must work from a repository subpath.
+The reviewed candidate is frozen before external review. The reviewer must use
+a distinct principal/key restricted to
+`chat-nocontrol-security-review-cat5-v2`; the project release principal/key is
+restricted to `git`. The candidate's parent must already contain the unchanged
+trust root.
 
-Rules:
+Review evidence is one immediate child commit: `HEAD^` must equal the reviewed
+candidate, and the diff may add only
+`docs/independent-security-review.json`, the record's report, and that report's
+`.sig`. No source, workflow, trust-root, or other evidence change is allowed.
+After this proof passes, create the exact signed annotated release tag at HEAD
+and verify its local and origin tag object and commit binding. The missing
+external-reviewer key/report keeps this chain **BLOCKED**.
 
-- derive the base path from the deployment location;
-- do not hardcode `/` as the app root;
-- use hash routing for client-side navigation;
-- keep asset URLs relative or base-aware;
-- make offline shell assets versioned and cacheable.
+## Predeployment gate
 
-Hash routing is required because GitHub Pages does not provide an app server that can rewrite arbitrary deep links to `index.html`.
+Before dispatch:
 
-## 4. Security headers and CSP
+1. All required release gates PASS; blocked/not-run gates remain blockers.
+2. Frozen-candidate → exact three-file evidence child → `HEAD^` proof → signed
+   annotated tag chain passes with separate reviewer and release roles.
+3. Physical-device evidence required by release matrix exists and its detached
+   SSH signature verifies against a distinct pre-candidate tester trust root.
+4. Exact signed tag, commit SHA, artifact hash, dependency-graph/SRI SBOM,
+   same-run reproducibility result, build log, and previous rollback pointer are
+   recorded.
+5. Production artifact has correct base path, no source maps, no remote loads,
+   expected CSP, and correct forced-cutover behavior.
+6. User explicitly approves deployment.
 
-GitHub Pages does not give this design arbitrary project-controlled response headers.
-
-That means:
-
-- the app must not depend on custom headers for correctness;
-- `frame-ancestors` cannot be enforced through a `<meta>` CSP tag and is therefore not available as a reliable policy control here;
-- any CSP in this deployment is partial mitigation only.
-
-Use this exact meta CSP baseline in the deployed HTML where practical:
-
-```text
-default-src 'self';
-script-src 'self';
-style-src 'self';
-img-src 'self' data: blob:;
-media-src 'self' blob:;
-connect-src 'self';
-font-src 'self';
-object-src 'none';
-base-uri 'none';
-form-action 'none';
-worker-src 'self' blob:;
-manifest-src 'self'
-```
-
-Rules:
-
-- remote resources are prohibited;
-- inline remote scripts are prohibited;
-- third-party analytics are prohibited;
-- third-party fonts are prohibited;
-- third-party embeds are prohibited unless a separate review explicitly changes this contract.
-
-## 5. Service worker policy
-
-The service worker may cache only:
-
-- the application shell;
-- versioned static assets;
-- hashed JavaScript, CSS, icons, and manifest files.
-
-The service worker must never cache:
-
-- user data;
-- decrypted content;
-- imported files;
-- private vault material;
-- recovery material;
-- generated diagnostics that are still being reviewed by the user.
-
-The offline goal is availability of the app shell and previously fetched versioned assets, not silent data persistence.
-
-## 6. Update and rollback behavior
-
-A discovered service-worker update must activate silently without user approval.
-The app must not force-reload an open document; the newest activated build must
-load on the next manual reload or app reopen.
-
-Release records must include:
-
-- the release tag;
-- the commit SHA;
-- the artifact hash;
-- the build log;
-- the SBOM;
-- the rollback pointer for the previous deployed artifact.
-
-The public beta release requires the exact package-version tag to be annotated
-and signed. Its target, local signature verification result, and remote object
-ID must be recorded.
-
-## 7. Provenance checklist
-
-Before publishing a Pages beta:
-
-1. Confirm the commit SHA used to build the artifact.
-2. Record the artifact hash.
-3. Record the generated SBOM.
-4. Confirm the base path works under the Pages URL.
-5. Confirm hash routing works on refresh and direct navigation.
-6. Confirm the CSP meta tag is present and consistent.
-7. Confirm no remote resources are loaded.
-8. Confirm the service worker caches only versioned assets.
-9. Confirm rollback can restore the previous known-good deployment.
-
-The sole prepared deployment path is the manual `release.yml` workflow. The
-workflow dispatch itself must select the same exact beta tag supplied as input,
-and explicit deployment confirmation is required. The workflow checks out the
-remote tag rather than a branch, preserves the independent-review two-commit
-gate, rejects production source maps, and uploads the verified `dist` artifact.
-Verification receives read-only repository and deployment permissions;
-attestation and Pages write permissions exist only in the later deployment job.
-Only after deployment may finalization accept an exact successful GitHub Pages
-deployment and status record matching tag, commit, environment, URL, and that
-workflow run's captured deployment-time window. Retry finalization may replace
-matching prerelease assets; identical ledger evidence is a no-op, while a later
-same-tag redeployment is retained as history.
-
-This workflow is prepared locally. Its presence does not claim that repository
-settings changed, a release exists, or Pages was deployed.
-
-## 8. Operational limits
-
-This deployment contract does not promise:
-
-- arbitrary response headers;
-- custom server logic;
-- secret server-side checks;
-- user-specific server storage;
-- server-side access control beyond what GitHub Pages itself provides.
-
-If later deployment needs a feature that GitHub Pages cannot supply, that feature belongs in a different hosting contract, not in this one.
+CI CAS-appends exact artifact authorization to the canonical ledger before the
+Pages deployment job can start. After dispatch, verify workflow, environment,
+Pages URL, deployed commit/tag, asset behavior, successful-deployment ledger
+entry, and rollback record live. Public prerelease publication occurs only after
+that post-deployment ledger CAS succeeds. Until then deployment is **NOT RUN**.

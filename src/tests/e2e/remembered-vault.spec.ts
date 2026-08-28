@@ -41,9 +41,6 @@ test("remembered vault survives reload but requires passphrase", async ({
     page.getByText("Remembered Alice", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("img", { name: "Public contact QR code" }),
-  ).toBeVisible();
-  await expect(
     page.getByRole("img", {
       name: "Encrypted private identity vault QR code",
     }),
@@ -57,11 +54,6 @@ test("remembered vault survives reload but requires passphrase", async ({
       name: "Encrypted private identity vault QR code",
     }),
   ).toBeVisible({ timeout: 15_000 });
-  const contactQrDownload = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save contact QR as PNG" }).click();
-  expect((await contactQrDownload).suggestedFilename()).toBe(
-    "chat-nocontrol-Remembered-Alice-contact-qr.png",
-  );
   const vaultQrDownload = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Save private vault QR as PNG" })

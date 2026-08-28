@@ -1,270 +1,84 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines the end-user German guide for Chat NoControl v1.
-> **Version:** 1.0-draft
-> **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [accessibility-i18n.md](accessibility-i18n.md), [user-guide.en.md](user-guide.en.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
-> **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
+> **Authority:** Benutzeranleitung für Zielversion `0.2.0-beta.1`.
+> **Status:** Beta; unabhängige Prüfung BLOCKED; Geräteprüfungen NOT RUN.
+> **Depends on:** [product-spec.md](product-spec.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md)
 
-# Benutzerhandbuch: Deutsch
+# Chat-NoControl-Anleitung
 
-## 1. Was das ist
+## Vor dem Start
 
-Chat NoControl ist eine lokale Browser-App, mit der du eine private Identität erstellst, einen öffentlichen Kontakt teilst und Text sowie Dateien ver- und entschlüsselst, ohne ein Online-Konto anzulegen.
+Nutze die kanonische Seite <https://levi-cm.github.io/chat-nocontrol/>. Es gibt
+kein Konto und keine Server-Wiederherstellung. Zielversion `0.2.0-beta.1` ist
+nicht unabhängig geprüft. Keine Hochrisiko-Geheimnisse verwenden, bevor die
+Freigabegates bestanden sind.
 
-Die App läuft im Browser. Für die normale Nutzung braucht sie keinen Server.
+## Identität erstellen oder wiederherstellen
 
-## 2. Bevor du anfängst
+1. Pseudonym und Tresorpasswort wählen oder nur diese Sitzung verwenden.
+2. Wiederherstellungs-PDF, Datei, Code, 24 Wörter und Recovery-QR sichern. Ein
+   angebotener PPXV-Tresor-QR ist eine separate passwortgeschützte Sicherung.
+3. Jede Form wie einen privaten Schlüssel behandeln. Das Tresorpasswort schützt
+   Datei, Code, Wörter, PDF und QR nicht.
+4. Wiederherstellung testen, dann Identität aktivieren.
 
-- Wähle einen Benutzernamen, den du anderen Menschen zeigen möchtest. Die App speichert ihn im PPX-Feld `pseudonym`; er ist öffentlich und nicht eindeutig.
-- Wenn du 24 Wiederherstellungswörter verwendest, denk daran, dass sie nur auf Englisch sind und dieselbe kryptografische Identität wiederherstellen, aber nicht das ursprüngliche Pseudonym oder die ursprüngliche Erstellungszeit.
-- Nutze einen Browser mit aktuellem JavaScript- und Dateisupport.
-- Erstelle ein Passwort für den Browser-Tresor, das du nirgendwo sonst verwendest. Es darf nur druckbares ASCII enthalten, innere Leerzeichen nutzen, nicht mit einem Leerzeichen beginnen oder enden und höchstens 256 Bytes lang sein.
-- Plane ein, sowohl das private QR-PNG als auch die `.ppxrecovery`-Datei zu speichern, alle 24 Wörter abzuschreiben und die Wiederherstellungs-PDF herunterzuladen und sicher aufzubewahren.
+Import akzeptiert V2-Material sowie alte V1-PPXR-, PPXV- und Wortdaten. Private
+V1-Daten werden nach V2 migriert. Die alte App ist nicht nötig. Danach neuen
+V2-Kontakt erneut teilen.
 
-## 3. Identität erstellen oder importieren
+## Kontakte austauschen
 
-1. Öffne die App.
-2. Wähle auf dem ersten Bildschirm `Neue Identität erstellen` oder `Identität importieren`.
-3. Für eine neue Identität durchläufst du sieben beschriftete Bildschirme:
-   1. Gib einen öffentlichen `Benutzernamen` ein und erzeuge die Identität.
-   2. Gib das Passwort für den Browser-Tresor zweimal ein. Es schützt nur die verschlüsselte Browser-Kopie; Wiederherstellung per QR, Datei oder Wörtern benötigt es nicht.
-   3. Lade sowohl das private QR-PNG als auch die `.ppxrecovery`-Datei herunter und bestätige für beide die sichere Aufbewahrung.
-   4. Schreibe alle 24 englischen Wörter ab und nutze die einzelne Download-Aktion für die private A4-Wiederherstellungs-PDF. Bestätige beide Sicherungen einzeln: aufgeschriebene Wörter und sicher verwahrte PDF. Die PDF-Bestätigung bleibt bis zum Download deaktiviert; ohne beide Bestätigungen geht es nicht weiter. Auf dem Desktop erscheint die exakt erzeugte PDF eingebettet; auf kleinen Bildschirmen bleibt die Vorschau verborgen, während Wörter und eine vollbreite Download-Aktion verfügbar bleiben. Das Blatt enthält Benutzername, Daten, QR-Code, vollständigen Wiederherstellungscode, Wörter und das exakte Klartext-Passwort des Browser-Tresors. Teile es nie und verwende dieses Passwort nirgendwo sonst.
-   5. Übe den Import nach dem Löschen des Browser-Speichers, indem du den gespeicherten QR-Code scannst/hochlädst oder den Wiederherstellungscode einfügst.
-   6. Importiere die gespeicherte `.ppxrecovery`-Datei und gib anschließend die vier abgefragten zufälligen Wortpositionen ein. Falsche Antworten kannst du unbegrenzt wiederholen; nach zehn Fehlversuchen wird zusätzlich ein bestätigter Neustart angeboten.
-   7. Bestätige, ob die App den verschlüsselten Tresor speichern soll. `Auf diesem Gerät merken` ist empfohlen und vorausgewählt, aber erst mit Weiter wird in IndexedDB geschrieben. Mit `Nur für diese Sitzung` lehnst du das ab.
-4. Die zurückhaltende Aktion `Ich weiß, was ich tue` kann nur die beiden Übungsbildschirme überspringen. Downloads und Sicherungsbestätigungen bleiben verpflichtend.
-5. Nach dem Wiederherstellungsdokument kann Zurück das Passwort, die Wörter, den Wiederherstellungscode, den QR-Code oder das Dokument nicht erneut anzeigen. Starte neu, wenn du sie nicht richtig gesichert hast.
-6. Wenn du eine vorhandene Identität importierst, wähle eine Quelle: einen gesperrten `PPXV`-Tresor, eine unverschlüsselte `PPXR`-Wiederherstellungskarte oder ein `PPXR`-QR-Bild, oder `24 Wiederherstellungswörter`.
-7. Wenn du `24 Wiederherstellungswörter` gewählt hast, gib alle 24 englischen Wörter genau so ein, wie sie dastehen.
-8. Wenn du `PPXR` gewählt hast, lies zuerst die Warnung, weil das Material unverschlüsselt ist.
-9. Wenn du `PPXV` gewählt hast, gib die Tresor-Passphrase ein.
-10. Lass die App das Material prüfen, die Identität ableiten und verifizieren, dass sie passt.
-11. Wenn du Wiederherstellungswörter benutzt hast, wähle oder gib ein Pseudonym erneut ein, bevor du weitermachst. Es darf anders sein als das ursprüngliche, aber der kryptografische Identitäts-Fingerabdruck bleibt gleich.
-12. Die App erstellt dafür einen signierten öffentlichen Kontakt mit demselben Fingerabdruck. `PPXV` und `PPXR` bewahren ihr eingebettetes Pseudonym und ihre Erstellungszeit; beim Wortimport gelten das neue Pseudonym und nur eine neue lokale Importzeit.
+V2-Kontakt als `.ppxcontact`-Datei oder `PPX2:CONTACT:`-Text exportieren.
+Datei/Text der anderen Person importieren und Fingerabdruck über einen zweiten
+vertrauenswürdigen Kanal vergleichen.
 
-Was die Optionen bedeuten:
+V2 erstellt keinen Kontakt-QR. V1-Kontakte werden nicht gespeichert. Für eine
+alte PPXQ-Nachricht den exakten V1-Absenderkontakt nur für die entsperrte
+Identitätssitzung bereitstellen. Die App speichert ihn nie dauerhaft, kann ihn
+in dieser Sitzung für weitere alte Nachrichten verwenden und löscht ihn beim
+Sperren, Identitätswechsel, Alles-Löschen, Neuladen, Tab-Schließen oder
+Sitzungsende aus dem Sitzungszustand.
 
-- `Auf diesem Gerät merken` speichert erst nach ausdrücklicher Bestätigung einen verschlüsselten Identitätstresor in lokalem IndexedDB.
-- `Nur für diese Sitzung` speichert nach dem Schließen der App oder nach Sitzungsende nichts.
-- Der private QR-Code, `.ppxrecovery`, Wiederherstellungscode, die 24 Wörter und das Wiederherstellungsblatt sind verschiedene Formen derselben Wiederherstellungsbefugnis. Wer eine davon bekommt, kann deine private Identität wiederherstellen.
-- Das Passwort auf dem Wiederherstellungsblatt ist davon getrennt: Es entsperrt den verschlüsselten Browser-Tresor, ist aber für QR-, `.ppxrecovery`- oder Wortwiederherstellung nicht nötig.
-- Wenn du alle Wiederherstellungskopien und den Zugriff auf den gemerkten Browser-Tresor verlierst, können die Identität und dafür verschlüsselte Nachrichten nie wiederhergestellt werden.
-- Öffentliche Kontakte importierst du weiterhin im Bereich `Kontakte`.
-- Die laufende Passwortstärkeschätzung ist nur ein Hinweis und keine Sicherheitsgarantie.
+## Text verschlüsseln
 
-## 4. Deinen öffentlichen Kontakt teilen
+1. Gespeicherten V2-Empfänger wählen.
+2. Bis zu 256 KiB UTF-8 eingeben.
+3. Link und/oder PPXT-Text wählen.
+4. Über vorhandenen Kanal senden.
 
-1. Öffne `Identität`.
-2. Suche deinen `Öffentlichen Kontakt`.
-3. Teile diesen Kontakt per QR oder Datei. Wähle `Kontakt-QR als PNG speichern`, wenn du ein Bild brauchst.
-4. Sag der anderen Person, dass sie den öffentlichen Fingerabdruck über einen vertrauenswürdigen Kanal prüfen soll, wenn Authentizität wichtig ist.
+PPXT enthält den Absenderkontakt. Der kürzere PPXM-Link setzt voraus, dass der
+Empfänger deinen exakten V2-Kontakt gespeichert hat. V2-Links nutzen `#/m/`.
+V2 erstellt keinen Nachrichten-QR.
 
-Der öffentliche Kontakt ist zum Teilen gedacht. Andere Leute verschlüsseln damit an dich.
+## Datei verschlüsseln
 
-Der angemeldete QR-Code des verschlüsselten privaten Tresors ist zunächst verborgen. Gib das Passwort des Browser-Tresors einmal erneut ein, um ihn anzuzeigen. Dieselbe erfolgreiche Prüfung schaltet `QR des privaten Tresors als PNG speichern` und den Download der `.ppxvault`-Identitätsdatei frei, bis du `Identität` verlässt, die App sperrst oder die App in den Hintergrund wechselst. Halte beide Dateien privat. Die Wiederherstellungsdownloads während der Ersteinrichtung erhalten keine zweite Passwortabfrage.
+Eine Datei bis 100 MiB und optionale Beschreibung wählen. Abbruch verwirft den
+Vorgang; danach neu starten. Die erzeugte `.ppxfile` versenden.
 
-### Einstellungen, Versand und Darstellung
+## Entschlüsseln
 
-Öffne die Zahnrad-Schaltfläche in der oberen Leiste, um Sprache, Farbschema, Akzentfarbe oder transparente Oberflächeneffekte zu ändern. Als Farbschema stehen `System`, `Hell` und `Dunkel` zur Auswahl. Wenn du transparente Effekte ausschaltest, werden unscharfe Navigationsflächen durch deckende Flächen ersetzt.
+Text/Link einfügen oder Datei wählen. Die App prüft Format, Version und Suite.
+Unterstützte Altdaten:
 
-`Nachrichtenausgabe` steuert den Versand von Textnachrichten:
+- V1-PPXT Format 1 oder altes komprimiertes Format 2;
+- V1-PPXF, nach Entschlüsselung nur Download;
+- alte `#/m/<BASE64URL>`-Links mit PPXT oder PPXQ;
+- V1-PPXQ-Text und alte `#/decrypt/qr/...`-Links mit exaktem Absenderkontakt;
+- V1-Recovery/Tresor zur V2-Migration.
 
-- `Link` zeigt den verschlüsselten Link.
-- `Text` zeigt den normalen verschlüsselten PPXT-Text.
-- `Beides`, die Voreinstellung, zeigt zuerst den Link und danach PPXT-Text als
-  Ersatzweg.
+Alte Absenderkontakte werden nie gespeichert. Es wird kein V1-Ausgabeobjekt
+erzeugt. Beschädigte, falsche, herabgestufte oder gemischte Eingaben schlagen
+geschlossen fehl.
 
-`Eingehende Nachrichtenlinks und QRs automatisch entschlüsseln` ist
-standardmäßig aktiviert. Schalte es aus, wenn ein eingehendes Element erst für
-eine ausdrückliche `Entschlüsseln`-Aktion eingesetzt werden soll. Diese
-Einstellung ersetzt die ältere, reine QR-Automatik.
+## Offline und Updates
 
-## 5. Kontakte hinzufügen
+Nach einem erfolgreichen Laden funktioniert die App-Hülle offline. Updates
+aktivieren sich still: kein Banner und keine Auswahl. Eine Seite mit derselben
+Version bleibt offen; eine ältere Seite kann einmal automatisch zu CAT5
+navigieren. Unterstützte Nachrichten-Fragmente bleiben lokal, werden im
+Arbeitsspeicher erfasst und sofort aus URL und Verlauf entfernt.
 
-1. Öffne `Kontakte`.
-2. Importiere einen öffentlichen Kontakt per QR, QR-Bild oder Datei.
-3. Füge optional einen lokalen Spitznamen hinzu.
-4. Öffne die Kontaktdetails.
-5. Wähle `Kontakt löschen` und bestätige, wenn du den Eintrag entfernen willst.
-6. Das entfernt nur den lokalen öffentlichen Kontakt und den Spitznamen. Externe Dateien oder deine Identität werden nicht gelöscht.
-7. Du kannst denselben Kontakt später wieder importieren.
-8. Suche nach Pseudonym, Spitzname oder Fingerabdruckdetail.
+## Grenzen
 
-Hilfreiche Hinweise:
-
-- Wenn du denselben Schlüssel noch einmal importierst, wird der Eintrag zusammengeführt.
-- Wenn zwei Kontakte dasselbe Pseudonym haben, aber unterschiedliche Schlüssel, behalte beide, bis du weißt, welcher korrekt ist.
-- Kontakte bleiben auf diesem Gerät normalerweise erhalten, außer du bist im Modus `Nur Sitzung`.
-
-## 6. Text verschlüsseln
-
-1. Öffne `Verschlüsseln`.
-2. Wähle genau einen Empfänger aus.
-3. Füge unter `Verschlüsselter Text` bis zu `256 KiB` ein oder tippe den Text ein.
-4. Wenn deine Ausgabe einen Link enthält, lass `Meinen öffentlichen Kontakt im
-   Link mitsenden` aktiviert, außer der Empfänger besitzt bereits deinen exakten
-   öffentlichen Kontakt. Diese Auswahl wird für jeden Empfänger getrennt
-   gespeichert und bleibt standardmäßig an, bis du sie ausschaltest.
-5. Wähle `Verschlüsseln`.
-6. Nutze `Verschlüsselten Link kopieren` oder, falls deine Plattform Web Share
-   anbietet, `Verschlüsselten Link teilen`. Beim Teilen wird nur die URL
-   übergeben. Browser- und Ziel-App-Unterstützung sind nicht garantiert; Kopieren
-   bleibt verfügbar. Im Modus `Verschlüsselter Text` kopierst oder speicherst du
-   stattdessen die normale verschlüsselte Ausgabe.
-
-Mit Kontakt enthält der Link selbstständiges verschlüsseltes PPXT. Ohne Kontakt
-ist der PPXQ-Link kürzer, setzt aber voraus, dass der Empfänger deinen exakten
-Absenderkontakt bereits besitzt. Kann das kompakte PPXQ nicht erstellt werden,
-schalte die Kontaktbeigabe ein oder blende den normalen verschlüsselten Text als
-Ersatz ein. Die App zeigt die genaue Linklänge. Links über 2.000 Zeichen bleiben
-kopierbar, können von Messengern aber eingeklappt, abgeschnitten oder nicht als
-Link erkannt werden.
-
-Die Erstellung von Nachrichten-QRs bleibt standardmäßig ausgeschaltet. Wenn du
-in den Einstellungen ausdrücklich `Nachrichten-QR nach Textverschlüsselung
-anbieten` aktivierst, kann eine kompakte Nachricht zusätzlich als In-App-QR
-und/oder Handykamera-Link angeboten werden. Es gibt keine Vorschau. Für
-kompaktes PPXQ muss der Empfänger deinen öffentlichen Kontakt bereits besitzen.
-Emoji, Hauttöne, Flaggen, kombinierende Zeichen und verbundene Emoji sind
-normaler UTF-8-Nachrichteninhalt und zählen zum Byte-Limit von 256 KiB.
-
-Tipps:
-
-- Die App verschlüsselt lokal.
-- Eine Ausgabe ist für genau einen Empfänger gedacht.
-- Nutze das Suchfeld für Kontakte, wenn du viele Einträge hast.
-- Die Textkomprimierung arbeitet automatisch und inhaltsunabhängig. Langer,
-  wiederholter Text kann deutlich kleiner werden; kurzer oder bereits kompakter
-  Text bleibt im kompatiblen unkomprimierten Format. Es gibt keine Einstellung.
-
-## 7. Eine Datei verschlüsseln
-
-1. Öffne `Verschlüsseln`.
-2. Wähle genau einen Empfänger aus.
-3. Wähle unter `Datei verschlüsseln` eine Datei bis `100 MiB`.
-4. Füge optional eine Beschriftung bis `16 KiB` hinzu.
-5. Wähle `Datei lokal verschlüsseln`.
-6. Der Download der fertigen `.ppxfile` beginnt erst nach Abschluss.
-
-Hinweise:
-
-- Wenn der Vorgang unterbrochen wird, startet die Dateiverschlüsselung von vorne neu.
-- `Dateivorgang abbrechen` verwirft Teilausgaben.
-- Die App zeigt unterstützte Bilder, Audio- und Videodateien erst nach vollständiger Authentifizierung als Vorschau an.
-- Dokumente und nicht unterstützte Medien werden nur als sichere Downloads angeboten.
-
-## 8. Text oder Datei entschlüsseln
-
-1. Öffne `Entschlüsseln`.
-2. Füge normalen verschlüsselten Text oder einen verschlüsselten Nachrichtenlink
-   unter `Verschlüsseltes Element` ein und wähle `Lokal entschlüsseln`. Du kannst
-   auch einen Link öffnen, einen Nachrichten-QR scannen oder einen Screenshot/ein
-   Bild wählen. Gültige Links und Nachrichten-QRs werden standardmäßig sofort
-   entschlüsselt. Schalte die Automatik in den Einstellungen aus, wenn du erst
-   ausdrücklich bestätigen möchtest. Ein eingefügter Link wird gelesen, ohne zu
-   seinem Host zu navigieren. Der Empfang bleibt verfügbar, auch wenn die
-   QR-Erstellung ausgeschaltet ist.
-3. Wähle für Dateien unter `Datei entschlüsseln` eine `.ppxfile` und dann `Datei lokal entschlüsseln`.
-4. Wenn die Prüfung gelingt, lies den Klartext oder prüfe und lade das Dateiergebnis herunter.
-5. Wenn der Absender unbekannt ist, siehst du eine Warnung.
-6. Wenn das Element nicht zu deiner aktiven Identität passt, schlägt die App sicher fehl.
-
-Verschlüsselte Links tragen den gesamten Geheimtext hinter `#`. Die App entfernt
-gültige und fehlerhafte reservierte Fragmente vor der normalen Initialisierung
-aus der Adresse und hält nur ein verarbeitetes, ausstehendes Element höchstens
-15 Minuten im Arbeitsspeicher. Das Fragment wird nicht in einer HTTP-Anfrage
-gesendet; ein Relay-Server wird nicht genutzt. Bei einem gemerkten, gesperrten
-Tresor fragt der Eingangsweg direkt nach dem Passwort und setzt danach die
-Entschlüsselung fort. Gibt es keine aktive oder gemerkte Identität, importiere
-die richtige Identität; das ausstehende Element wird danach weiterverarbeitet.
-Abbrechen oder Ersetzen löscht das alte Element.
-
-Selbstständiges PPXT kann einen unbekannten Absender nach der Entschlüsselung
-authentifizieren. Wähle `Kontakt speichern` oder `Nicht jetzt`. Für einen bereits
-vorhandenen exakten Fingerabdruck entsteht kein Duplikat. Gehört dasselbe
-Pseudonym zu einem anderen Fingerabdruck, warnt die App vor dem Speichern und
-verlangt `Als separaten Kontakt speichern`. Kompaktes PPXQ von einem unbekannten
-Fingerabdruck schlägt sicher fehl und fordert den Import des Absenderkontakts.
-Bei Kamerafehlern bleibt der Bild-Upload verfügbar.
-
-Aktualisierte Browser öffnen unkomprimiertes PPXT v1 und komprimiertes PPXT v2.
-Fehlt einem Browser die gzip-Unterstützung, aktualisiere ihn oder öffne die
-Nachricht in einem anderen aktuellen unterstützten Browser.
-
-Was du erwarten solltest:
-
-- Sichere Fehler sind normal und zeigen standardmäßig keine zusätzlichen Details.
-- Du kannst technische Details öffnen, wenn du sie brauchst.
-- Nachrichten von unbekannten Absendern können trotzdem entschlüsselt werden, wenn sie kryptografisch gültig sind.
-- Du kannst den Absender nach der Entschlüsselung als Kontakt speichern.
-
-## 9. Sperren, löschen und nur Sitzung
-
-1. Öffne `Identität`.
-2. Nutze `Jetzt sperren`, wenn du fertig bist.
-3. Nutze `Tresor löschen`, wenn du gemerkte private Identitätsdaten entfernen willst.
-4. Nutze `Alles löschen` nur, wenn du wirklich alle lokalen Daten entfernen willst.
-
-Das Entsperren eines gemerkten Tresors führt zur letzten entsperrten Seite zurück, die dieser Browser gespeichert hat. Ein eingehender QR-Code führt zuerst zu `Entschlüsseln`; bei einer ungültigen oder fehlenden gespeicherten Seite öffnet sich `Verschlüsseln`. Eine neu erstellte Identität öffnet weiterhin `Verschlüsseln`. Das Löschen des Tresors oder aller lokalen Daten löscht auch die gespeicherte Seite.
-
-Zum Modus `Nur Sitzung`:
-
-- Er ist die Fallback-Variante, wenn Speicher nicht verfügbar ist.
-- Nach dem Ende der Sitzung soll nichts bleiben.
-- Kontakte und Identitätsdaten werden in diesem Modus nicht dauerhaft gespeichert.
-
-## 10. Offline-Nutzung und Updates
-
-- Nachdem die App einmal erfolgreich geladen wurde, kann sie offline weiterarbeiten, wenn dein Browser die App-Shell und die Assets behält.
-- Neue Versionen werden im Hintergrund ohne Hinweis aktiviert und unterbrechen die geöffnete Seite nicht.
-- Lade die Seite neu oder öffne die App vollständig erneut, wenn du die neueste aktivierte Version nutzen möchtest. Lade nicht neu, während du verschlüsselst, entschlüsselst oder ein entschlüsseltes Ergebnis offen hast.
-
-## 11. Fehlerbehebung
-
-Wenn etwas fehlschlägt:
-
-- Prüfe, ob du den richtigen Empfänger gewählt hast.
-- Prüfe, ob die Datei oder der eingefügte Text vollständig ist.
-- Prüfe, ob Speicher verfügbar ist, wenn du Persistenz erwartet hast.
-- Prüfe, ob der Absender schon in deinen Kontakten ist.
-- Öffne für Kamerascans die ausgegebene HTTPS-Entwicklungs-URL. Reines IP-HTTP darf keinen Kamerazugriff anfordern; Screenshot-/Bildimport bleibt verfügbar.
-- Wenn automatisches Kopieren nicht verfügbar ist, markiert die App den vollständigen Text. Nutze den Kopierbefehl des Browsers; die App behauptet keinen Kopiererfolg.
-- Nutze den Aufklapper für technische Details nur, wenn du mehr Information brauchst.
-
-Häufige sichere Meldungen:
-
-- `Dieses Element passt nicht zu deiner aktiven Identität oder ist beschädigt.`
-- `Das Element wurde entschlüsselt, aber die Absenderprüfung ist fehlgeschlagen.`
-- `Speicher ist nicht verfügbar, deshalb wird sich diese Sitzung nicht merken.`
-
-## 12. Sicherheitsgrenzen
-
-- Chat NoControl versteckt Inhalt, nicht Metadaten.
-- Version 1 hat kein Forward Secrecy.
-- Die App legt kein Online-Konto an.
-- Sie bietet keine Passwortzurücksetzung an.
-- Sie garantiert keine sichere Löschung von Browser-Speicher.
-- Sie schützt dich nicht vor einem kompromittierten Gerät, einer bösartigen Erweiterung oder Malware.
-- Die private Wiederherstellungskarte und jeder verschlüsselte Tresor müssen sicher aufbewahrt werden.
-- Die 24 Wiederherstellungswörter sind privates Wiederherstellungsmaterial und müssen sicher aufbewahrt werden.
-- Verschlüsselte Links können im Messenger- oder Zwischenablageverlauf, in der
-  Browser-Verlaufssynchronisierung oder in Absturzwiederherstellungen bleiben.
-  Länge und Komprimierbarkeit verraten grobe Metadaten; Screenshots können Links
-  festhalten.
-- Das Fragment wird nicht in der HTTP-Anfrage gesendet, aber die vollständige
-  URL existiert, bevor das JavaScript der App sie entfernt. Ein kompromittiertes
-  Deployment, ein Browser, eine Erweiterung oder ein Gerät kann sie trotzdem lesen.
-- Nachrichtenlinks können erneut abgespielt werden. Die App speichert keine
-  Nachrichten-IDs und bietet weder Forward Secrecy noch Ratchet oder
-  sitzungsübergreifenden Replay-Schutz.
-- Browser und Betriebssystem entscheiden, ob ein Link eine installierte PWA
-  öffnet. Browser-Fallback und Einfügen in der App bleiben unterstützt.
-
-## 13. Hilfe
-
-Öffne `Hilfe` oder `Über`, um Folgendes zu lesen:
-
-- Die Sicherheitsgrenzen in einfacher Sprache.
-- Informationen zu Quellcode und Build.
-- Die Links zum dedizierten Chat-Control-Erklärtext.
-- Den lokalen Weg für Issue-Entwürfe.
+Keine Gruppen, Zustellung, Historie, Synchronisierung, Forward Secrecy,
+Ratsche, Anonymität oder sichere Löschgarantie. Ein kompromittiertes Gerät kann
+Geheimnisse offenlegen. Unabhängige Prüfung bleibt BLOCKED, echte Geräteprüfung
+NOT RUN, bis reale Nachweise vorliegen.

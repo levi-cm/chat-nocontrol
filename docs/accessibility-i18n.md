@@ -1,7 +1,7 @@
-> **Authority:** Chat NoControl documentation authority; this file normatively defines accessibility and localization architecture for Chat NoControl v1.
-> **Version:** 1.0-draft
+> **Authority:** Accessibility/localization architecture for CAT-5/V2 target `0.2.0-beta.1`.
+> **Version:** 0.2.0-beta.1 target
 > **Status:** Public beta channel / stable release unavailable / operational status is external
-> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-v1.md](protocol-v1.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
+> **Depends on:** [../Chat_NoControl_full_plan.md](../Chat_NoControl_full_plan.md), [protocol-cat5-v2.md](protocol-cat5-v2.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md), [security-architecture.md](security-architecture.md), [threat-model.md](threat-model.md), [product-spec.md](product-spec.md), [design-spec.md](design-spec.md), [ux-content-spec.md](ux-content-spec.md), [user-guide.en.md](user-guide.en.md), [user-guide.de.md](user-guide.de.md), [testing-and-release.md](testing-and-release.md), [references.md](references.md)
 > **Supersedes:** The original WebLibre plan is historical only; see [../WebLibre_full_plan.md](../WebLibre_full_plan.md) for archive context, not as an active specification.
 
 # Accessibility and Internationalization Specification
@@ -64,7 +64,10 @@ Requirements:
 - Loading and progress states should expose meaningful text, not just spinners.
 - The app must remain usable at high zoom without losing access to primary actions.
 - Small screens and 200% zoom may scroll within a wizard screen when necessary; the flow must never clip required actions or depend on scrolling back to previously cleared secrets.
-- The message-QR creation toggle requires English/German parity and an announced checked state. The export selector must not remain focusable or exposed to assistive technology while creation is disabled. If enabled, QR download, progress, cancellation, oversize, unknown-sender, and error copy retain keyboard and screen-reader support. Receiving controls remain usable when creation is disabled. QR icons are decorative inside named text buttons.
+- CAT-5 exposes no contact/message QR creation toggle or output control. Recovery
+  QR and encrypted private-vault QR controls retain EN/DE parity, keyboard
+  access, named actions, progress/error announcements, and decorative icons
+  only inside already named text buttons.
 
 ## 5. Localization architecture
 
@@ -140,7 +143,9 @@ Requirements:
 - Session-only opt-out and storage-unavailable fallback in both locales.
 - Encrypt and decrypt flows in both locales.
 - Unknown-sender warning after decryption.
-- Update banner and offline banner in both locales.
+- Offline state in both locales. Silent updates expose no banner, prompt, or
+  choice. Forced version cutover occurs at most once, preserves focusable CAT5
+  startup, and never interrupts an exact same-version document.
 
 ## 8. Accessibility acceptance
 

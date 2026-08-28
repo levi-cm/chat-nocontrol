@@ -1,9 +1,9 @@
 import preact from "@preact/preset-vite";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
-import { validateCanonicalAppBase } from "./src/app/canonical-app-base";
-import { isAllowedShellCachePath } from "./src/sw/cache-policy";
-import manifest from "./package.json";
+import { validateCanonicalAppBase } from "./src/app/canonical-app-base.ts";
+import { isAllowedShellCachePath } from "./src/sw/cache-policy.ts";
+import manifest from "./package.json" with { type: "json" };
 
 const canonicalAppBase = validateCanonicalAppBase(manifest.homepage);
 
@@ -25,13 +25,13 @@ export default defineConfig(({ command }) => ({
       },
     },
     VitePWA({
+      srcDir: "src",
+      filename: "sw.ts",
+      strategies: "injectManifest",
       injectRegister: false,
       registerType: "autoUpdate",
       manifest: false,
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
+      injectManifest: {
         globPatterns: ["**/*.{html,js,css,svg,png,webmanifest}"],
         manifestTransforms: [
           (entries) =>
@@ -42,7 +42,6 @@ export default defineConfig(({ command }) => ({
               warnings: [],
             }),
         ],
-        navigateFallback: "index.html",
         sourcemap: false,
       },
     }),

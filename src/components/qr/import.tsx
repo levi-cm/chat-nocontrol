@@ -3,7 +3,7 @@ import type { MessageKey } from "../../i18n";
 import { scanQrFile } from "./scan";
 import { loadZxingBrowser, type ScannerControls } from "./zxing";
 import { classifyScannedQrInWorker } from "../../workers/scan-client";
-import type { QrImportControls } from "../../storage/settings";
+type QrImportControls = "camera" | "image" | "both";
 
 interface QrScanner {
   decodeFromConstraints?(
@@ -148,6 +148,7 @@ export function QrImport({
           );
       if (!mounted.current || cameraGeneration.current !== generation) return;
       const preview = video.current ?? undefined;
+      let resultAccepted = false;
       const onResult = (
         result: unknown,
         _error: unknown,
@@ -158,7 +159,8 @@ export function QrImport({
           return;
         }
         const value = readQrText(result);
-        if (value === null) return;
+        if (value === null || resultAccepted) return;
+        resultAccepted = true;
         scannerControls.stop();
         controls.current = null;
         if (mounted.current) setScanning(false);
@@ -200,7 +202,7 @@ export function QrImport({
       }
       if (!mounted.current || cameraGeneration.current !== generation)
         scanner.stop();
-      else controls.current = scanner;
+      else controls.current = resultAccepted ? null : scanner;
     } catch (caught) {
       if (mounted.current && cameraGeneration.current === generation) {
         setScanning(false);

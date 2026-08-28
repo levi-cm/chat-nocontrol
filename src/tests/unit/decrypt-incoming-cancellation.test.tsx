@@ -6,14 +6,14 @@ import {
   waitFor,
 } from "@testing-library/preact";
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
 import { DecryptFlow } from "../../flows/decrypt";
 
 afterEach(cleanup);
 
 describe("incoming decrypt cancellation", () => {
   it("invalidates pending async file routing before stale content can win", async () => {
-    const identity = await deriveIdentityFromEntropy(
+    const identity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(91),
       "Recipient",
     );
@@ -34,7 +34,6 @@ describe("incoming decrypt cancellation", () => {
         contacts={[]}
         onContactsChange={() => Promise.resolve(true)}
         locale="en"
-        qrImportControls="image"
         autoDecryptIncomingMessages
         pendingIncomingIntent={null}
         onPendingIncomingConsumed={() => undefined}

@@ -7,6 +7,10 @@ on:
         description: Exact signed beta tag to verify, release, and deploy
         required: true
         type: string
+      physical_evidence_sha256:
+        description: SHA-256 of the trusted-tester-signed physical-device evidence JSON
+        required: true
+        type: string
       confirm_deployment:
         description: I explicitly approve deployment of this exact signed tag
         required: true
@@ -21,7 +25,6 @@ concurrency:
 
 jobs:
   verify-candidate:
-    if: ${{ inputs.confirm_deployment == true }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -30,6 +33,10 @@ jobs:
       pages: read
     outputs:
       commit: ${{ steps.candidate.outputs.commit }}
+      artifact_id: ${{ steps.pages-artifact.outputs.artifact-id }}
+      artifact_digest: ${{ steps.pages-artifact.outputs.artifact-digest }}
+      rollback_artifact_id: ${{ steps.rollback-pages-artifact.outputs.artifact-id }}
+      rollback_artifact_digest: ${{ steps.rollback-pages-artifact.outputs.artifact-digest }}
     steps:
       - name: Check out the exact remote tag
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -37,6 +44,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           ref: refs/tags/${{ inputs.tag }}
+      - name: Set up exact project Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
       - name: Validate exact beta candidate
         id: candidate
         env:
@@ -48,15 +60,43 @@ jobs:
           test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: .node-version
-          cache: npm
       - run: npm ci
+      - name: Download signed physical-device evidence from the draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PHYSICAL_EVIDENCE_SHA256: ${{ inputs.physical_evidence_sha256 }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$(printf '%s' "$PHYSICAL_EVIDENCE_SHA256" | sed -nE '/^[0-9a-f]{64}$/p')" = "$PHYSICAL_EVIDENCE_SHA256"
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease > "$RUNNER_TEMP/draft-release.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const release = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/draft-release.json`, "utf8"));
+          if (release.tagName !== process.env.RELEASE_TAG || release.isDraft !== true || release.isPrerelease !== true) process.exit(1);
+          NODE
+          mkdir -m 700 "$RUNNER_TEMP/physical-evidence"
+          gh release download "$RELEASE_TAG" \
+            --pattern physical-device-release-evidence.json \
+            --pattern physical-device-release-evidence.json.sig \
+            --dir "$RUNNER_TEMP/physical-evidence"
+          test -f "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json"
+          test -f "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json.sig"
+          test "$(find "$RUNNER_TEMP/physical-evidence" -maxdepth 1 -type f -printf '%f\n' | sort)" = "$(printf '%s\n' physical-device-release-evidence.json physical-device-release-evidence.json.sig)"
       - run: npx playwright install --with-deps chromium firefox webkit
+      - name: Verify source and runtime quality
+        run: npm run verify:quality
+      - name: Prepare exact release bytes
+        run: npm run release:prepare
+      - name: Import exact physical-device evidence
+        env:
+          PHYSICAL_EVIDENCE_SHA256: ${{ inputs.physical_evidence_sha256 }}
+        run: |
+          npm run release:import-physical-evidence -- \
+            --input "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json" \
+            --signature "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json.sig" \
+            --sha256 "$PHYSICAL_EVIDENCE_SHA256"
       - name: Verify review evidence, signature, quality, reproducibility, SBOM, and archive
-        run: npm run verify
+        run: npm run verify:prepared
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REQUIRE_REMOTE_TAG: "1"
@@ -64,18 +104,151 @@ jobs:
         run: npm run test:production-artifacts
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Create deterministic Pages payload from verified dist
+        env:
+          PAGES_ARTIFACT_TAR: ${{ runner.temp }}/artifact.tar
+        run: |
+          tar \
+            --sort=name \
+            --mtime='UTC 1970-01-01' \
+            --owner=0 \
+            --group=0 \
+            --numeric-owner \
+            --format=ustar \
+            --dereference \
+            --hard-dereference \
+            --directory dist \
+            --create \
+            --file "$PAGES_ARTIFACT_TAR" \
+            --exclude=.git \
+            --exclude=.github \
+            .
       - name: Upload exact verified Pages artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        id: pages-artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          path: dist
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
+      - name: Bind verified dist to immutable Pages artifact
+        env:
+          PAGES_ARTIFACT_DIGEST: ${{ steps.pages-artifact.outputs.artifact-digest }}
+          PAGES_ARTIFACT_ID: ${{ steps.pages-artifact.outputs.artifact-id }}
+          RELEASE_COMMIT: ${{ steps.candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          npx tsx scripts/pages-release.ts record \
+            --dist dist \
+            --tar "$RUNNER_TEMP/artifact.tar" \
+            --artifact-id "$PAGES_ARTIFACT_ID" \
+            --artifact-digest "$PAGES_ARTIFACT_DIGEST" \
+            --commit "$RELEASE_COMMIT" \
+            --tag "$RELEASE_TAG" \
+            --version "${RELEASE_TAG#v}" \
+            --output output/release/pages-artifact-binding.json
+      - name: Package verified pinned V1 rollback artifact
+        run: |
+          mkdir -m 700 "$RUNNER_TEMP/rollback-pages"
+          npx tsx scripts/legacy-pages-rollback.ts create \
+            --tar "$RUNNER_TEMP/rollback-pages/artifact.tar" \
+            --binding output/release/legacy-pages-rollback-binding.json
+      - name: Upload verified pinned V1 rollback artifact
+        id: rollback-pages-artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: github-pages-rollback-v1
+          path: ${{ runner.temp }}/rollback-pages/artifact.tar
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 1
       - name: Upload exact release evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-evidence-${{ inputs.tag }}
           path: output/release/
           if-no-files-found: error
-  deploy-pages:
+
+  authorize-deployment:
     needs: verify-candidate
+    if: ${{ inputs.confirm_deployment == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    outputs:
+      authorized_at: ${{ steps.authorization-time.outputs.timestamp }}
+    steps:
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Set up exact project Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Download exact release evidence from this run
+        env:
+          EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
+      - name: Load canonical ledger from main without checking out main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/contents/docs/deployed-releases.json?ref=main" > /tmp/ledger-response.json
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const response = JSON.parse(readFileSync("/tmp/ledger-response.json", "utf8"));
+          const ledger = Buffer.from(response.content.replace(/\n/g, ""), "base64").toString("utf8");
+          writeFileSync("docs/deployed-releases.json", ledger);
+          writeFileSync("/tmp/ledger-before.json", ledger);
+          writeFileSync("/tmp/ledger-blob-sha", `${response.sha}\n`);
+          NODE
+      - name: Fix authorization time before any public mutation
+        id: authorization-time
+        run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+      - name: Create exact pre-deployment authorization
+        env:
+          DEPLOYMENT_AUTHORIZED_AT: ${{ steps.authorization-time.outputs.timestamp }}
+          PAGES_ARTIFACT_DIGEST: ${{ needs.verify-candidate.outputs.artifact_digest }}
+          PAGES_ARTIFACT_ID: ${{ needs.verify-candidate.outputs.artifact_id }}
+          PHYSICAL_EVIDENCE_SHA256: ${{ inputs.physical_evidence_sha256 }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: npx tsx scripts/authorize-pages-deployment.ts
+      - name: Append authorization to canonical ledger before deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const payload = {
+            message: `Authorize Pages deployment for ${process.env.RELEASE_TAG}`,
+            content: Buffer.from(readFileSync("docs/deployed-releases.json")).toString("base64"),
+            sha: readFileSync("/tmp/ledger-blob-sha", "utf8").trim(),
+            branch: "main",
+          };
+          writeFileSync("/tmp/ledger-update.json", JSON.stringify(payload));
+          NODE
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/docs/deployed-releases.json" --input /tmp/ledger-update.json
+      - name: Upload immutable deployment authorization evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-authorization-${{ inputs.tag }}
+          path: output/release/deployment-authorization.json
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-pages:
+    needs: [verify-candidate, authorize-deployment]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -90,18 +263,69 @@ jobs:
       page_url: ${{ steps.deployment.outputs.page_url }}
       started_at: ${{ steps.deployment-window-start.outputs.timestamp }}
       completed_at: ${{ steps.deployment-window-end.outputs.timestamp }}
+      mutation_state: ${{ steps.pages-mutation.outputs.state || steps.pages-mutation-fallback.outputs.state }}
     steps:
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Set up exact project Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
       - name: Download exact release evidence from this run
         env:
           EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
-      - name: Attest exact verified release archive and SBOM
+      - name: Download canonical pre-deployment authorization evidence
+        env:
+          AUTHORIZATION_NAME: deployment-authorization-${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$AUTHORIZATION_NAME" --dir output/release
+      - name: Verify exact immutable Pages artifact metadata and payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_DIGEST: ${{ needs.verify-candidate.outputs.artifact_digest }}
+          PAGES_ARTIFACT_ID: ${{ needs.verify-candidate.outputs.artifact_id }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$PAGES_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/pages-artifact-metadata.json"
+          node scripts/pages-release.ts verify-metadata \
+            --metadata "$RUNNER_TEMP/pages-artifact-metadata.json" \
+            --artifact-id "$PAGES_ARTIFACT_ID" \
+            --artifact-digest "$PAGES_ARTIFACT_DIGEST" \
+            --commit "$RELEASE_COMMIT" \
+            --run-id "$GITHUB_RUN_ID"
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$PAGES_ARTIFACT_ID/zip" \
+            > "$RUNNER_TEMP/pages-artifact.zip"
+          mkdir -p "$RUNNER_TEMP/pages-artifact"
+          unzip -q "$RUNNER_TEMP/pages-artifact.zip" -d "$RUNNER_TEMP/pages-artifact"
+          test "$(find "$RUNNER_TEMP/pages-artifact" -type f -printf '%P\n')" = "artifact.tar"
+          node scripts/pages-release.ts verify-binding \
+            --tar "$RUNNER_TEMP/pages-artifact/artifact.tar" \
+            --binding output/release/pages-artifact-binding.json \
+            --artifact-id "$PAGES_ARTIFACT_ID" \
+            --artifact-digest "$PAGES_ARTIFACT_DIGEST" \
+            --commit "$RELEASE_COMMIT" \
+            --tag "$RELEASE_TAG"
+      - name: Attest exact deployed Pages artifact and release evidence
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
+            ${{ runner.temp }}/pages-artifact/artifact.tar
+            output/release/pages-artifact-binding.json
+            output/release/deployment-authorization.json
             output/release/chat-nocontrol-${{ inputs.tag }}.tgz
+            output/release/physical-device-release-evidence.json
+            output/release/physical-device-release-evidence.json.sig
             output/release/sbom.cdx.json
       - name: Mark deployment window start
         id: deployment-window-start
@@ -109,12 +333,203 @@ jobs:
       - name: Deploy exact verified Pages artifact
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        with:
+          artifact_name: github-pages
       - name: Mark deployment window end
         id: deployment-window-end
+        if: ${{ always() }}
         run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+      - name: Detect whether Pages was actually mutated
+        id: pages-mutation
+        if: ${{ always() && steps.deployment-window-start.outputs.timestamp != '' }}
+        continue-on-error: true
+        env:
+          DEPLOYMENT_ACTION_OUTCOME: ${{ steps.deployment.outcome }}
+          DEPLOYMENT_ACTION_PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          DEPLOYMENT_COMPLETED_AT: ${{ steps.deployment-window-end.outputs.timestamp }}
+          DEPLOYMENT_STARTED_AT: ${{ steps.deployment-window-start.outputs.timestamp }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: npx tsx scripts/pages-deployment-mutation.ts
+      - name: Fail safe when mutation detection is unavailable
+        id: pages-mutation-fallback
+        if: ${{ always() && steps.deployment-window-start.outputs.timestamp != '' && steps.pages-mutation.outputs.state == '' }}
+        run: echo "state=UNKNOWN" >> "$GITHUB_OUTPUT"
+
+  live-acceptance:
+    needs: [verify-candidate, deploy-pages]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Set up exact project Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+      - name: Require exact canonical CAT5 deployment
+        env:
+          DEPLOYMENT_URL: ${{ needs.deploy-pages.outputs.page_url }}
+        run: |
+          CANONICAL_URL="$(node -p 'require("./package.json").homepage')"
+          VERSION="$(node -p 'require("./package.json").version')"
+          test "$DEPLOYMENT_URL" = "$CANONICAL_URL"
+          test "$VERSION" = "0.2.0-beta.1"
+          node scripts/pages-release.ts accept \
+            --url "$DEPLOYMENT_URL" \
+            --version "$VERSION" \
+            --attempts 20 \
+            --interval-ms 10000 \
+            --request-timeout-ms 8000
+
+  rollback-pages:
+    needs: [verify-candidate, deploy-pages, live-acceptance]
+    if: >-
+      ${{ always() &&
+          (needs.deploy-pages.outputs.mutation_state == 'MUTATED' ||
+           needs.deploy-pages.outputs.mutation_state == 'UNKNOWN') &&
+          (needs.deploy-pages.result != 'success' ||
+           needs.live-acceptance.result != 'success') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+      deployments: read
+      id-token: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.rollback-deployment.outputs.page_url }}
+    steps:
+      - name: Check out the exact remote tag
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: refs/tags/${{ inputs.tag }}
+      - name: Set up exact project Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - name: Download exact release evidence from this run
+        env:
+          EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
+      - name: Download and verify exact pinned V1 rollback artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROLLBACK_ARTIFACT_DIGEST: ${{ needs.verify-candidate.outputs.rollback_artifact_digest }}
+          ROLLBACK_ARTIFACT_ID: ${{ needs.verify-candidate.outputs.rollback_artifact_id }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+        run: |
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$ROLLBACK_ARTIFACT_ID" \
+            > "$RUNNER_TEMP/rollback-artifact-metadata.json"
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const metadata = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/rollback-artifact-metadata.json`, "utf8"));
+          if (
+            String(metadata.id) !== process.env.ROLLBACK_ARTIFACT_ID ||
+            metadata.name !== "github-pages-rollback-v1" ||
+            metadata.expired !== false ||
+            metadata.digest !== process.env.ROLLBACK_ARTIFACT_DIGEST ||
+            String(metadata.workflow_run?.id) !== process.env.GITHUB_RUN_ID ||
+            metadata.workflow_run?.head_sha !== process.env.RELEASE_COMMIT
+          ) process.exit(1);
+          NODE
+          gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts/$ROLLBACK_ARTIFACT_ID/zip" \
+            > "$RUNNER_TEMP/rollback-artifact.zip"
+          mkdir -m 700 "$RUNNER_TEMP/rollback-artifact"
+          unzip -q "$RUNNER_TEMP/rollback-artifact.zip" -d "$RUNNER_TEMP/rollback-artifact"
+          test "$(find "$RUNNER_TEMP/rollback-artifact" -type f -printf '%P\n')" = "artifact.tar"
+          npx tsx scripts/legacy-pages-rollback.ts verify \
+            --tar "$RUNNER_TEMP/rollback-artifact/artifact.tar" \
+            --binding output/release/legacy-pages-rollback-binding.json
+      - name: Mark rollback deployment window start
+        id: rollback-window-start
+        run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+      - name: Restore exact verified pinned V1 Pages artifact
+        id: rollback-deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+        with:
+          artifact_name: github-pages-rollback-v1
+      - name: Mark rollback deployment window end
+        id: rollback-window-end
+        run: echo "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%S.000Z')" >> "$GITHUB_OUTPUT"
+      - name: Verify pinned V1 is live after rollback
+        env:
+          ROLLBACK_URL: ${{ steps.rollback-deployment.outputs.page_url }}
+        run: |
+          CANONICAL_URL="$(node -p 'require("./package.json").homepage')"
+          test "$ROLLBACK_URL" = "$CANONICAL_URL"
+          npx tsx scripts/legacy-pages-rollback.ts accept \
+            --url "$ROLLBACK_URL" \
+            --attempts 20 \
+            --interval-ms 10000 \
+            --request-timeout-ms 8000
+      - name: Record rollback result without publishing the CAT5 draft
+        env:
+          CANDIDATE_DEPLOYMENT_COMPLETED_AT: ${{ needs.deploy-pages.outputs.completed_at }}
+          CANDIDATE_DEPLOYMENT_STARTED_AT: ${{ needs.deploy-pages.outputs.started_at }}
+          DEPLOYMENT_URL: ${{ needs.deploy-pages.outputs.page_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          ROLLBACK_DEPLOYMENT_COMPLETED_AT: ${{ steps.rollback-window-end.outputs.timestamp }}
+          ROLLBACK_DEPLOYMENT_STARTED_AT: ${{ steps.rollback-window-start.outputs.timestamp }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          success=false
+          for attempt in 1 2 3 4 5 6; do
+            if npx tsx scripts/record-pages-rollback.ts; then
+              success=true
+              break
+            fi
+            sleep 10
+          done
+          test "$success" = true
+      - name: Upload rollback evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pages-rollback-result-${{ inputs.tag }}
+          path: output/release/pages-rollback-result.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report hard rollback failure and exact manual recovery
+        if: ${{ failure() }}
+        run: |
+          {
+            echo "## HARD RELEASE FAILURE: automated V1 rollback failed"
+            echo
+            echo "CAT5 must remain a draft prerelease. Do not publish it or retry deployment from altered bytes."
+            echo
+            echo "Manual recovery procedure:"
+            echo '1. Verify `origin/gh-pages` resolves to pinned commit `1a3a5b4d5e55ab78d2bf4692eed2d3545856e291` and tree `f58cbb1e46f3e046139788a62bf0333d13c1c1a5`.'
+            echo '2. In repository Pages settings, restore the source to **Deploy from a branch**, branch `gh-pages`, folder `/`.'
+            echo '3. Verify the canonical URL serves the pinned `index.html`, `sw.js`, and `assets/index-CZw01I_i.js` SHA-256 values recorded in `scripts/legacy-pages-baseline.ts`.'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "::error::Automated V1 rollback failed. Follow the exact manual recovery procedure in the job summary."
+          exit 1
 
   finalize-evidence:
-    needs: [verify-candidate, deploy-pages]
+    needs:
+      [verify-candidate, authorize-deployment, deploy-pages, live-acceptance]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -127,7 +542,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           ref: refs/tags/${{ inputs.tag }}
-      - name: Set up Node.js
+      - name: Set up exact project Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .node-version
@@ -138,6 +553,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EVIDENCE_NAME: release-evidence-${{ inputs.tag }}
         run: gh run download "$GITHUB_RUN_ID" --name "$EVIDENCE_NAME" --dir output/release
+      - name: Download canonical pre-deployment authorization evidence
+        env:
+          AUTHORIZATION_NAME: deployment-authorization-${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "$GITHUB_RUN_ID" --name "$AUTHORIZATION_NAME" --dir output/release
       - name: Load canonical deployment ledger from main without checking out main
         env:
           GH_TOKEN: ${{ github.token }}
@@ -154,13 +574,18 @@ jobs:
       - name: Capture exact successful GitHub Pages deployment evidence
         env:
           DEPLOYMENT_COMPLETED_AT: ${{ needs.deploy-pages.outputs.completed_at }}
+          DEPLOYMENT_AUTHORIZED_AT: ${{ needs.authorize-deployment.outputs.authorized_at }}
           DEPLOYMENT_STARTED_AT: ${{ needs.deploy-pages.outputs.started_at }}
           DEPLOYMENT_URL: ${{ needs.deploy-pages.outputs.page_url }}
           GITHUB_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_DIGEST: ${{ needs.verify-candidate.outputs.artifact_digest }}
+          PAGES_ARTIFACT_ID: ${{ needs.verify-candidate.outputs.artifact_id }}
+          PHYSICAL_EVIDENCE_SHA256: ${{ inputs.physical_evidence_sha256 }}
           RELEASE_COMMIT: ${{ needs.verify-candidate.outputs.commit }}
           RELEASE_TAG: ${{ inputs.tag }}
           REPOSITORY_NAME: ${{ github.event.repository.name }}
           REPOSITORY_OWNER: ${{ github.repository_owner }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
         run: |
           success=false
           for attempt in 1 2 3 4 5 6; do
@@ -171,21 +596,6 @@ jobs:
             sleep 10
           done
           test "$success" = true
-      - name: Publish or refresh matching prerelease evidence
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
-        run: |
-          if gh release view "$RELEASE_TAG" --json tagName,isPrerelease > /tmp/release.json 2>/dev/null; then
-            node --input-type=module <<'NODE'
-            import { readFileSync } from "node:fs";
-            const release = JSON.parse(readFileSync("/tmp/release.json", "utf8"));
-            if (release.tagName !== process.env.RELEASE_TAG || release.isPrerelease !== true) process.exit(1);
-            NODE
-          else
-            gh release create "$RELEASE_TAG" --verify-tag --prerelease --generate-notes --title "Chat NoControl $RELEASE_TAG"
-          fi
-          gh release upload "$RELEASE_TAG" output/release/* --clobber
       - name: Append canonical deployment ledger evidence
         env:
           GH_TOKEN: ${{ github.token }}
@@ -206,3 +616,16 @@ jobs:
           writeFileSync("/tmp/ledger-update.json", JSON.stringify(payload));
           NODE
           gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/docs/deployed-releases.json" --input /tmp/ledger-update.json
+      - name: Publish matching prerelease only after canonical ledger success
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease > /tmp/release.json
+          node --input-type=module <<'NODE'
+          import { readFileSync } from "node:fs";
+          const release = JSON.parse(readFileSync("/tmp/release.json", "utf8"));
+          if (release.tagName !== process.env.RELEASE_TAG || release.isDraft !== true || release.isPrerelease !== true) process.exit(1);
+          NODE
+          gh release upload "$RELEASE_TAG" output/release/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease=true

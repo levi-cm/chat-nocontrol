@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { encodeBase37Upper } from "../../protocol/base37";
 import { checksum16 } from "../../protocol/checksum";
@@ -31,6 +31,65 @@ function canonicalLinkPayload(): string {
   );
 }
 
+async function readStoredMessagePreferences(page: Page) {
+  return page.evaluate(
+    () =>
+      new Promise<{
+        autoDecryptIncomingMessages?: boolean;
+        hasLegacyMessageQrCreationEnabled: boolean;
+        hasLegacyQrAutoDecrypt: boolean;
+        messageOutputMode?: string;
+      }>((resolve, reject) => {
+        const request = indexedDB.open("chat-nocontrol-ppx");
+        request.onerror = () =>
+          reject(request.error ?? new Error("Could not open settings storage"));
+        request.onsuccess = () => {
+          const database = request.result;
+          const transaction = database.transaction("settings", "readonly");
+          const read = transaction.objectStore("settings").get("preferences");
+          let result:
+            | {
+                autoDecryptIncomingMessages?: boolean;
+                hasLegacyMessageQrCreationEnabled: boolean;
+                hasLegacyQrAutoDecrypt: boolean;
+                messageOutputMode?: string;
+              }
+            | undefined;
+          read.onsuccess = () => {
+            const value = read.result as
+              | {
+                  messageOutputMode?: string;
+                  autoDecryptIncomingMessages?: boolean;
+                  messageQrCreationEnabled?: boolean;
+                  qrAutoDecrypt?: boolean;
+                }
+              | undefined;
+            result = {
+              messageOutputMode: value?.messageOutputMode,
+              autoDecryptIncomingMessages: value?.autoDecryptIncomingMessages,
+              hasLegacyMessageQrCreationEnabled:
+                value !== undefined && "messageQrCreationEnabled" in value,
+              hasLegacyQrAutoDecrypt:
+                value !== undefined && "qrAutoDecrypt" in value,
+            };
+          };
+          transaction.onerror = () =>
+            reject(transaction.error ?? new Error("Could not read settings"));
+          transaction.onabort = () =>
+            reject(transaction.error ?? new Error("Settings read aborted"));
+          transaction.oncomplete = () => {
+            database.close();
+            if (result === undefined) {
+              reject(new Error("Settings read completed without a result"));
+              return;
+            }
+            resolve(result);
+          };
+        };
+      }),
+  );
+}
+
 test("captures a fragment-only message link and scrubs it immediately", async ({
   page,
 }) => {
@@ -46,57 +105,38 @@ test("captures a fragment-only message link and scrubs it immediately", async ({
   expect(requests.every((url) => !url.includes(payload))).toBe(true);
 });
 
-test("message delivery preferences persist without the legacy key", async ({
+test("message delivery preferences persist without obsolete QR settings", async ({
   page,
 }) => {
   await page.goto("/#/settings");
   await expect(page.getByLabel("Message output")).toHaveValue("both");
   await page.getByLabel("Message output").selectOption("link");
-  await expect(page.getByLabel("Export")).toBeHidden();
-  await page.getByLabel("Offer message QR after text encryption").check();
-  await page.getByLabel("Export").selectOption("app");
-  await page.getByLabel("Import controls").selectOption("image");
   await page
     .getByLabel("Auto-decrypt incoming message links and QRs")
     .uncheck();
-  await page.waitForFunction(
-    () =>
-      new Promise<boolean>((resolve) => {
-        const request = indexedDB.open("chat-nocontrol-ppx");
-        request.onerror = () => resolve(false);
-        request.onsuccess = () => {
-          const database = request.result;
-          const transaction = database.transaction("settings", "readonly");
-          const read = transaction.objectStore("settings").get("preferences");
-          read.onerror = () => resolve(false);
-          read.onsuccess = () => {
-            const value = read.result as
-              | {
-                  messageQrCreationEnabled?: boolean;
-                  messageOutputMode?: string;
-                  autoDecryptIncomingMessages?: boolean;
-                  qrAutoDecrypt?: boolean;
-                }
-              | undefined;
-            database.close();
-            resolve(
-              value?.messageQrCreationEnabled === true &&
-                value.messageOutputMode === "link" &&
-                value.autoDecryptIncomingMessages === false &&
-                !("qrAutoDecrypt" in value),
-            );
-          };
-        };
-      }),
-  );
+  await expect
+    .poll(() => readStoredMessagePreferences(page))
+    .toEqual({
+      messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+      hasLegacyMessageQrCreationEnabled: false,
+      hasLegacyQrAutoDecrypt: false,
+    });
   await page.reload();
-  await expect(
-    page.getByLabel("Offer message QR after text encryption"),
-  ).toBeChecked();
-  await expect(page.getByLabel("Export")).toHaveValue("app");
-  await expect(page.getByLabel("Import controls")).toHaveValue("image");
-  await expect(page.getByLabel("Message output")).toHaveValue("link");
-  await expect(
-    page.getByLabel("Auto-decrypt incoming message links and QRs"),
-  ).not.toBeChecked();
+  await expect
+    .poll(async () => ({
+      ...(await readStoredMessagePreferences(page)),
+      uiAutoDecryptIncomingMessages: await page
+        .getByLabel("Auto-decrypt incoming message links and QRs")
+        .isChecked(),
+      uiMessageOutputMode: await page.getByLabel("Message output").inputValue(),
+    }))
+    .toEqual({
+      messageOutputMode: "link",
+      autoDecryptIncomingMessages: false,
+      hasLegacyMessageQrCreationEnabled: false,
+      hasLegacyQrAutoDecrypt: false,
+      uiAutoDecryptIncomingMessages: false,
+      uiMessageOutputMode: "link",
+    });
 });

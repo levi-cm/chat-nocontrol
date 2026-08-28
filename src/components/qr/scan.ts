@@ -5,6 +5,11 @@ export const QR_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const QR_IMAGE_MAX_DIMENSION = 4096;
 export const QR_IMAGE_MAX_PIXELS = 16_777_216;
 
+// Numeric DecodeHintType values from the exact pinned @zxing/browser 0.2.1
+// UMD bundle. That bundle exposes the hint-aware constructor, but not the enum.
+export const ZXING_DECODE_HINT_PURE_BARCODE = 1;
+export const ZXING_DECODE_HINT_TRY_HARDER = 3;
+
 function uint16Le(bytes: Uint8Array, offset: number): number {
   return (bytes[offset] ?? 0) | ((bytes[offset + 1] ?? 0) << 8);
 }
@@ -190,17 +195,45 @@ function qrResultText(result: unknown): string {
   return decoded;
 }
 
-async function scanQrCanvas(canvas: HTMLCanvasElement): Promise<string> {
+interface QrCanvasReaderConstructor {
+  new (hints?: Map<number, unknown>): {
+    decodeFromCanvas(canvas: HTMLCanvasElement): unknown;
+  };
+}
+
+export function createQrCanvasDecoder(
+  Reader: QrCanvasReaderConstructor,
+): (canvas: HTMLCanvasElement) => Promise<string> {
+  const pureReader = new Reader(
+    new Map([[ZXING_DECODE_HINT_PURE_BARCODE, true]]),
+  );
+  const detectorReader = new Reader(
+    new Map([[ZXING_DECODE_HINT_TRY_HARDER, true]]),
+  );
+  return (canvas) =>
+    Promise.resolve().then(() => {
+      try {
+        return qrResultText(pureReader.decodeFromCanvas(canvas));
+      } catch {
+        return qrResultText(detectorReader.decodeFromCanvas(canvas));
+      }
+    });
+}
+
+async function prepareQrCanvasDecoder(): Promise<
+  (canvas: HTMLCanvasElement) => Promise<string>
+> {
   const { BrowserQRCodeReader } = await loadZxingBrowser();
-  const reader = new BrowserQRCodeReader();
-  return qrResultText(reader.decodeFromCanvas(canvas));
+  return createQrCanvasDecoder(BrowserQRCodeReader);
 }
 
 export async function scanQrImage(
   source: string | HTMLImageElement,
 ): Promise<string> {
   const { BrowserQRCodeReader } = await loadZxingBrowser();
-  const reader = new BrowserQRCodeReader();
+  const reader = new BrowserQRCodeReader(
+    new Map([[ZXING_DECODE_HINT_TRY_HARDER, true]]),
+  );
   const ownedImage =
     typeof source === "string" ? await loadQrImageElement(source) : null;
   const image = ownedImage ?? (source as HTMLImageElement);
@@ -216,7 +249,8 @@ export async function scanQrImage(
 export async function scanQrFile(file: File): Promise<string> {
   const dimensions = await validateQrImageFile(file);
   const url = URL.createObjectURL(file);
-  const recover = () => recoverQrFromImage(file, scanQrCanvas);
+  const preparedDecoder = prepareQrCanvasDecoder();
+  const recover = () => recoverQrFromImage(file, preparedDecoder);
   try {
     if (priorityQrCropForImage(...dimensions)) {
       try {

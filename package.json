@@ -1,6 +1,6 @@
 {
   "name": "chat-nocontrol",
-  "version": "0.1.0-beta.1",
+  "version": "0.2.0-beta.1",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   },
   "homepage": "https://levi-cm.github.io/chat-nocontrol/",
   "engines": {
-    "node": "^22.12.0 || >=24.0.0"
+    "node": "22.23.1"
   },
   "scripts": {
     "dev": "tsx scripts/dev-tailscale.ts",
@@ -19,7 +19,9 @@
     "dev:lan": "vite --host 0.0.0.0",
     "build": "vite build && npm run test:production-artifacts",
     "benchmark:text-compression": "tsx scripts/benchmark-text-compression.ts",
+    "benchmark:cat5-pq": "tsx scripts/benchmark-cat5-pq.ts",
     "preview": "vite preview",
+    "check:node-version": "tsx scripts/check-node-version.ts",
     "docs:check": "tsx scripts/check-doc-terminology.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "NODE_OPTIONS=--require=./scripts/register-eslint-typescript.cjs eslint .",
@@ -27,13 +29,17 @@
     "format:check": "prettier --check .",
     "unit": "vitest run --coverage",
     "test": "npm run typecheck && npm run lint && npm run format:check && npm run unit",
-    "test:primitive-vectors": "vitest run src/tests/unit/primitive-vectors.test.ts && tsx scripts/generate-vectors.ts --verify",
+    "test:primitive-vectors": "vitest run src/tests/unit/primitive-vectors.test.ts src/tests/unit/pq-acvp-v2.test.ts src/tests/unit/nist-fixture-integrity.test.ts && tsx scripts/generate-vectors.ts --verify && tsx scripts/check-nist-fixtures.ts",
     "test:provider-contract": "tsx scripts/check-crypto-provider-contract.ts",
     "vectors:write": "tsx scripts/generate-vectors.ts --write",
     "vectors:nist-sync": "tsx scripts/sync-nist-mlkem-vector.ts --write",
+    "vectors:nist-verify": "tsx scripts/check-nist-fixtures.ts",
+    "vectors:nist-live-verify": "tsx scripts/sync-nist-mlkem-vector.ts --verify",
     "protocol-goldens:write": "tsx scripts/generate-protocol-goldens.ts --write",
     "qr-fixtures:write": "tsx scripts/generate-qr-fixtures.ts --write",
-    "test:ppx-golden": "vitest run src/tests/unit/ppxc.test.ts src/tests/unit/ppxv.test.ts src/tests/unit/ppxr.test.ts src/tests/unit/ppxt.test.ts src/tests/unit/ppxf.test.ts src/tests/unit/protocol-goldens.test.ts && tsx scripts/generate-protocol-goldens.ts --verify && tsx scripts/check-ppxf-contract.ts",
+    "cat5-golden:write": "tsx scripts/generate-cat5-golden.ts --write",
+    "cat5-golden:verify": "tsx scripts/generate-cat5-golden.ts --verify",
+    "test:ppx-golden": "vitest run src/tests/unit/ppxc.test.ts src/tests/unit/ppxv.test.ts src/tests/unit/ppxr.test.ts src/tests/unit/ppxt.test.ts src/tests/unit/ppxf.test.ts src/tests/unit/protocol-goldens.test.ts src/tests/unit/cat5-golden.test.ts && tsx scripts/generate-protocol-goldens.ts --verify && tsx scripts/generate-cat5-golden.ts --verify && tsx scripts/check-ppxf-contract.ts",
     "test:parser-property": "vitest run src/tests/property/parser-roundtrip.property.test.ts",
     "test:parser-fuzz": "vitest run src/tests/property/fuzz-100k.property.test.ts",
     "test:mutations": "vitest run src/tests/property/mutation.property.test.ts",
@@ -57,7 +63,12 @@
     "test:pwa-update-policy": "npm run build && playwright test src/tests/release/pwa-update.spec.ts",
     "test:en-de": "playwright test src/tests/e2e/en-de.spec.ts",
     "test:network-denial": "playwright test src/tests/release/network-denial.spec.ts",
-    "test:release": "tsx scripts/package-release.ts && tsx scripts/build-sbom.ts --verify && tsx scripts/verify-release.ts",
+    "release:prepare": "tsx scripts/package-release.ts && tsx scripts/build-sbom.ts",
+    "release:physical-evidence-bindings": "tsx scripts/print-physical-device-evidence-bindings.ts",
+    "release:physical-test-kit": "tsx scripts/generate-physical-device-test-kit.ts",
+    "release:physical-server": "tsx scripts/physical-device-server.ts",
+    "release:import-physical-evidence": "tsx scripts/import-physical-device-evidence.ts",
+    "test:release": "tsx scripts/build-sbom.ts --verify && tsx scripts/verify-release.ts",
     "test:sbom": "tsx scripts/build-sbom.ts --verify",
     "test:reproducibility": "tsx scripts/check-reproducibility.ts",
     "test:dependency-review": "tsx scripts/check-dependencies.ts",
@@ -65,9 +76,10 @@
     "test:production-artifacts": "tsx scripts/production-artifacts.ts dist",
     "release:record-pages-deployment": "tsx scripts/finalize-pages-deployment.ts",
     "test:evidence": "tsx scripts/write-test-report.ts",
-    "verify:quality": "npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:provider-contract && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:pwa-update-policy && npm run test:network-denial && npm run test:dependency-review && npm run test:evidence",
+    "verify:quality": "npm run check:node-version && npm run docs:check && npm run test && npm run test:primitive-vectors && npm run test:provider-contract && npm run test:ppx-golden && npm run test:parser-property && npm run test:parser-fuzz && npm run test:mutations && npm run test:truncations && npm run test:boundaries && npm run test:qr-degradation && npm run test:bip39 && npm run test:storage && npm run test:session-only && npm run test:chunks && npm run test:order && npm run test:manifest && npm run test:file-limits && npm run test:cancel && npm run test:memory && npm run test:en-de && npm run test:e2e && npm run test:unknown-sender && npm run test:accessibility && npm run test:i18n && npm run test:offline && npm run test:pwa-update-policy && npm run test:network-denial && npm run test:dependency-review && npm run test:evidence",
     "verify:ci": "npm run verify:quality",
-    "verify": "npm run verify:quality && npm run test:release-prerequisites && npm run test:release && npm run test:sbom && npm run test:reproducibility"
+    "verify:prepared": "npm run test:release-prerequisites && npm run test:release && npm run test:reproducibility && npm run test:release-prerequisites && npm run test:release && npm run test:sbom",
+    "verify": "npm run verify:quality && npm run release:prepare && npm run verify:prepared"
   },
   "dependencies": {
     "@noble/ciphers": "2.2.0",
@@ -98,13 +110,13 @@
     "fast-check": "4.9.0",
     "globals": "17.7.0",
     "jsdom": "29.1.1",
-    "markdownlint-cli2": "0.23.0",
+    "markdownlint-cli2": "0.23.2",
     "prettier": "3.9.5",
     "tsx": "4.23.0",
     "typescript": "7.0.2",
     "typescript-eslint": "8.63.0",
     "typescript-eslint-compiler": "npm:typescript@6.0.3",
-    "vite": "8.1.4",
+    "vite": "8.2.1",
     "vitest": "4.1.10"
   }
 }

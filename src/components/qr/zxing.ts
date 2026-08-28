@@ -33,7 +33,7 @@ export interface QrReader {
 }
 
 interface ZxingBrowserGlobal {
-  BrowserQRCodeReader: new () => QrReader;
+  BrowserQRCodeReader: new (hints?: Map<number, unknown>) => QrReader;
 }
 
 declare global {

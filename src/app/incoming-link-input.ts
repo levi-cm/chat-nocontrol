@@ -1,14 +1,13 @@
 import {
-  MESSAGE_LINK_HASH_PREFIX,
-  parseMessageLinkHash,
-  type MessageLinkObject,
-} from "../protocol/message-link";
-import { parseQrMessageText, PPXQ_LINK_HASH_PREFIX } from "../protocol/ppxq";
+  MESSAGE_LINK_V2_HASH_PREFIX,
+  parseMessageLinkHashV2,
+  type MessageLinkObjectV2,
+} from "../protocol/message-link-v2";
 import { PPXError } from "../protocol/types";
 
 export function parseIncomingMessageText(
   text: string,
-): MessageLinkObject | null {
+): MessageLinkObjectV2 | null {
   const trimmed = text.trim();
   let url: URL;
   try {
@@ -16,10 +15,7 @@ export function parseIncomingMessageText(
   } catch {
     return null;
   }
-  const reserved =
-    url.hash.startsWith(MESSAGE_LINK_HASH_PREFIX) ||
-    url.hash.startsWith(PPXQ_LINK_HASH_PREFIX);
-  if (!reserved) return null;
+  if (!url.hash.startsWith(MESSAGE_LINK_V2_HASH_PREFIX)) return null;
   if (
     url.protocol !== "https:" ||
     url.username !== "" ||
@@ -28,8 +24,5 @@ export function parseIncomingMessageText(
   ) {
     throw new PPXError("noncanonical-text");
   }
-  if (url.hash.startsWith(MESSAGE_LINK_HASH_PREFIX)) {
-    return parseMessageLinkHash(url.hash);
-  }
-  return { kind: "ppxq", object: parseQrMessageText(url.toString()) };
+  return parseMessageLinkHashV2(url.hash);
 }

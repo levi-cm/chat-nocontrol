@@ -1,40 +1,41 @@
 import { expect, test } from "@playwright/test";
-import { encryptFile } from "../../crypto/file";
+import { encryptFileV2 } from "../../crypto/file-v2";
 import {
-  createSenderSigningCapability,
-  deriveIdentityFromEntropy,
-} from "../../crypto/identity";
-import { encryptText } from "../../crypto/text";
+  createSenderSigningCapabilityV2,
+  deriveIdentityV2FromEntropy,
+} from "../../crypto/identity-v2";
+import { encryptTextV2 } from "../../crypto/text-v2";
 import {
-  createPublicContact,
-  encodePublicContactQr,
-} from "../../protocol/ppxc";
-import { encodeEncryptedFileObject } from "../../protocol/ppxf";
-import { encodeTextArmor } from "../../protocol/ppxt-armor";
+  createPublicContactV2,
+  encodePublicContactV2Text,
+} from "../../protocol/ppxc-v2";
+import { encodeEncryptedFileObjectV2 } from "../../protocol/ppxf-v2";
+import { encodeTextArmorV2 } from "../../protocol/ppxt-armor-v2";
 import { importSessionIdentity } from "./helpers";
 
 test("keeps same-pseudonym text and file senders separate until verified", async ({
   page,
 }) => {
   const bobEntropy = new Uint8Array(32).fill(31);
-  const bob = await deriveIdentityFromEntropy(bobEntropy, "Bob");
-  const bobContact = createPublicContact(bob, "Bob", 31n);
-  const knownAlice = await deriveIdentityFromEntropy(
+  const bob = await deriveIdentityV2FromEntropy(bobEntropy, "Bob");
+  const bobContact = createPublicContactV2(bob, "Bob", 31n);
+  const knownAlice = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(32),
     "Alice",
   );
-  const textAlice = await deriveIdentityFromEntropy(
+  const textAlice = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(33),
     "Alice",
   );
-  const fileAlice = await deriveIdentityFromEntropy(
+  const fileAlice = await deriveIdentityV2FromEntropy(
     new Uint8Array(32).fill(34),
     "Alice",
   );
-  const text = encodeTextArmor(
-    await encryptText({
-      sender: createPublicContact(textAlice, "Alice", 33n),
-      senderSigningCapability: createSenderSigningCapability(textAlice),
+  const text = encodeTextArmorV2(
+    await encryptTextV2({
+      compact: false,
+      sender: createPublicContactV2(textAlice, "Alice", 33n),
+      senderSigningCapability: createSenderSigningCapabilityV2(textAlice),
       recipient: bobContact,
       plaintext: "collision text",
       messageId: new Uint8Array(16).fill(3),
@@ -43,10 +44,10 @@ test("keeps same-pseudonym text and file senders separate until verified", async
     }),
   );
   const plaintextFile = new Blob(["collision file"]);
-  const file = encodeEncryptedFileObject(
-    await encryptFile({
-      sender: createPublicContact(fileAlice, "Alice", 34n),
-      senderSigningCapability: createSenderSigningCapability(fileAlice),
+  const file = encodeEncryptedFileObjectV2(
+    await encryptFileV2({
+      sender: createPublicContactV2(fileAlice, "Alice", 34n),
+      senderSigningCapability: createSenderSigningCapabilityV2(fileAlice),
       recipient: bobContact,
       file: plaintextFile,
       filename: "collision.txt",
@@ -61,7 +62,11 @@ test("keeps same-pseudonym text and file senders separate until verified", async
   await page.getByRole("link", { name: "Contacts" }).click();
   await page
     .getByLabel("Public contact payload")
-    .fill(encodePublicContactQr(createPublicContact(knownAlice, "Alice", 32n)));
+    .fill(
+      encodePublicContactV2Text(
+        createPublicContactV2(knownAlice, "Alice", 32n),
+      ),
+    );
   await page.getByRole("button", { name: "Save public contact" }).click();
 
   await page.getByRole("link", { name: "Decrypt" }).click();

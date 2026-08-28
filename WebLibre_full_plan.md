@@ -1,5 +1,9 @@
 # WebLibre — Complete Product Specification and Implementation Plan
 
+> **Archived:** Historical V1 planning context only. The active CAT-5/V2
+> authority is [Chat_NoControl_full_plan.md](Chat_NoControl_full_plan.md) and
+> the current documents under `docs/`.
+
 > **For agentic workers:** Implement this document task-by-task. Use test-driven development, keep cryptographic and protocol code isolated from UI code, run the stated verification commands after every task, and commit each independently testable task. Do not substitute algorithms, change binary layouts, weaken warnings, add analytics, or add network services without explicit approval.
 
 **Working product name:** WebLibre  
@@ -724,7 +728,7 @@ GitHub Pages cannot provide the same response-header control. Include a strict C
 - Show source commit and build timestamp in About.
 - Build must be reproducible from the lockfile.
 - Generate and publish SHA-256 checksums for release ZIP files.
-- Activate a discovered service worker silently, but never force-reload the open document. The newest activated build loads on the next manual reload or app reopen.
+- Activate a discovered service worker silently. The current CAT-5 contract may navigate a legacy/different-version document once into the same-origin CAT5 shell; exact same-version documents remain open.
 
 ### 14.3 GitHub Pages
 

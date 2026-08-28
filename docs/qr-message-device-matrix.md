@@ -1,57 +1,74 @@
-> **Authority:** Release evidence record; automation is not physical-device proof.
+> **Authority:** Normative physical-device release-evidence matrix.
+> **Target:** `0.2.0-beta.1`
+> **Current status:** Every physical row is **NOT RUN**.
 
-# Encrypted message QR device evidence
+# Physical Android/iPhone browser and PWA matrix
 
-Automated profiles are useful evidence but are not physical-device proof.
+Desktop emulation, responsive mode, mocked camera APIs, and automated Chromium,
+Firefox, or WebKit runs do not count as physical evidence. CAT-5/V2 creates no
+contact QR and no message QR; those rows must prove absence, not generation.
+Recovery QR and encrypted PPXV vault QR remain private recovery transports.
 
-| Device/profile | App QR | Image import | Camera | Camera link | Locked link | Low quality | Settings reload | Offline cache |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Android 11 phone, supported Chrome | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| iPhone X, latest available iOS/Safari | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Current Xiaomi flagship, recent Chrome | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Desktop Chromium automation | pass | pass | mocked | pass | pass | deterministic suite | pass | pass |
-| Desktop Firefox automation | pass | pass | mocked | pass | pass | deterministic suite | pass | pass |
-| WebKit Playwright profile | pass | pass | mocked | pass | pass | deterministic suite | pass | pass |
+## Required device profiles
 
-Physical rows remain release blockers until run over HTTPS on named hardware.
+| Profile | Minimum qualifying execution | Status |
+| --- | --- | --- |
+| Android Chrome | Physical Android phone, current supported Chrome, normal browser tab | NOT RUN |
+| Android installed PWA | Same class of physical phone, installed production PWA, standalone display | NOT RUN |
+| iPhone Safari | Physical iPhone, current supported iOS/Safari, normal browser tab | NOT RUN |
+| iPhone home-screen PWA | Same class of physical iPhone, Add to Home Screen, standalone display | NOT RUN |
 
-## Encrypted message link transport evidence
+## Required flow matrix
 
-No physical messenger or installed-PWA transport was run in this implementation
-environment. Rows must stay pending until tested on the named physical path;
-desktop automation, emulation, and unit tests are not substitutes.
+Every cell below requires its own qualifying execution or an evidence record
+that unambiguously covers the exact profile/flow combination.
 
-| Physical path | Browser/PWA open | PPXT with contact | Compact PPXQ | Linkify, truncate, preview | Share sheet |
-| --- | --- | --- | --- | --- | --- |
-| Android Chrome browser -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android installed PWA -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| iPhone Safari browser -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| iPhone installed PWA -> WhatsApp | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android/iPhone -> Signal | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android/iPhone -> Telegram | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android/iPhone -> Discord | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android/iPhone -> SMS | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android/iPhone -> email | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
+| Required flow | Android Chrome | Android PWA | iPhone Safari | iPhone PWA |
+| --- | --- | --- | --- | --- |
+| Create identity; recovery confirmation; lock/unlock | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Restore V2 PPXR/code/24 words; new V2 identity active | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Export/import V2 PPXC file and `PPX2:CONTACT:` text | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Prove V2 contact QR creation/scanning UI is absent | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Encrypt/decrypt V2 PPXT armor | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Open canonical V2 PPXT `#/m/<BASE64URL>` link | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Open canonical V2 PPXM `#/m/<BASE64URL>` with saved sender | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Prove V2 message QR creation UI is absent | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Encrypt/decrypt V2 PPXF; cancel; 100 MiB boundary | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Recovery QR: camera scan while unlocked and locked-to-unlocked | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Recovery QR: screenshot/image import and low-quality fixture | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Encrypted PPXV vault QR: camera/image import, correct and wrong password | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| V1 PPXT format 1 and compressed format 2 decrypt | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| V1 PPXF decrypt is download-only; no inline preview | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| V1 `#/m/<BASE64URL>` carrying PPXT decrypt | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| V1 `#/m/<BASE64URL>` carrying PPXQ plus exact sender PPXC | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Old `#/decrypt/qr/...` PPXQ plus exact sender PPXC | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| V1 sender PPXC reused within unlocked session, cleared on lock/reload | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Session-only mode leaves no identity/contact/message persistence | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Offline shell plus decrypt after prior successful load | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Real two-build update; one forced old-client cutover, no banner/loop/leak, old caches removed | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| Current build controls manual reload and offline close/reopen | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| EN/DE, keyboard/switch access, zoom/reflow, reduced motion | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 
-Each completed row must record exact OS/browser/app versions, complete link
-character count, whether links over 2,000 characters stayed intact, whether the
-browser or installed PWA opened, whether those surfaces shared local vault and
-contact storage, and the actual share-target result. Web Share availability does
-not prove that a selected target accepted the URL.
+## Evidence required per execution
 
-## Shared mobile shell and public-contact QR follow-up
+Record exact release tag, full commit SHA, production artifact SHA-256, build
+provenance, physical device model, OS version, browser/PWA version, install
+mode, locale, route, input path (file/text/link/camera/image), UTC timestamp,
+expected result, actual result, status, screenshots or screen recording, useful
+console/device logs, hashes for imported/exported artifacts, and tester name and
+signoff. Redact private recovery, contacts, ciphertext fragments, and plaintext
+without removing evidence that the flow ran.
 
-This follow-up covers the shared browser UI and `PPXC` public-contact QR. It
-does not change the H-only encrypted-message QR contract above.
+Generate the exact public build bindings only after `npm run release:prepare`
+with `npm run release:physical-evidence-bindings`. Complete the closed JSON
+schema, transfer the evidence out of tree, and import it only through
+`npm run release:import-physical-evidence` with `--input <absolute-file>` and
+`--sha256 <digest>`. The SHA-256 must arrive out of band. The release workflow
+accepts the same fixed-name asset only from the matching draft prerelease and
+revalidates it against freshly prepared bytes. Evidence JSON, notes,
+screenshots, and logs must contain no plaintext, ciphertext, keys, contacts, or
+recovery material.
 
-| Device/profile | Safe-area outside controls | Header alignment | Canvas system bar | Maximum PPXC M/2048 decode | Preferred camera constraints | Physical 5/5 scan |
-| --- | --- | --- | --- | --- | --- | --- |
-| Mobile Chromium automation | pass | pass | pass | pass | pass with fallback | automation only |
-| Mobile WebKit automation | pass | pass | pass | pass | pass with fallback | automation only |
-| iPhone, current available Safari/PWA | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-| Android phone, current available Chrome/PWA | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable | not run - hardware unavailable |
-
-The automated maximum `PPXC` assertion uses error correction M, QR version 26,
-a four-module quiet zone, pure black/white output, and a 2048-pixel source.
-Physical two-phone scanning remains explicitly pending and must not be inferred
-from Playwright mobile profiles.
+A failed, incomplete, emulator-only, or unbound record remains FAIL or NOT RUN;
+it cannot be summarized as device PASS. The entire matrix remains **NOT RUN**
+until all required cells have qualifying physical evidence.

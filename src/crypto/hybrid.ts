@@ -1,4 +1,7 @@
-import type { DerivedIdentity, HybridEncapsulation } from "../protocol/types";
+import type {
+  DecapsulationCapability,
+  HybridEncapsulation,
+} from "../protocol/types";
 import { PPXError } from "../protocol/types";
 import {
   deriveHkdfSha512,
@@ -140,7 +143,7 @@ export function encapsulateHybrid(
 }
 
 export function decapsulateHybrid(input: {
-  activeIdentity: DerivedIdentity;
+  activeIdentity: DecapsulationCapability;
   mlKemCiphertext: Uint8Array;
   ephemeralX25519PublicKey: Uint8Array;
   salt: Uint8Array;

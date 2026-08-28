@@ -1,12 +1,19 @@
-import type { PPXWorkerEvent } from "../crypto/contracts";
+import {
+  validateDecapsulationCapabilityV2,
+  validateSenderSigningCapabilityV2,
+  zeroizeDecapsulationCapabilityV2,
+  zeroizeSenderSigningCapabilityV2,
+} from "../crypto/capability-v2";
+import type { PPXFileWorkerRequest, PPXWorkerEvent } from "../crypto/contracts";
 import type {
-  DecryptedFileOutput,
-  DecryptFileInput,
-  EncryptedFileBlobOutput,
-  EncryptFileInput,
-} from "../protocol/types";
+  DecryptFileSourceInputV2,
+  EncryptedFileBlobOutputV2,
+} from "../crypto/file-v2";
+import type {
+  DecryptedFileOutputV2,
+  EncryptFileInputV2,
+} from "../protocol/types-v2";
 import { PPXError } from "../protocol/types";
-import { zeroize } from "../crypto/zeroize";
 
 type ProgressEvent = Extract<PPXWorkerEvent, { kind: "progress" }>;
 
@@ -31,10 +38,18 @@ function createRequestId(): string {
         .join("");
 }
 
+function releaseRequestAuthority(
+  request: Exclude<PPXFileWorkerRequest, { kind: "cancel" }>,
+): void {
+  if (request.kind === "decrypt-file") {
+    zeroizeDecapsulationCapabilityV2(request.input.activeIdentity);
+  } else {
+    zeroizeSenderSigningCapabilityV2(request.input.senderSigningCapability);
+  }
+}
+
 function startFileJob<T>(
-  request:
-    | { kind: "encrypt-file"; requestId: string; input: EncryptFileInput }
-    | { kind: "decrypt-file"; requestId: string; input: DecryptFileInput },
+  request: Exclude<PPXFileWorkerRequest, { kind: "cancel" }>,
   onProgress?: (event: ProgressEvent) => void,
 ): FileWorkerJob<T> {
   let worker: Worker;
@@ -44,14 +59,11 @@ function startFileJob<T>(
       name: "ppx-file-worker",
     });
   } catch (error) {
-    if (request.kind === "encrypt-file") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
     throw error;
   }
   let settled = false;
   let cancelRequested = false;
-  let cancellationTimer: number | null = null;
   let resolveJob!: (result: T) => void;
   let rejectJob!: (error: Error) => void;
   const promise = new Promise<T>((resolve, reject) => {
@@ -60,11 +72,8 @@ function startFileJob<T>(
   });
   const close = () => {
     settled = true;
-    if (cancellationTimer !== null) window.clearTimeout(cancellationTimer);
-    cancellationTimer = null;
     worker.terminate();
   };
-
   worker.addEventListener(
     "message",
     (message: MessageEvent<PPXWorkerEvent>) => {
@@ -77,9 +86,7 @@ function startFileJob<T>(
       close();
       if (cancelRequested && event.kind !== "cancelled") {
         rejectJob(new FileWorkerCancelled());
-        return;
-      }
-      if (event.kind === "completed") {
+      } else if (event.kind === "completed") {
         resolveJob(event.result as T);
       } else if (event.kind === "cancelled") {
         rejectJob(new FileWorkerCancelled());
@@ -99,56 +106,68 @@ function startFileJob<T>(
   };
   worker.addEventListener("error", failWorker);
   worker.addEventListener("messageerror", failWorker);
-
   try {
     worker.postMessage(request);
   } catch {
     failWorker();
   } finally {
-    if (request.kind === "encrypt-file") {
-      zeroize(request.input.senderSigningCapability.signingSecretKey);
-    }
+    releaseRequestAuthority(request);
   }
-
   return {
     requestId: request.requestId,
     promise,
     cancel() {
       if (settled || cancelRequested) return;
       cancelRequested = true;
-      try {
-        worker.postMessage({ kind: "cancel", requestId: request.requestId });
-      } catch {
-        close();
-        rejectJob(new FileWorkerCancelled());
-        return;
-      }
-      cancellationTimer = window.setTimeout(() => {
-        if (settled) return;
-        close();
-        rejectJob(new FileWorkerCancelled());
-      }, 5_000);
+      // Each file job owns its worker. Termination is the only synchronous
+      // cancellation boundary during the authenticated plaintext-release
+      // pass; a queued cancel message can otherwise wait behind more crypto.
+      close();
+      rejectJob(new FileWorkerCancelled());
     },
   };
 }
 
 export function startEncryptFileJob(
-  input: EncryptFileInput,
+  input: EncryptFileInputV2,
   onProgress?: (event: ProgressEvent) => void,
-): FileWorkerJob<EncryptedFileBlobOutput> {
+): FileWorkerJob<EncryptedFileBlobOutputV2> {
   try {
-    const requestId = createRequestId();
-    return startFileJob({ kind: "encrypt-file", requestId, input }, onProgress);
+    validateSenderSigningCapabilityV2(input.senderSigningCapability);
+    return startFileJob(
+      { kind: "encrypt-file", requestId: createRequestId(), input },
+      onProgress,
+    );
   } catch (error) {
-    zeroize(input.senderSigningCapability.signingSecretKey);
+    zeroizeSenderSigningCapabilityV2(input.senderSigningCapability);
     throw error;
   }
 }
 
 export function startDecryptFileJob(
-  input: DecryptFileInput,
+  input: DecryptFileSourceInputV2,
   onProgress?: (event: ProgressEvent) => void,
-): FileWorkerJob<DecryptedFileOutput> {
-  const requestId = createRequestId();
-  return startFileJob({ kind: "decrypt-file", requestId, input }, onProgress);
+): FileWorkerJob<DecryptedFileOutputV2> {
+  try {
+    validateDecapsulationCapabilityV2(input.activeIdentity);
+  } catch (error) {
+    zeroizeDecapsulationCapabilityV2(input.activeIdentity);
+    throw error;
+  }
+  return startFileJob(
+    {
+      kind: "decrypt-file",
+      requestId: createRequestId(),
+      input: {
+        ...input,
+        activeIdentity: {
+          suite: input.activeIdentity.suite,
+          fingerprint: input.activeIdentity.fingerprint,
+          identityId: input.activeIdentity.identityId,
+          kemSecretKey: input.activeIdentity.kemSecretKey,
+        },
+      },
+    },
+    onProgress,
+  );
 }

@@ -2,8 +2,8 @@ import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ContactSaveMutation } from "../../app/contact-save-queue";
 import type { ManagedContact } from "../../components/cards/contact-management-card";
-import { deriveIdentityFromEntropy } from "../../crypto/identity";
-import { createPublicContact } from "../../protocol/ppxc";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
+import { createPublicContactV2 } from "../../protocol/ppxc-v2";
 import type * as ContactStorage from "../../storage/contacts";
 import type * as SettingsStorage from "../../storage/settings";
 
@@ -79,13 +79,18 @@ describe("app contact persistence", () => {
     harness.latestContacts = [];
     harness.onContactsChange = null;
 
-    const existingIdentity = await deriveIdentityFromEntropy(
+    const existingIdentity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(31),
       "Existing",
     );
     harness.initialContacts = [
       {
-        contact: createPublicContact(existingIdentity, "Existing", 31n),
+        contact: createPublicContactV2(
+          existingIdentity,
+          "Existing",
+          31n,
+          new Uint8Array(32).fill(31),
+        ),
         nickname: "Old nickname",
         includeSenderContactInLinks: true,
       },
@@ -93,12 +98,17 @@ describe("app contact persistence", () => {
   });
 
   it("preserves a pending preference toggle through a concurrent contact edit and import", async () => {
-    const importedIdentity = await deriveIdentityFromEntropy(
+    const importedIdentity = await deriveIdentityV2FromEntropy(
       new Uint8Array(32).fill(32),
       "Imported",
     );
     const imported: ManagedContact = {
-      contact: createPublicContact(importedIdentity, "Imported", 32n),
+      contact: createPublicContactV2(
+        importedIdentity,
+        "Imported",
+        32n,
+        new Uint8Array(32).fill(32),
+      ),
       nickname: "New contact",
       includeSenderContactInLinks: true,
     };

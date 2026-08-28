@@ -34,13 +34,10 @@ describe("QR card semantics", () => {
       <main>
         <PublicContactCard
           pseudonym="Alice"
-          qrText="PPX1:CONTACT:ABC"
+          contactText="PPX2:CONTACT:ABC"
           authorityLabel="Safe to share"
           title="Public contact"
-          qrLabel="Public contact QR code"
-          qrDownloadLabel="Save contact QR as PNG"
-          enlargeQrLabel="Show larger QR"
-          closeQrLabel="Close larger QR"
+          copyLabel="Copy contact"
           identityId={new Uint8Array(20)}
           fingerprint={new Uint8Array(32)}
           identityIdLabel="Short identity ID"
@@ -50,7 +47,7 @@ describe("QR card semantics", () => {
         <PrivateExportCard
           title="Private recovery card"
           warning="Keep secret. Anyone with this can recover your identity."
-          qrText="PPX1:RECOVERY:ABC"
+          qrText="PPX2:RECOVERY:ABC"
           authorityLabel="Private secret"
           qrLabel="Private recovery QR code"
           qrDownloadLabel="Save private QR as PNG"
@@ -72,30 +69,15 @@ describe("QR card semantics", () => {
     ).not.toBeNull();
     expect(screen.getByText("Safe to share")).not.toBeNull();
     expect(screen.getByRole("alert").textContent).toContain("Keep secret");
-    expect(await screen.findAllByRole("img")).toHaveLength(1);
+    expect(screen.queryAllByRole("img")).toHaveLength(0);
     expect(
       screen.queryByRole("img", { name: "Private recovery QR code" }),
     ).toBeNull();
     expect(screen.getByText("Private exports locked")).not.toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Save contact QR as PNG" }),
-    ).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Copy contact" })).not.toBeNull();
     expect(
       screen.queryByRole("button", { name: "Save private QR as PNG" }),
     ).toBeNull();
-    await userEvent.click(
-      screen.getByRole("button", { name: "Show larger QR" }),
-    );
-    expect(
-      screen.getByRole("dialog", { name: "Public contact QR code" }),
-    ).not.toBeNull();
-    const closeLargerQr = screen.getByRole("button", {
-      name: "Close larger QR",
-    });
-    expect(document.activeElement).toBe(closeLargerQr);
-    await userEvent.tab();
-    expect(document.activeElement).toBe(closeLargerQr);
-
     await userEvent.type(
       screen.getByLabelText("Re-enter vault passphrase"),
       "wrong password",

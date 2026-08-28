@@ -1,8 +1,15 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/preact";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { migrateLegacyRecoveryV1 } from "../../crypto/legacy-v1-reader";
+import { deriveIdentityFromEntropy } from "../../crypto/identity";
+import { deriveIdentityV2FromEntropy } from "../../crypto/identity-v2";
+import { lockVault } from "../../crypto/vault";
 import { IdentityImport } from "../../flows/identity/import";
 import type { MessageKey } from "../../i18n";
+import { encodeRecoveryObject } from "../../protocol/ppxr";
+import { encodeLockedVault } from "../../protocol/ppxv";
+import type { DerivedIdentityV2 } from "../../protocol/types-v2";
 
 const labels: Partial<Record<MessageKey, string>> = {
   importIdentity: "Import identity",
@@ -29,6 +36,164 @@ const labels: Partial<Record<MessageKey, string>> = {
 afterEach(cleanup);
 
 describe("private-file selection ownership", () => {
+  it("uses the newest passphrase when retry input and submit share one UI turn", async () => {
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      masterEntropy: new Uint8Array(32),
+      kemPublicKey: new Uint8Array(1568),
+      kemSecretKey: new Uint8Array(3168),
+      signingPublicKey: new Uint8Array(2592),
+      signingSecretKey: new Uint8Array(4896),
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      pseudonym: "Legacy Vault Alice",
+    } satisfies DerivedIdentityV2;
+    const attempts: string[] = [];
+    render(
+      <IdentityImport
+        t={(key) => labels[key] ?? key}
+        onBack={vi.fn()}
+        onReady={vi.fn()}
+        legacyVaultMigrationJobFactory={(input) => {
+          attempts.push(input.passphrase);
+          return {
+            requestId: `retry-${attempts.length}`,
+            promise:
+              input.passphrase === "correct passphrase"
+                ? Promise.resolve(identity)
+                : Promise.reject(new Error("wrong passphrase")),
+            cancel: vi.fn(),
+          };
+        }}
+      />,
+    );
+    await userEvent.upload(
+      screen.getByLabelText("Private recovery file"),
+      new File([Uint8Array.of(0x50, 0x50, 0x58, 0x56, 1, 1)], "v1.ppxvault"),
+    );
+    const passphrase = screen.getByLabelText("Vault passphrase");
+    if (!(passphrase instanceof HTMLInputElement)) {
+      throw new Error("expected vault passphrase input");
+    }
+    const submit = screen.getByRole("button", { name: "Import private file" });
+    await userEvent.type(passphrase, "wrong passphrase");
+    await userEvent.click(submit);
+    await screen.findByText("Could not import this identity");
+
+    await act(() => {
+      passphrase.value = "correct passphrase";
+      passphrase.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      submit.click();
+    });
+
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts).toEqual(["wrong passphrase", "correct passphrase"]);
+  });
+
+  it("accepts a legacy V1 recovery file and migrates it to V2", async () => {
+    const onReady = vi.fn();
+    const entropy = new Uint8Array(32).fill(17);
+    const bytes = encodeRecoveryObject({
+      magic: "PPXR",
+      formatVersion: 1,
+      suite: 1,
+      flags: 0,
+      masterEntropy: entropy,
+      creationTime: 17n,
+      pseudonym: "Legacy Alice",
+      checksum: new Uint8Array(16),
+    });
+    render(
+      <IdentityImport
+        t={(key) => labels[key] ?? key}
+        onBack={vi.fn()}
+        onReady={onReady}
+        legacyRecoveryMigrationJobFactory={(ownedBytes) => ({
+          requestId: "test-legacy-recovery",
+          promise: migrateLegacyRecoveryV1(ownedBytes),
+          cancel: vi.fn(),
+        })}
+      />,
+    );
+
+    await userEvent.upload(
+      screen.getByLabelText("Private recovery file"),
+      new File([bytes.slice().buffer], "v1.ppxrecovery", {
+        type: "application/x-ppx-recovery",
+      }),
+    );
+
+    expect(
+      await screen.findByText("Selected file: v1.ppxrecovery"),
+    ).not.toBeNull();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Import private file" }),
+    );
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onReady.mock.calls[0]?.[0]).toMatchObject({
+      suite: 2,
+      pseudonym: "Legacy Alice",
+      creationTime: 17n,
+    });
+  });
+
+  it("routes a legacy V1 vault file through the isolated migration worker", async () => {
+    const passphrase = "five random words make safer vaults";
+    const legacy = await deriveIdentityFromEntropy(
+      new Uint8Array(32).fill(18),
+      "Legacy Vault Alice",
+      18n,
+    );
+    const expected = await deriveIdentityV2FromEntropy(
+      legacy.masterEntropy,
+      legacy.pseudonym,
+      legacy.creationTime,
+    );
+    const vaultBytes = encodeLockedVault(
+      await lockVault({ identity: legacy, passphrase }),
+    );
+    const onReady = vi.fn();
+    let receivedPassphrase = "";
+    let receivedBytes: Uint8Array | undefined;
+    render(
+      <IdentityImport
+        t={(key) => labels[key] ?? key}
+        onBack={vi.fn()}
+        onReady={onReady}
+        legacyVaultMigrationJobFactory={(input) => {
+          receivedPassphrase = input.passphrase;
+          receivedBytes = Uint8Array.from(input.bytes);
+          return {
+            requestId: "test-legacy-vault",
+            promise: Promise.resolve(expected),
+            cancel: vi.fn(),
+          };
+        }}
+      />,
+    );
+
+    await userEvent.upload(
+      screen.getByLabelText("Private recovery file"),
+      new File([vaultBytes.slice().buffer], "v1.ppxvault", {
+        type: "application/x-ppx-vault",
+      }),
+    );
+    await userEvent.type(screen.getByLabelText("Vault passphrase"), passphrase);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Import private file" }),
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(receivedPassphrase).toBe(passphrase);
+    expect(receivedBytes).toEqual(vaultBytes);
+    expect(onReady.mock.calls[0]?.[0]).toMatchObject({
+      suite: 2,
+      pseudonym: "Legacy Vault Alice",
+      creationTime: 18n,
+    });
+  });
+
   it("ignores a slow stale file after a newer file wins", async () => {
     let resolveFirst: ((magic: string) => void) | undefined;
     const readMagic = vi.fn((file: File) => {
@@ -37,7 +202,7 @@ describe("private-file selection ownership", () => {
           resolveFirst = resolve;
         });
       }
-      return Promise.resolve("PPXV");
+      return Promise.resolve("PPXV\u0002\u0002");
     });
     render(
       <IdentityImport
@@ -61,7 +226,7 @@ describe("private-file selection ownership", () => {
       }),
     );
     await screen.findByText("Selected file: second.ppxvault");
-    resolveFirst?.("PPXR");
+    resolveFirst?.("PPXR\u0002\u0002");
     await waitFor(() =>
       expect(screen.queryByText("Selected file: first.ppxrecovery")).toBeNull(),
     );

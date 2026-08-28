@@ -1,53 +1,50 @@
-import { cleanup, render, screen } from "@testing-library/preact";
+import { cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IdentityCreate } from "../../flows/identity/create";
 import { messages } from "../../i18n";
 import type {
-  DerivedIdentity,
-  LockedVaultObject,
-  PublicContact,
-} from "../../protocol/types";
+  DerivedIdentityV2,
+  LockedVaultObjectV2,
+  PublicContactV2,
+} from "../../protocol/types-v2";
 
-function identityFixture(): DerivedIdentity {
+function identityFixture(): DerivedIdentityV2 {
   return {
-    suite: 1,
+    suite: 2,
     creationTime: 0n,
     masterEntropy: new Uint8Array(32).fill(3),
-    kemPublicKey: new Uint8Array(800),
-    kemSecretKey: new Uint8Array(1632).fill(4),
-    x25519PublicKey: new Uint8Array(32),
-    x25519SecretKey: new Uint8Array(32).fill(5),
-    signingPublicKey: new Uint8Array(32),
-    signingSecretKey: new Uint8Array(32).fill(6),
+    kemPublicKey: new Uint8Array(1568),
+    kemSecretKey: new Uint8Array(3168).fill(4),
+    signingPublicKey: new Uint8Array(2592),
+    signingSecretKey: new Uint8Array(4896).fill(6),
     fingerprint: new Uint8Array(32).fill(8),
     identityId: new Uint8Array(20).fill(8),
     pseudonym: "Alice",
   };
 }
 
-function contactFixture(): PublicContact {
+function contactFixture(): PublicContactV2 {
   return {
     magic: "PPXC",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     creationTime: 0n,
     pseudonym: "Alice",
-    kemPublicKey: new Uint8Array(800),
-    x25519PublicKey: new Uint8Array(32),
-    signingPublicKey: new Uint8Array(32),
-    selfSignature: new Uint8Array(64),
+    kemPublicKey: new Uint8Array(1568),
+    signingPublicKey: new Uint8Array(2592),
+    selfSignature: new Uint8Array(4627),
     checksum: new Uint8Array(16),
     fingerprint: new Uint8Array(32).fill(8),
     identityId: new Uint8Array(20).fill(8),
   };
 }
 
-function vaultFixture(): LockedVaultObject {
+function vaultFixture(): LockedVaultObjectV2 {
   return {
     magic: "PPXV",
-    formatVersion: 1,
-    suite: 1,
+    formatVersion: 2,
+    suite: 2,
     flags: 1,
     kdfId: 1,
     scryptN: 65_536,
@@ -55,10 +52,119 @@ function vaultFixture(): LockedVaultObject {
     scryptP: 2,
     salt: new Uint8Array(16),
     nonce: new Uint8Array(12),
-    ciphertextLength: 16,
-    ciphertext: new Uint8Array(16),
+    ciphertextLength: 58,
+    ciphertext: new Uint8Array(58),
     checksum: new Uint8Array(16),
   };
+}
+
+type ReadyCallback = (
+  identity: DerivedIdentityV2,
+  contact: PublicContactV2,
+  vault?: LockedVaultObjectV2,
+  signal?: AbortSignal,
+  acceptOwnership?: () => boolean,
+) => void;
+
+async function advanceNewIdentityThroughStepSix(onReady: ReadyCallback) {
+  const user = userEvent.setup();
+  let recoveryCode = "";
+  vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+    () => undefined,
+  );
+  render(
+    <IdentityCreate
+      t={(key) => messages.en[key]}
+      locale="en"
+      identity={null}
+      contact={null}
+      onReady={onReady}
+      identityProvider={{
+        deriveIdentity: vi.fn().mockResolvedValue(identityFixture()),
+        createPublicContact: () => contactFixture(),
+      }}
+      lockVaultJobFactory={() => ({
+        requestId: "persistence-boundary",
+        promise: Promise.resolve(vaultFixture()),
+        cancel: vi.fn(),
+      })}
+      privateCardGenerator={(_locale, _pseudonym, code) => {
+        recoveryCode = code;
+        return Promise.resolve("data:image/png;base64,AA==");
+      }}
+      recoveryQrGenerator={() => Promise.resolve("data:image/png;base64,AA==")}
+      pdfGenerator={() => Promise.resolve(new Uint8Array([37, 80, 68, 70]))}
+      randomBytes={(length) => new Uint8Array(length).fill(7)}
+    />,
+  );
+
+  await user.click(screen.getByRole("button", { name: "Create new identity" }));
+  await user.type(screen.getByLabelText("Username"), "Alice");
+  await user.click(screen.getByRole("button", { name: "Generate identity" }));
+  await user.type(
+    screen.getByLabelText("Browser-vault password"),
+    "Vault pass 123!",
+  );
+  await user.type(
+    screen.getByLabelText("Confirm browser-vault password"),
+    "Vault pass 123!",
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Create encrypted vault" }),
+  );
+
+  expect(await screen.findByText("Step 3 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    await screen.findByRole("button", { name: "Save private QR as PNG" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", { name: "I stored the private QR safely" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Download .ppxrecovery file" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", {
+      name: "I stored the .ppxrecovery file safely",
+    }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Continue to recovery words" }),
+  );
+
+  expect(await screen.findByText("Step 4 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("checkbox", { name: "I wrote down all 24 words" }),
+  );
+  await user.click(
+    await screen.findByRole("button", { name: "Download recovery PDF" }),
+  );
+  await user.click(
+    screen.getByRole("checkbox", { name: "I safely stored the recovery PDF" }),
+  );
+  await user.click(
+    screen.getByRole("button", { name: "Continue to restore practice" }),
+  );
+
+  expect(await screen.findByText("Step 5 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.type(screen.getByLabelText("Private recovery code"), recoveryCode);
+  await user.click(
+    screen.getByRole("button", { name: "Verify private QR recovery" }),
+  );
+
+  expect(await screen.findByText("Step 6 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+  await user.click(
+    screen.getByRole("button", { name: "I know what I’m doing" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Skip practice" }));
+  expect(await screen.findByText("Step 7 of 7")).not.toBeNull();
+  expect(onReady).not.toHaveBeenCalled();
+
+  return user;
 }
 
 afterEach(() => {
@@ -67,6 +173,33 @@ afterEach(() => {
 });
 
 describe("seven-screen identity wizard", () => {
+  it("discards the prepared vault only after final session-only confirmation", async () => {
+    const onReady = vi.fn<ReadyCallback>();
+    const user = await advanceNewIdentityThroughStepSix(onReady);
+
+    await user.click(
+      screen.getByRole("radio", { name: /No, use session only/u }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Finish identity setup" }),
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onReady.mock.calls[0]?.[2]).toBeUndefined();
+  });
+
+  it("passes the verified vault only after final remembered confirmation", async () => {
+    const onReady = vi.fn<ReadyCallback>();
+    const user = await advanceNewIdentityThroughStepSix(onReady);
+
+    await user.click(
+      screen.getByRole("button", { name: "Finish identity setup" }),
+    );
+
+    await waitFor(() => expect(onReady).toHaveBeenCalledOnce());
+    expect(onReady.mock.calls[0]?.[2]).toEqual(vaultFixture());
+  });
+
   it("uses calm username guidance without a danger panel", async () => {
     const user = userEvent.setup();
     render(
@@ -166,6 +299,7 @@ describe("seven-screen identity wizard", () => {
 
   it("creates the encrypted vault before enabling required digital backups", async () => {
     const user = userEvent.setup();
+    const onReady = vi.fn();
     const lockVaultJobFactory = vi.fn(() => ({
       requestId: "vault-test",
       promise: Promise.resolve(vaultFixture()),
@@ -177,7 +311,7 @@ describe("seven-screen identity wizard", () => {
         locale="en"
         identity={null}
         contact={null}
-        onReady={vi.fn()}
+        onReady={onReady}
         identityProvider={{
           deriveIdentity: vi.fn().mockResolvedValue(identityFixture()),
           createPublicContact: () => contactFixture(),
@@ -207,6 +341,7 @@ describe("seven-screen identity wizard", () => {
     expect(await screen.findByText("Step 3 of 7")).not.toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(lockVaultJobFactory).toHaveBeenCalledOnce();
+    expect(onReady).not.toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Save private QR as PNG" }),
     ).not.toBeNull();

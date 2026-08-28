@@ -18,7 +18,7 @@ export function generateRecoveryQrDataUrl(
     margin: 4,
     width: privateRecoveryCardLayout.qrSize,
     color: {
-      dark: privateRecoveryCardLayout.dark,
+      dark: privateRecoveryCardLayout.qrDark,
       light: privateRecoveryCardLayout.light,
     },
   });

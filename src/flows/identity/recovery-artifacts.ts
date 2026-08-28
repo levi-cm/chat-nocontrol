@@ -29,6 +29,7 @@ export const privateRecoveryCardLayout = {
   qrSize: 768,
   footerBaseline: 1130,
   dark: "#7f1d1d",
+  qrDark: "#220008",
   light: "#ffffff",
 } as const;
 
