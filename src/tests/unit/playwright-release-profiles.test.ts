@@ -3,7 +3,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import type { PlaywrightTestConfig } from "@playwright/test";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const projectRoot = resolve(import.meta.dirname, "../../..");
 
@@ -23,7 +23,29 @@ const requiredProfiles = [
   { name: "mobile-webkit", browser: "webkit", isMobile: true },
 ] as const;
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
+
 describe("release Playwright profile matrix", () => {
+  it("budgets slow CI page fixtures without weakening local feedback", async () => {
+    vi.stubEnv("CI", "");
+    vi.resetModules();
+    const localConfig = (await import("../../../playwright.config"))
+      .default as PlaywrightTestConfig;
+
+    vi.stubEnv("CI", "true");
+    vi.resetModules();
+    const ciConfig = (await import("../../../playwright.config"))
+      .default as PlaywrightTestConfig;
+
+    expect(localConfig.timeout).toBe(30_000);
+    expect(ciConfig.timeout).toBe(60_000);
+    expect(localConfig.expect?.timeout).toBeUndefined();
+    expect(ciConfig.expect?.timeout).toBeUndefined();
+  });
+
   it("exports and configures exactly the five required browser profiles", async () => {
     const configModule = await import("../../../playwright.config");
     const config = configModule.default as PlaywrightTestConfig;

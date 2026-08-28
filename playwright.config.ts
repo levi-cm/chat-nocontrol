@@ -16,6 +16,10 @@ export default defineConfig({
   testDir: "./src/tests",
   testMatch: "**/*.spec.ts",
   fullyParallel: true,
+  // GitHub's Firefox runner can spend more than 30 seconds creating the page
+  // fixture late in the serialized release matrix. This changes only the CI
+  // test/fixture budget; Playwright assertion timeouts remain unchanged.
+  timeout: process.env.CI ? 60_000 : 30_000,
   // Recovery QR decoding is intentionally CPU-heavy. Serial execution keeps
   // browser image decoders responsive on constrained local and CI hosts.
   workers: 1,

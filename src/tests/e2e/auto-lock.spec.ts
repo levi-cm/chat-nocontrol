@@ -62,6 +62,12 @@ test("idle lock remembers the route active when the timer expires", async ({
   );
   await page.getByRole("button", { name: "Finish identity setup" }).click();
   await page.getByRole("link", { name: "Decrypt" }).click();
+  await expect(page).toHaveURL(/#\/decrypt$/u);
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("ppx-last-unlocked-route")),
+    )
+    .toBe("decrypt");
 
   await page.clock.fastForward("15:00");
   await page.getByRole("link", { name: "Identity" }).click();
