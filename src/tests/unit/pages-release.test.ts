@@ -334,6 +334,96 @@ describe("release workflow structure", () => {
     );
   });
 
+  it("packages pinned V1 before mutation and rolls back only after a failed live deployment", () => {
+    const verify = releaseWorkflow.indexOf("verify-candidate:");
+    const packageRollback = releaseWorkflow.indexOf(
+      "name: Package verified pinned V1 rollback artifact",
+    );
+    const authorize = releaseWorkflow.indexOf("authorize-deployment:");
+    expect(packageRollback).toBeGreaterThan(verify);
+    expect(packageRollback).toBeLessThan(authorize);
+    expect(releaseWorkflow).toContain("rollback_artifact_id:");
+    expect(releaseWorkflow).toContain("rollback_artifact_digest:");
+    expect(releaseWorkflow).toContain("rollback-pages:");
+    expect(releaseWorkflow).toContain(
+      "needs.deploy-pages.outputs.mutation_state == 'MUTATED'",
+    );
+    expect(releaseWorkflow).toContain(
+      "needs.deploy-pages.outputs.mutation_state == 'UNKNOWN'",
+    );
+    expect(releaseWorkflow).toContain("needs.deploy-pages.result != 'success'");
+    expect(releaseWorkflow).toContain(
+      "artifact_name: github-pages-rollback-v1",
+    );
+    expect(releaseWorkflow).toContain(
+      "name: Verify pinned V1 is live after rollback",
+    );
+    expect(releaseWorkflow).toContain(
+      "name: Mark rollback deployment window start",
+    );
+    expect(releaseWorkflow).toContain(
+      "name: Mark rollback deployment window end",
+    );
+    expect(releaseWorkflow).toContain(
+      "path: ${{ runner.temp }}/rollback-pages/artifact.tar",
+    );
+    expect(releaseWorkflow).toContain(
+      'test "$(find "$RUNNER_TEMP/rollback-artifact" -type f -printf \'%P\\n\')" = "artifact.tar"',
+    );
+    expect(releaseWorkflow).toContain(
+      "npx tsx scripts/record-pages-rollback.ts",
+    );
+    expect(releaseWorkflow).toContain(
+      "CANDIDATE_DEPLOYMENT_STARTED_AT: ${{ needs.deploy-pages.outputs.started_at }}",
+    );
+    expect(releaseWorkflow).toContain(
+      "ROLLBACK_DEPLOYMENT_STARTED_AT: ${{ steps.rollback-window-start.outputs.timestamp }}",
+    );
+    expect(releaseWorkflow).toContain(
+      "name: Detect whether Pages was actually mutated",
+    );
+    expect(releaseWorkflow).toContain(
+      "mutation_state: ${{ steps.pages-mutation.outputs.state || steps.pages-mutation-fallback.outputs.state }}",
+    );
+    expect(releaseWorkflow).toContain(
+      "if: ${{ always() && steps.deployment-window-start.outputs.timestamp != '' }}",
+    );
+    expect(releaseWorkflow).toContain(
+      "name: Fail safe when mutation detection is unavailable",
+    );
+    expect(releaseWorkflow).toContain('run: echo "state=UNKNOWN"');
+  });
+
+  it("turns rollback failure into a hard failure with exact manual recovery", () => {
+    expect(releaseWorkflow).toContain(
+      "name: Report hard rollback failure and exact manual recovery",
+    );
+    expect(releaseWorkflow).toContain("if: ${{ failure() }}");
+    expect(releaseWorkflow).toContain("automated V1 rollback failed");
+    expect(releaseWorkflow).toContain(
+      "1a3a5b4d5e55ab78d2bf4692eed2d3545856e291",
+    );
+    expect(releaseWorkflow).toContain(
+      "f58cbb1e46f3e046139788a62bf0333d13c1c1a5",
+    );
+    expect(releaseWorkflow).toContain(
+      "restore the source to **Deploy from a branch**, branch `gh-pages`, folder `/`",
+    );
+    expect(releaseWorkflow).toContain("exit 1");
+  });
+
+  it("keeps the prerelease draft on rollback and publishes only after live CAT5 success", () => {
+    const blocks = releaseWorkflow.split(/\n(?= {2}[a-z][a-z-]+:\n)/u);
+    const rollback =
+      blocks.find((block) => block.startsWith("  rollback-pages:\n")) ?? "";
+    const finalize =
+      blocks.find((block) => block.startsWith("  finalize-evidence:\n")) ?? "";
+    expect(rollback).not.toContain("gh release edit");
+    expect(rollback).not.toContain("gh release upload");
+    expect(finalize).toContain("live-acceptance");
+    expect(finalize).toContain("gh release edit");
+  });
+
   it("imports trusted-tester-signed physical evidence only after preparing release bytes", () => {
     expect(releaseWorkflow).toContain("physical_evidence_sha256:");
     expect(releaseWorkflow).toContain(
