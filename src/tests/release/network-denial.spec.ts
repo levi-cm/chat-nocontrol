@@ -48,6 +48,72 @@ async function installNetworkDenial(page: Page): Promise<string[]> {
   return denied;
 }
 
+test("network harness denies API-like, non-GET, other-port, and external requests", async ({
+  page,
+}) => {
+  const denied = await installNetworkDenial(page);
+  await page.goto("/");
+  await page.evaluate(async () => {
+    await Promise.allSettled([
+      fetch("/api/telemetry", { method: "POST", body: "no" }),
+    ]);
+  });
+  expect(denied).toEqual(["POST https://127.0.0.1:4173/api/telemetry"]);
+  expect(isAllowedRequest("http://127.0.0.1:9999/probe", "GET")).toBe(false);
+  expect(isAllowedRequest("https://example.invalid/probe", "GET")).toBe(false);
+  expect(isAllowedRequest("https://127.0.0.1:4173/api/telemetry", "GET")).toBe(
+    false,
+  );
+});
+
+test.describe("hostile playlist download containment", () => {
+  // The timeout includes creating a fresh browser page. A long GitHub Firefox
+  // matrix can spend more than 30 seconds in fixture setup before this test
+  // body starts; assertions and retry behavior remain unchanged.
+  test.describe.configure({ timeout: 60_000 });
+
+  test("validated hostile playlist content stays download-only and never fetches", async ({
+    page,
+  }) => {
+    const denied = await installNetworkDenial(page);
+    const alice = await deriveIdentityV2FromEntropy(
+      new Uint8Array(32).fill(41),
+      "Alice",
+    );
+    const bobEntropy = new Uint8Array(32).fill(42);
+    const bob = await deriveIdentityV2FromEntropy(bobEntropy, "Bob");
+    const playlist = "#EXTM3U\nhttps://attacker.invalid/tracker.ts\n";
+    const encrypted = await encryptFileV2({
+      sender: createPublicContactV2(alice, "Alice", 1n),
+      senderSigningCapability: createSenderSigningCapabilityV2(alice),
+      recipient: createPublicContactV2(bob, "Bob", 2n),
+      file: new Blob([playlist]),
+      filename: "hostile.m3u8",
+      mimeHint: "application/vnd.apple.mpegurl",
+      caption: "",
+      fileLength: BigInt(new TextEncoder().encode(playlist).byteLength),
+    });
+
+    await page.goto("/");
+    await importSessionIdentity(page, {
+      entropy: bobEntropy,
+      pseudonym: "Bob",
+    });
+    await page.getByRole("link", { name: "Decrypt" }).click();
+    await page.getByLabel("Encrypted file").setInputFiles({
+      name: "hostile.ppxfile",
+      mimeType: "application/x-ppx-file",
+      buffer: Buffer.from(encodeEncryptedFileObjectV2(encrypted)),
+    });
+    await page.getByRole("button", { name: "Decrypt locally" }).click();
+    await expect(page.getByText(/No safe inline preview/u)).toBeVisible();
+    await expect(page.locator("audio, video, img.file-preview")).toHaveCount(0);
+    expect(denied).toEqual([]);
+  });
+});
+
+// Keep the camera path after the two artifact checks in this file so media-device
+// teardown cannot delay their page fixtures.
 test("core shell makes no external network requests", async ({ page }) => {
   const denied = await installNetworkDenial(page);
 
@@ -79,59 +145,5 @@ test("core shell makes no external network requests", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Hilfe", exact: true }),
   ).toBeVisible();
-  expect(denied).toEqual([]);
-});
-
-test("network harness denies API-like, non-GET, other-port, and external requests", async ({
-  page,
-}) => {
-  const denied = await installNetworkDenial(page);
-  await page.goto("/");
-  await page.evaluate(async () => {
-    await Promise.allSettled([
-      fetch("/api/telemetry", { method: "POST", body: "no" }),
-    ]);
-  });
-  expect(denied).toEqual(["POST https://127.0.0.1:4173/api/telemetry"]);
-  expect(isAllowedRequest("http://127.0.0.1:9999/probe", "GET")).toBe(false);
-  expect(isAllowedRequest("https://example.invalid/probe", "GET")).toBe(false);
-  expect(isAllowedRequest("https://127.0.0.1:4173/api/telemetry", "GET")).toBe(
-    false,
-  );
-});
-
-test("validated hostile playlist content stays download-only and never fetches", async ({
-  page,
-}) => {
-  const denied = await installNetworkDenial(page);
-  const alice = await deriveIdentityV2FromEntropy(
-    new Uint8Array(32).fill(41),
-    "Alice",
-  );
-  const bobEntropy = new Uint8Array(32).fill(42);
-  const bob = await deriveIdentityV2FromEntropy(bobEntropy, "Bob");
-  const playlist = "#EXTM3U\nhttps://attacker.invalid/tracker.ts\n";
-  const encrypted = await encryptFileV2({
-    sender: createPublicContactV2(alice, "Alice", 1n),
-    senderSigningCapability: createSenderSigningCapabilityV2(alice),
-    recipient: createPublicContactV2(bob, "Bob", 2n),
-    file: new Blob([playlist]),
-    filename: "hostile.m3u8",
-    mimeHint: "application/vnd.apple.mpegurl",
-    caption: "",
-    fileLength: BigInt(new TextEncoder().encode(playlist).byteLength),
-  });
-
-  await page.goto("/");
-  await importSessionIdentity(page, { entropy: bobEntropy, pseudonym: "Bob" });
-  await page.getByRole("link", { name: "Decrypt" }).click();
-  await page.getByLabel("Encrypted file").setInputFiles({
-    name: "hostile.ppxfile",
-    mimeType: "application/x-ppx-file",
-    buffer: Buffer.from(encodeEncryptedFileObjectV2(encrypted)),
-  });
-  await page.getByRole("button", { name: "Decrypt locally" }).click();
-  await expect(page.getByText(/No safe inline preview/u)).toBeVisible();
-  await expect(page.locator("audio, video, img.file-preview")).toHaveCount(0);
   expect(denied).toEqual([]);
 });
