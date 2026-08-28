@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/preact";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/preact";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { migrateLegacyRecoveryV1 } from "../../crypto/legacy-v1-reader";
@@ -9,6 +9,7 @@ import { IdentityImport } from "../../flows/identity/import";
 import type { MessageKey } from "../../i18n";
 import { encodeRecoveryObject } from "../../protocol/ppxr";
 import { encodeLockedVault } from "../../protocol/ppxv";
+import type { DerivedIdentityV2 } from "../../protocol/types-v2";
 
 const labels: Partial<Record<MessageKey, string>> = {
   importIdentity: "Import identity",
@@ -35,6 +36,61 @@ const labels: Partial<Record<MessageKey, string>> = {
 afterEach(cleanup);
 
 describe("private-file selection ownership", () => {
+  it("uses the newest passphrase when retry input and submit share one UI turn", async () => {
+    const identity = {
+      suite: 2,
+      creationTime: 1n,
+      masterEntropy: new Uint8Array(32),
+      kemPublicKey: new Uint8Array(1568),
+      kemSecretKey: new Uint8Array(3168),
+      signingPublicKey: new Uint8Array(2592),
+      signingSecretKey: new Uint8Array(4896),
+      fingerprint: new Uint8Array(32),
+      identityId: new Uint8Array(20),
+      pseudonym: "Legacy Vault Alice",
+    } satisfies DerivedIdentityV2;
+    const attempts: string[] = [];
+    render(
+      <IdentityImport
+        t={(key) => labels[key] ?? key}
+        onBack={vi.fn()}
+        onReady={vi.fn()}
+        legacyVaultMigrationJobFactory={(input) => {
+          attempts.push(input.passphrase);
+          return {
+            requestId: `retry-${attempts.length}`,
+            promise:
+              input.passphrase === "correct passphrase"
+                ? Promise.resolve(identity)
+                : Promise.reject(new Error("wrong passphrase")),
+            cancel: vi.fn(),
+          };
+        }}
+      />,
+    );
+    await userEvent.upload(
+      screen.getByLabelText("Private recovery file"),
+      new File([Uint8Array.of(0x50, 0x50, 0x58, 0x56, 1, 1)], "v1.ppxvault"),
+    );
+    const passphrase = screen.getByLabelText("Vault passphrase");
+    if (!(passphrase instanceof HTMLInputElement)) {
+      throw new Error("expected vault passphrase input");
+    }
+    const submit = screen.getByRole("button", { name: "Import private file" });
+    await userEvent.type(passphrase, "wrong passphrase");
+    await userEvent.click(submit);
+    await screen.findByText("Could not import this identity");
+
+    await act(() => {
+      passphrase.value = "correct passphrase";
+      passphrase.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      submit.click();
+    });
+
+    await waitFor(() => expect(attempts).toHaveLength(2));
+    expect(attempts).toEqual(["wrong passphrase", "correct passphrase"]);
+  });
+
   it("accepts a legacy V1 recovery file and migrates it to V2", async () => {
     const onReady = vi.fn();
     const entropy = new Uint8Array(32).fill(17);

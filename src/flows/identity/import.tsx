@@ -173,6 +173,7 @@ export function IdentityImport({
   const [fileKind, setFileKind] = useState<"recovery" | "vault" | null>(null);
   const [fileSuite, setFileSuite] = useState<1 | 2 | null>(null);
   const [passphrase, setPassphrase] = useState("");
+  const passphraseRef = useRef("");
   const passphraseBytes = new TextEncoder().encode(passphrase).byteLength;
   const [scannedQr, setScannedQr] = useState("");
   const [qrKind, setQrKind] = useState<"recovery" | "vault" | null>(null);
@@ -197,6 +198,11 @@ export function IdentityImport({
       pseudonymError = t("pseudonymError");
     }
   }
+
+  const updatePassphrase = (value: string) => {
+    passphraseRef.current = value;
+    setPassphrase(value);
+  };
 
   useEffect(
     () => () => {
@@ -318,7 +324,10 @@ export function IdentityImport({
         }
         await complete(identity, identity.pseudonym, identity.creationTime);
       } else if (magic === "PPXV" && fileSuite === 1) {
-        operation = legacyVaultMigrationJobFactory({ bytes, passphrase });
+        operation = legacyVaultMigrationJobFactory({
+          bytes,
+          passphrase: passphraseRef.current,
+        });
         unlockJob.current = operation;
         const identity = await operation.promise;
         if (unlockJob.current !== operation) {
@@ -335,7 +344,7 @@ export function IdentityImport({
       } else if (magic === "PPXV" && fileSuite === 2) {
         operation = startUnlockVaultJob({
           vault: parseLockedVaultV2(bytes),
-          passphrase,
+          passphrase: passphraseRef.current,
         });
         unlockJob.current = operation;
         const identity = await operation.promise;
@@ -446,7 +455,7 @@ export function IdentityImport({
       ) {
         operation = legacyVaultMigrationJobFactory({
           bytes: privatePayload,
-          passphrase,
+          passphrase: passphraseRef.current,
         });
         unlockJob.current = operation;
         const identity = await operation.promise;
@@ -467,7 +476,7 @@ export function IdentityImport({
       ) {
         operation = startUnlockVaultJob({
           vault: parseLockedVaultV2(classified.payload),
-          passphrase,
+          passphrase: passphraseRef.current,
         });
         unlockJob.current = operation;
         const identity = await operation.promise;
@@ -577,7 +586,7 @@ export function IdentityImport({
         label={t("passphrase")}
         type="password"
         value={passphrase}
-        onInput={setPassphrase}
+        onInput={updatePassphrase}
       />
       <PassphraseMeter value={passphrase} t={t} />
       <p class="input-meta">{t("passphraseHint")}</p>
