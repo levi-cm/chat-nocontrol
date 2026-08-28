@@ -65,6 +65,8 @@
     "test:network-denial": "playwright test src/tests/release/network-denial.spec.ts",
     "release:prepare": "tsx scripts/package-release.ts && tsx scripts/build-sbom.ts",
     "release:physical-evidence-bindings": "tsx scripts/print-physical-device-evidence-bindings.ts",
+    "release:physical-test-kit": "tsx scripts/generate-physical-device-test-kit.ts",
+    "release:physical-server": "tsx scripts/physical-device-server.ts",
     "release:import-physical-evidence": "tsx scripts/import-physical-device-evidence.ts",
     "test:release": "tsx scripts/build-sbom.ts --verify && tsx scripts/verify-release.ts",
     "test:sbom": "tsx scripts/build-sbom.ts --verify",

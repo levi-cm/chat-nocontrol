@@ -90,6 +90,12 @@ describe("SBOM build gate", () => {
     expect(manifest.scripts["release:physical-evidence-bindings"]).toBe(
       "tsx scripts/print-physical-device-evidence-bindings.ts",
     );
+    expect(manifest.scripts["release:physical-test-kit"]).toBe(
+      "tsx scripts/generate-physical-device-test-kit.ts",
+    );
+    expect(manifest.scripts["release:physical-server"]).toBe(
+      "tsx scripts/physical-device-server.ts",
+    );
     expect(manifest.scripts["test:sbom"]).toBe(
       "tsx scripts/build-sbom.ts --verify",
     );
