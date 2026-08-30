@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "status": "NOT RUN",
   "reviewedCandidateSha": "<40-character reviewed candidate commit SHA>",
   "releaseTag": "v0.2.0-beta.1",
@@ -11,8 +11,7 @@
   },
   "completedAt": "<ISO-8601 UTC>",
   "operator": {
-    "name": "<physical release tester>",
-    "signingIdentity": "<trusted tester principal>"
+    "name": "<physical release tester>"
   },
   "environments": [
     {
@@ -363,5 +362,11 @@
         }
       ]
     }
-  ]
+  ],
+  "ownerAttestation": {
+    "githubActor": "levi-cm",
+    "releaseSignerPrincipal": "136596632+levi-cm@users.noreply.github.com",
+    "statement": "I attest that the listed checks were performed on the identified physical devices against the exact release bytes and that the recorded results are accurate.",
+    "attestedAt": "<ISO-8601 UTC at or after completedAt>"
+  }
 }

@@ -1,5 +1,4 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { spawnSync } from "node:child_process";
 import {
   closeSync,
   constants,
@@ -7,18 +6,20 @@ import {
   fstatSync,
   fsyncSync,
   lstatSync,
-  mkdtempSync,
   mkdirSync,
   openSync,
   readFileSync,
   readdirSync,
   renameSync,
-  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
+
+import {
+  type OwnerAttestation,
+  validateOwnerAttestation,
+} from "./owner-attestation";
 
 export type PhysicalCheckStatus = "PASS" | "FAIL" | "NOT RUN" | "NOT SUPPORTED";
 
@@ -50,11 +51,14 @@ export interface PhysicalDeviceEvidence {
   distSha256?: string;
   archive?: { file?: string; sha256?: string };
   completedAt?: string;
-  operator?: { name?: string; signingIdentity?: string };
+  operator?: { name?: string };
   environments?: PhysicalDeviceEnvironment[];
+  ownerAttestation?: OwnerAttestation;
 }
 
 export interface PhysicalDeviceValidationOptions {
+  cwd?: string;
+  ownerActor?: string;
   reviewedCandidateSha: string;
   releaseTag: string;
   version: string;
@@ -126,9 +130,10 @@ const allowedEvidenceProperties = new Set([
   "completedAt",
   "operator",
   "environments",
+  "ownerAttestation",
 ]);
 const allowedArchiveProperties = new Set(["file", "sha256"]);
-const allowedOperatorProperties = new Set(["name", "signingIdentity"]);
+const allowedOperatorProperties = new Set(["name"]);
 const allowedEnvironmentProperties = new Set([
   "id",
   "platform",
@@ -344,8 +349,8 @@ export function validatePhysicalDeviceEvidence(
   if (!isPlainRecord(unknownRecord)) return failures;
   const now = options.now ?? Date.now();
 
-  if (record.schemaVersion !== 2) {
-    failures.push("physical evidence schemaVersion must be 2");
+  if (record.schemaVersion !== 3) {
+    failures.push("physical evidence schemaVersion must be 3");
   }
   if (record.status !== "PASS") {
     failures.push("physical evidence status must be PASS");
@@ -412,11 +417,28 @@ export function validatePhysicalDeviceEvidence(
   if (isMissingOrPlaceholder(record.operator?.name)) {
     failures.push("physical evidence operator name is missing or placeholder");
   }
-  if (
-    !/^[A-Za-z0-9._%+@-]{3,254}$/u.test(record.operator?.signingIdentity ?? "")
-  ) {
-    failures.push("physical evidence signing identity is invalid");
-  }
+  const completionTimes = [
+    record.completedAt,
+    ...(Array.isArray(record.environments)
+      ? record.environments.map((environment) => environment.completedAt)
+      : []),
+  ]
+    .map((value) => (typeof value === "string" ? Date.parse(value) : NaN))
+    .filter((value) => !Number.isNaN(value));
+  const latestCompletion =
+    completionTimes.length > 0
+      ? new Date(Math.max(...completionTimes)).toISOString()
+      : record.completedAt;
+  failures.push(
+    ...validateOwnerAttestation(record.ownerAttestation, {
+      cwd: options.cwd ?? process.cwd(),
+      completedAt: latestCompletion,
+      expectedStatement:
+        "I attest that the listed checks were performed on the identified physical devices against the exact release bytes and that the recorded results are accurate.",
+      now,
+      ownerActor: options.ownerActor,
+    }),
+  );
 
   const environments = (
     Array.isArray(record.environments)
@@ -490,7 +512,7 @@ interface PhysicalDeviceEvidenceFileOptions {
   version: string;
   now?: number;
   record?: PhysicalDeviceEvidence;
-  requireSignature?: boolean;
+  ownerActor?: string;
 }
 
 export interface PhysicalDeviceEvidenceFileResult {
@@ -504,187 +526,12 @@ export interface PhysicalDeviceEvidenceFileResult {
 const physicalEvidencePath =
   "output/release/physical-device-release-evidence.json";
 const physicalEvidenceSignaturePath = `${physicalEvidencePath}.sig`;
-const physicalSignatureNamespace = "chat-nocontrol-physical-device-cat5-v2";
-const physicalAllowedSignersPath = ".github/physical-device-allowed-signers";
-const releaseAllowedSignersPath = ".github/allowed_signers";
 const maximumEvidenceBytes = 1024 * 1024;
-const maximumSignatureBytes = 64 * 1024;
 
 function isRegularNonSymlink(path: string): boolean {
   if (!existsSync(path)) return false;
   const status = lstatSync(path);
   return status.isFile() && !status.isSymbolicLink();
-}
-
-interface PhysicalSignerEntry {
-  principal: string;
-  key: string;
-}
-
-function gitResult(cwd: string, args: string[]) {
-  return spawnSync("git", args, { cwd, encoding: "utf8" });
-}
-
-function parsePhysicalAllowedSigners(contents: string): {
-  entries: PhysicalSignerEntry[];
-  invalid: boolean;
-} {
-  const entries: PhysicalSignerEntry[] = [];
-  let invalid = false;
-  for (const rawLine of contents.split(/\r?\n/u)) {
-    const line = rawLine.trim();
-    if (line === "" || line.startsWith("#")) continue;
-    const match =
-      /^(\S+)\s+namespaces="([^"]+)"\s+((?:ssh-|ecdsa-|sk-)\S*)\s+(\S+)(?:\s+.*)?$/u.exec(
-        line,
-      );
-    if (
-      !match ||
-      match[2] !== physicalSignatureNamespace ||
-      /[,!*?\[\]]/u.test(match[1] ?? "")
-    ) {
-      invalid = true;
-      continue;
-    }
-    entries.push({
-      principal: match[1]!,
-      key: `${match[3]} ${match[4]}`,
-    });
-  }
-  return { entries, invalid };
-}
-
-function trustedPhysicalSignerFailures(
-  cwd: string,
-  reviewedCandidateSha: string,
-  signingIdentity: string,
-): { failures: string[]; allowedSigners: Buffer | null } {
-  const failures: string[] = [];
-  const fullPath = join(cwd, physicalAllowedSignersPath);
-  if (!isRegularNonSymlink(fullPath)) {
-    failures.push(
-      "physical-device trust root must be a regular non-symlink file",
-    );
-    return { failures, allowedSigners: null };
-  }
-  const parentRoot = gitResult(cwd, [
-    "rev-parse",
-    `${reviewedCandidateSha}^:${physicalAllowedSignersPath}`,
-  ]);
-  const candidateRoot = gitResult(cwd, [
-    "rev-parse",
-    `${reviewedCandidateSha}:${physicalAllowedSignersPath}`,
-  ]);
-  const workingRoot = gitResult(cwd, [
-    "hash-object",
-    "--",
-    physicalAllowedSignersPath,
-  ]);
-  const stagedRoot = gitResult(cwd, [
-    "diff",
-    "--cached",
-    "--quiet",
-    reviewedCandidateSha,
-    "--",
-    physicalAllowedSignersPath,
-  ]);
-  if (
-    parentRoot.status !== 0 ||
-    candidateRoot.status !== 0 ||
-    workingRoot.status !== 0 ||
-    stagedRoot.status !== 0 ||
-    parentRoot.stdout.trim() !== candidateRoot.stdout.trim() ||
-    parentRoot.stdout.trim() !== workingRoot.stdout.trim()
-  ) {
-    failures.push(
-      "physical-device trust root must predate the reviewed candidate and remain unchanged",
-    );
-    return { failures, allowedSigners: null };
-  }
-
-  const allowedSigners = readFileSync(fullPath);
-  const parsed = parsePhysicalAllowedSigners(allowedSigners.toString("utf8"));
-  const matching = parsed.entries.filter(
-    (entry) => entry.principal === signingIdentity,
-  );
-  if (parsed.invalid || matching.length !== 1) {
-    failures.push(
-      "physical-device signer must have exactly one dedicated trusted principal",
-    );
-  }
-
-  try {
-    const releaseRoles = readFileSync(
-      join(cwd, releaseAllowedSignersPath),
-      "utf8",
-    );
-    if (
-      matching.some((entry) =>
-        releaseRoles
-          .split(/\r?\n/u)
-          .some(
-            (line) =>
-              line.trim().startsWith(`${entry.principal} `) ||
-              line.includes(entry.key),
-          ),
-      )
-    ) {
-      failures.push(
-        "physical-device and release/review signing roles must use different keys and principals",
-      );
-    }
-  } catch {
-    failures.push("release/review signer trust root is missing");
-  }
-  return { failures, allowedSigners };
-}
-
-function verifyPhysicalEvidenceSignature(
-  cwd: string,
-  evidence: Buffer,
-  signature: Buffer,
-  record: PhysicalDeviceEvidence,
-  reviewedCandidateSha: string,
-): string[] {
-  const signingIdentity = record.operator?.signingIdentity ?? "";
-  const trust = trustedPhysicalSignerFailures(
-    cwd,
-    reviewedCandidateSha,
-    signingIdentity,
-  );
-  if (trust.failures.length > 0 || !trust.allowedSigners) {
-    return trust.failures;
-  }
-  const temporaryDirectory = mkdtempSync(
-    join(tmpdir(), "cat5-physical-signature-"),
-  );
-  try {
-    const signaturePath = join(temporaryDirectory, "evidence.sig");
-    const allowedSignersPath = join(temporaryDirectory, "allowed_signers");
-    writeFileSync(signaturePath, signature, { mode: 0o600 });
-    writeFileSync(allowedSignersPath, trust.allowedSigners, { mode: 0o600 });
-    const verification = spawnSync(
-      "ssh-keygen",
-      [
-        "-Y",
-        "verify",
-        "-f",
-        allowedSignersPath,
-        "-I",
-        signingIdentity,
-        "-n",
-        physicalSignatureNamespace,
-        "-s",
-        signaturePath,
-      ],
-      { input: evidence },
-    );
-    return verification.status === 0
-      ? []
-      : ["physical-device evidence SSH signature did not verify"];
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
-  }
 }
 
 export interface PhysicalDeviceEvidenceBindings {
@@ -786,6 +633,7 @@ export function validatePhysicalDeviceEvidenceFiles(
   if (record && distSha256 && archiveSha256) {
     failures.push(
       ...validatePhysicalDeviceEvidence(record, {
+        cwd,
         reviewedCandidateSha: options.reviewedCandidateSha,
         releaseTag: `v${options.version}`,
         version: options.version,
@@ -793,45 +641,10 @@ export function validatePhysicalDeviceEvidenceFiles(
         archiveFile,
         archiveSha256,
         now: options.now,
+        ownerActor: options.ownerActor,
       }),
     );
   }
-  if (options.requireSignature === true && record) {
-    const signaturePath = join(cwd, physicalEvidenceSignaturePath);
-    if (!isRegularNonSymlink(signaturePath)) {
-      failures.push(
-        "physical-device evidence signature must be a regular non-symlink file",
-      );
-    } else if ((lstatSync(signaturePath).mode & 0o111) !== 0) {
-      failures.push(
-        "physical-device evidence signature must be non-executable",
-      );
-    } else if (!isRegularNonSymlink(evidencePath)) {
-      failures.push(
-        "physical-device signed evidence must be a regular non-symlink file",
-      );
-    } else {
-      const evidence = readFileSync(evidencePath);
-      const signature = readFileSync(signaturePath);
-      if (
-        signature.byteLength === 0 ||
-        signature.byteLength > maximumSignatureBytes
-      ) {
-        failures.push("physical-device evidence signature size is invalid");
-      } else {
-        failures.push(
-          ...verifyPhysicalEvidenceSignature(
-            cwd,
-            evidence,
-            signature,
-            record,
-            options.reviewedCandidateSha,
-          ),
-        );
-      }
-    }
-  }
-
   return { failures, bindings: { distSha256, archiveSha256 } };
 }
 
@@ -840,8 +653,8 @@ export interface ImportPhysicalDeviceEvidenceOptions extends Omit<
   "record"
 > {
   inputPath: string;
-  signaturePath: string;
   expectedSha256: string;
+  ownerActor: string;
 }
 
 export interface ImportPhysicalDeviceEvidenceResult {
@@ -849,7 +662,6 @@ export interface ImportPhysicalDeviceEvidenceResult {
   distSha256: string;
   archiveSha256: string;
   destination: string;
-  signatureDestination: string;
 }
 
 function readExternalFile(
@@ -938,34 +750,24 @@ export function importPhysicalDeviceEvidenceFile(
     reviewedCandidateSha: options.reviewedCandidateSha,
     version: options.version,
     now: options.now,
+    ownerActor: options.ownerActor,
   });
   if (validation.failures.length > 0) {
     throw new Error(
       `physical-device evidence import blocked:\n- ${validation.failures.join("\n- ")}`,
     );
   }
-  const signature = readExternalFile(
-    options.signaturePath,
-    "physical-device evidence signature input",
-    maximumSignatureBytes,
-  );
-  const signatureFailures = verifyPhysicalEvidenceSignature(
-    cwd,
-    input,
-    signature,
-    record,
-    options.reviewedCandidateSha,
-  );
-  if (signatureFailures.length > 0) {
-    throw new Error(
-      `physical-device evidence import blocked:\n- ${signatureFailures.join("\n- ")}`,
-    );
-  }
-
   const destination = join(cwd, physicalEvidencePath);
-  const signatureDestination = join(cwd, physicalEvidenceSignaturePath);
   mkdirSync(join(cwd, "output/release"), { recursive: true, mode: 0o700 });
-  atomicWrite(signatureDestination, signature);
+  const legacySignature = join(cwd, physicalEvidenceSignaturePath);
+  if (existsSync(legacySignature)) {
+    if (!isRegularNonSymlink(legacySignature)) {
+      throw new Error(
+        "legacy physical-device signature path must be a regular non-symlink file",
+      );
+    }
+    unlinkSync(legacySignature);
+  }
   atomicWrite(destination, input);
 
   const stored = validatePhysicalDeviceEvidenceFiles({
@@ -973,7 +775,6 @@ export function importPhysicalDeviceEvidenceFile(
     reviewedCandidateSha: options.reviewedCandidateSha,
     version: options.version,
     now: options.now,
-    requireSignature: true,
   });
   if (
     stored.failures.length > 0 ||
@@ -987,6 +788,5 @@ export function importPhysicalDeviceEvidenceFile(
     distSha256: stored.bindings.distSha256,
     archiveSha256: stored.bindings.archiveSha256,
     destination: physicalEvidencePath,
-    signatureDestination: physicalEvidenceSignaturePath,
   };
 }

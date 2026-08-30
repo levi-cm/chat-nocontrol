@@ -450,7 +450,7 @@ async function main(): Promise<void> {
     version?: string;
   };
   const review = JSON.parse(
-    readFileSync("docs/independent-security-review.json", "utf8"),
+    readFileSync("docs/security-review-attestation.json", "utf8"),
   ) as { reviewedCommit?: string };
   const version = manifest.version ?? "";
   const bindings = getPhysicalDeviceEvidenceBindings({

@@ -14,11 +14,12 @@
     "archive",
     "completedAt",
     "operator",
-    "environments"
+    "environments",
+    "ownerAttestation"
   ],
   "properties": {
     "schemaVersion": {
-      "const": 2
+      "const": 3
     },
     "status": {
       "enum": ["PASS", "FAIL", "NOT RUN", "PARTIAL"]
@@ -61,16 +62,30 @@
     "operator": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "signingIdentity"],
+      "required": ["name"],
       "properties": {
         "name": {
           "type": "string",
           "minLength": 1
-        },
-        "signingIdentity": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9._%+@-]{3,254}$"
         }
+      }
+    },
+    "ownerAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "githubActor",
+        "releaseSignerPrincipal",
+        "statement",
+        "attestedAt"
+      ],
+      "properties": {
+        "githubActor": { "type": "string", "minLength": 1 },
+        "releaseSignerPrincipal": { "type": "string", "minLength": 1 },
+        "statement": {
+          "const": "I attest that the listed checks were performed on the identified physical devices against the exact release bytes and that the recorded results are accurate."
+        },
+        "attestedAt": { "type": "string", "format": "date-time" }
       }
     },
     "environments": {

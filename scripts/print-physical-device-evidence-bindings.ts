@@ -6,7 +6,7 @@ const manifest = JSON.parse(readFileSync("package.json", "utf8")) as {
   version?: string;
 };
 const review = JSON.parse(
-  readFileSync("docs/independent-security-review.json", "utf8"),
+  readFileSync("docs/security-review-attestation.json", "utf8"),
 ) as { reviewedCommit?: string };
 
 const bindings = getPhysicalDeviceEvidenceBindings({

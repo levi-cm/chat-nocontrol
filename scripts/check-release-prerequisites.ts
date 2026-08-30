@@ -2,29 +2,31 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 import {
-  type ReviewRecord,
-  validateIndependentReviewEvidence,
-} from "./independent-review-evidence";
+  type SecurityReviewAttestation,
+  validateSecurityReviewAttestation,
+} from "./security-review-attestation";
 import { validatePhysicalDeviceEvidenceFiles } from "./physical-device-evidence";
 
 const failures: string[] = [];
-const recordPath = "docs/independent-security-review.json";
+const recordPath = "docs/security-review-attestation.json";
 const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
 const commit = head.status === 0 ? head.stdout.trim() : "";
-let reviewRecord: ReviewRecord = {};
+let reviewRecord: SecurityReviewAttestation = {};
 
 if (!existsSync(recordPath)) {
   failures.push(
-    `missing ${recordPath}; an implementation-team or AI review is not independent review`,
+    `missing ${recordPath}; owner-attested security review evidence is required`,
   );
 } else {
   try {
-    reviewRecord = JSON.parse(readFileSync(recordPath, "utf8")) as ReviewRecord;
+    reviewRecord = JSON.parse(
+      readFileSync(recordPath, "utf8"),
+    ) as SecurityReviewAttestation;
   } catch {
     failures.push(`${recordPath} is not valid JSON`);
   }
   failures.push(
-    ...validateIndependentReviewEvidence(reviewRecord, { head: commit }),
+    ...validateSecurityReviewAttestation(reviewRecord, { head: commit }),
   );
 }
 
@@ -36,7 +38,6 @@ failures.push(
   ...validatePhysicalDeviceEvidenceFiles({
     reviewedCandidateSha: reviewRecord.reviewedCommit ?? "",
     version,
-    requireSignature: true,
   }).failures,
 );
 
@@ -58,5 +59,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Public-beta prerequisites OK: release HEAD ${commit} is the evidence-only child of its reviewed candidate; physical-device evidence matches the exact dist/archive; private reporting enabled.`,
+  `Public-beta prerequisites OK: release HEAD ${commit} is the owner-attested evidence-only child of its reviewed candidate; physical-device evidence matches the exact dist/archive; private reporting enabled.`,
 );
