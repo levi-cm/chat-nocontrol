@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 3,
+  "reviewer": {
+    "name": "Human reviewer name",
+    "organization": "Reviewer organization or Independent individual"
+  },
+  "independenceStatement": "The reviewer did not design or implement the reviewed candidate.",
+  "reviewedCommit": "0000000000000000000000000000000000000000",
+  "completedAt": "2026-01-01T00:00:00.000Z",
+  "outcome": "owner-attested-cleared-for-public-beta",
+  "openCriticalOrHigh": 0,
+  "reportPath": "docs/reviews/security-review.md",
+  "reportSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ownerAttestation": {
+    "githubActor": "levi-cm",
+    "releaseSignerPrincipal": "136596632+levi-cm@users.noreply.github.com",
+    "statement": "I attest that this record accurately reports the completed security review for the exact candidate and that no known critical or high findings remain open.",
+    "attestedAt": "2026-01-01T00:30:00.000Z"
+  }
+}

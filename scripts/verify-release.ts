@@ -13,7 +13,7 @@ import {
   serializeDeploymentLedger,
   verifyRecordedPagesDeployment,
 } from "./github-deployment-evidence";
-import { validateAllowedSignerRolePolicy } from "./independent-review-evidence";
+import { validateReleaseSignerPolicy } from "./release-signer-policy";
 
 function git(args: string[]): string {
   const result = spawnSync("git", args, { encoding: "utf8" });
@@ -71,9 +71,8 @@ if (
 ) {
   throw new Error(`Release blocked: ${expectedTag} has no signature material`);
 }
-const signerRoleFailures = validateAllowedSignerRolePolicy(
+const signerRoleFailures = validateReleaseSignerPolicy(
   readFileSync(".github/allowed_signers", "utf8"),
-  { requireGitSigner: true },
 );
 if (signerRoleFailures.length > 0) {
   throw new Error(`Release blocked: ${signerRoleFailures.join("; ")}`);

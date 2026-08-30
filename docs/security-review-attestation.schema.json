@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "security-review-attestation.schema.json",
+  "title": "CAT5 owner-attested security review evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "reviewer",
+    "independenceStatement",
+    "reviewedCommit",
+    "completedAt",
+    "outcome",
+    "openCriticalOrHigh",
+    "reportPath",
+    "reportSha256",
+    "ownerAttestation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "organization"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "organization": { "type": "string", "minLength": 1 }
+      }
+    },
+    "independenceStatement": { "type": "string", "minLength": 1 },
+    "reviewedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "outcome": { "const": "owner-attested-cleared-for-public-beta" },
+    "openCriticalOrHigh": { "const": 0 },
+    "reportPath": { "const": "docs/reviews/security-review.md" },
+    "reportSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "ownerAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "githubActor",
+        "releaseSignerPrincipal",
+        "statement",
+        "attestedAt"
+      ],
+      "properties": {
+        "githubActor": { "type": "string", "minLength": 1 },
+        "releaseSignerPrincipal": { "type": "string", "minLength": 1 },
+        "statement": {
+          "const": "I attest that this record accurately reports the completed security review for the exact candidate and that no known critical or high findings remain open."
+        },
+        "attestedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

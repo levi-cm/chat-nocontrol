@@ -206,7 +206,7 @@ describe("release provenance", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      "allowed signer entries must use exactly one approved signature namespace",
+      "allowed signers must contain exactly one namespace-git release signer",
     );
   });
 });
