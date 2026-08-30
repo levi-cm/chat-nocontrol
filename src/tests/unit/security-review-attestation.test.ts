@@ -185,6 +185,24 @@ describe("owner-attested security review", () => {
     );
   });
 
+  it("returns deterministic failures for malformed field types", () => {
+    const repo = repository();
+    Object.assign(repo.record.reviewer!, { name: 42 });
+    Object.assign(repo.record, {
+      independenceStatement: 42,
+      reportPath: 42,
+    });
+    expect(() => validate(repo)).not.toThrow();
+    expect(validate(repo)).toEqual(
+      expect.arrayContaining([
+        "reviewer name is missing",
+        "independence statement is missing",
+        "review report path must be docs/reviews/security-review.md",
+        "review report must use its canonical repository path",
+      ]),
+    );
+  });
+
   it("rejects extra evidence-commit files", () => {
     const repo = repository();
     write(repo.cwd, "docs/extra.txt", "extra\n");

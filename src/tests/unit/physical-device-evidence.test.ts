@@ -197,6 +197,16 @@ describe("physical device owner-attested release evidence", () => {
     );
   });
 
+  it("rejects a non-boolean supported field", () => {
+    const record = evidence();
+    Object.assign(record.environments![0]!.checks![0]!, {
+      supported: "schema-invalid-string",
+    });
+    expect(validatePhysicalDeviceEvidence(record, options)).toContain(
+      "android-chrome check cat5-identity supported must be boolean when present",
+    );
+  });
+
   it("rejects emulated hardware and unknown fields", () => {
     const record = evidence() as PhysicalDeviceEvidence & { unknown?: boolean };
     record.unknown = true;

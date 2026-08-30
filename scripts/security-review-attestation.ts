@@ -191,6 +191,10 @@ function canonicalUtc(value: string | undefined, now: number): boolean {
   );
 }
 
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export function validateSecurityReviewAttestation(
   record: SecurityReviewAttestation,
   options: SecurityReviewValidationOptions,
@@ -200,10 +204,11 @@ export function validateSecurityReviewAttestation(
   const failures = closedShapeFailures(record);
   if (record.schemaVersion !== 3)
     failures.push("review schemaVersion must be 3");
-  if (!record.reviewer?.name?.trim()) failures.push("reviewer name is missing");
-  if (!record.reviewer?.organization?.trim())
+  if (!nonEmptyString(record.reviewer?.name))
+    failures.push("reviewer name is missing");
+  if (!nonEmptyString(record.reviewer?.organization))
     failures.push("reviewer organization is missing");
-  if (!record.independenceStatement?.trim())
+  if (!nonEmptyString(record.independenceStatement))
     failures.push("independence statement is missing");
   if (record.outcome !== "owner-attested-cleared-for-public-beta") {
     failures.push("owner-attested security review has not cleared public beta");
@@ -220,7 +225,7 @@ export function validateSecurityReviewAttestation(
     failures.push(`review report path must be ${reportPath}`);
   }
   if (
-    !record.reportPath ||
+    typeof record.reportPath !== "string" ||
     isAbsolute(record.reportPath) ||
     record.reportPath.includes("\\") ||
     posix.normalize(record.reportPath) !== record.reportPath

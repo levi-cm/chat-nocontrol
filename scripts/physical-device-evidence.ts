@@ -289,6 +289,11 @@ function validateEnvironment(
   const counts = new Map<string, number>();
   for (const check of checks) {
     const checkId = check.id ?? "";
+    if (check.supported !== undefined && typeof check.supported !== "boolean") {
+      failures.push(
+        `${id} check ${String(checkId) || "<missing>"} supported must be boolean when present`,
+      );
+    }
     counts.set(checkId, (counts.get(checkId) ?? 0) + 1);
   }
   if (checks.some((check) => forbiddenQrChecks.has(check.id ?? ""))) {
