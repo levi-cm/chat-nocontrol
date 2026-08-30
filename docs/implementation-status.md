@@ -24,7 +24,7 @@ candidate closes them as follows:
 
 | Finding | Current closure |
 | --- | --- |
-| CRIT-001 | Review evidence is bound to the fixed `.github/allowed_signers` trust root, the CAT-5 review namespace, a trust root predating the candidate, and an exact three-file evidence-only child. The record cannot select its own signer file. |
+| CRIT-001 | Review evidence is closed-schema, owner-attested, report-hash-bound, and limited to an exact two-file evidence-only child. The owner accepts the residual risk that reviewer/tester identity is asserted rather than independently signature-authenticated. |
 | LOW-001 | V2 decrypt workers receive a request-owned `DecapsulationCapabilityV2`, not a full identity or master entropy. Legacy PPXQ receives only the request-owned V1 material required by its explicit decode-only boundary. |
 | LOW-002 | Identity creation tests prove remembered-vault persistence occurs only after final confirmation and session-only completion discards the prepared vault. |
 | LOW-003 | Recovery-word tests cover NFKD normalization and rejection of words outside the pinned list. |
@@ -50,7 +50,7 @@ candidate closes them as follows:
 | Gate | Status | Reason |
 | --- | --- | --- |
 | Exact local quality matrix | PASS | 2026-08-28 `npm run verify:quality` under Node 22.23.1: format/type/lint/docs, 755 unit, vectors/contracts/goldens/property/fuzz, 404 applicable full E2E with 31 intentional profile skips, accessibility, EN/DE, offline/PWA, network-denial, deterministic production artifact, SBOM, and zero-high dependency gates passed |
-| CAT-5/V2 independent external review | BLOCKED | No genuine exact-release evidence supplied |
+| CAT-5/V2 owner-attested human review | BLOCKED | No genuine exact-release evidence supplied |
 | Physical Android/iOS/PWA matrix | NOT RUN | No qualifying real-device evidence supplied |
 | Real deployed-build to current-build PWA update | PASS | 2026-08-28 pinned-tree desktop/mobile Chromium gate proved one-shot forced cutover, no banner/loop/leak, cache cleanup, reload, and offline reopen |
 | Reviewed `0.2.0-beta.1` release | BLOCKED | Depends on above gates and provenance |

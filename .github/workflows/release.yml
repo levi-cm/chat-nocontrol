@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       physical_evidence_sha256:
-        description: SHA-256 of the trusted-tester-signed physical-device evidence JSON
+        description: SHA-256 of the owner-attested physical-device evidence JSON
         required: true
         type: string
       confirm_deployment:
@@ -60,28 +60,29 @@ jobs:
           test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Require authenticated repository owner dispatch
+        run: test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
       - run: npm ci
-      - name: Download signed physical-device evidence from the draft prerelease
+      - name: Download owner-attested physical-device evidence from the draft prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           PHYSICAL_EVIDENCE_SHA256: ${{ inputs.physical_evidence_sha256 }}
           RELEASE_TAG: ${{ inputs.tag }}
         run: |
           test "$(printf '%s' "$PHYSICAL_EVIDENCE_SHA256" | sed -nE '/^[0-9a-f]{64}$/p')" = "$PHYSICAL_EVIDENCE_SHA256"
-          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease > "$RUNNER_TEMP/draft-release.json"
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease,assets > "$RUNNER_TEMP/draft-release.json"
           node --input-type=module <<'NODE'
           import { readFileSync } from "node:fs";
           const release = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/draft-release.json`, "utf8"));
-          if (release.tagName !== process.env.RELEASE_TAG || release.isDraft !== true || release.isPrerelease !== true) process.exit(1);
+          const assetNames = release.assets.map((asset) => asset.name).sort();
+          if (release.tagName !== process.env.RELEASE_TAG || release.isDraft !== true || release.isPrerelease !== true || JSON.stringify(assetNames) !== JSON.stringify(["physical-device-release-evidence.json"])) process.exit(1);
           NODE
           mkdir -m 700 "$RUNNER_TEMP/physical-evidence"
           gh release download "$RELEASE_TAG" \
             --pattern physical-device-release-evidence.json \
-            --pattern physical-device-release-evidence.json.sig \
             --dir "$RUNNER_TEMP/physical-evidence"
           test -f "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json"
-          test -f "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json.sig"
-          test "$(find "$RUNNER_TEMP/physical-evidence" -maxdepth 1 -type f -printf '%f\n' | sort)" = "$(printf '%s\n' physical-device-release-evidence.json physical-device-release-evidence.json.sig)"
+          test "$(find "$RUNNER_TEMP/physical-evidence" -maxdepth 1 -type f -printf '%f\n')" = "physical-device-release-evidence.json"
       - run: npx playwright install --with-deps chromium firefox webkit
       - name: Verify source and runtime quality
         run: npm run verify:quality
@@ -93,9 +94,9 @@ jobs:
         run: |
           npm run release:import-physical-evidence -- \
             --input "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json" \
-            --signature "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json.sig" \
-            --sha256 "$PHYSICAL_EVIDENCE_SHA256"
-      - name: Verify review evidence, signature, quality, reproducibility, SBOM, and archive
+            --sha256 "$PHYSICAL_EVIDENCE_SHA256" \
+            --owner-actor "$GITHUB_ACTOR"
+      - name: Verify owner-attested evidence, quality, reproducibility, SBOM, and archive
         run: npm run verify:prepared
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -325,7 +326,6 @@ jobs:
             output/release/deployment-authorization.json
             output/release/chat-nocontrol-${{ inputs.tag }}.tgz
             output/release/physical-device-release-evidence.json
-            output/release/physical-device-release-evidence.json.sig
             output/release/sbom.cdx.json
       - name: Mark deployment window start
         id: deployment-window-start

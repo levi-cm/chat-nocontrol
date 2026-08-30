@@ -1,5 +1,5 @@
 > **Authority:** User guide for target `0.2.0-beta.1`.
-> **Status:** Beta; independent review BLOCKED; physical-device gates NOT RUN.
+> **Status:** Beta; owner-attested human review BLOCKED; physical-device gates NOT RUN.
 > **Depends on:** [product-spec.md](product-spec.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md)
 
 # Chat NoControl user guide

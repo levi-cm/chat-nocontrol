@@ -8,9 +8,10 @@
 <!-- markdownlint-enable MD033 MD041 -->
 
 > [!WARNING]
-> Target version `0.2.0-beta.1` is beta software. Independent security review
-> and physical-device gates are **BLOCKED / NOT RUN** until real evidence
-> exists. Do not treat this branch, README, or preview as a reviewed release.
+> Target version `0.2.0-beta.1` is beta software. Owner-attested human security
+> review and physical-device gates are **BLOCKED / NOT RUN** until genuine
+> evidence exists. Owner attestation does not independently authenticate the
+> reviewer or tester. Do not treat this branch, README, or preview as reviewed.
 
 ## Use
 
@@ -84,7 +85,7 @@ npm run docs:check
 npm run verify:quality
 ```
 
-`npm run verify` includes independent-review/release evidence and correctly
+`npm run verify` includes owner-attested review/release evidence and correctly
 remains blocked until genuine artifacts exist.
 
 ## Documentation

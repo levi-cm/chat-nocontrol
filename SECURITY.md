@@ -8,7 +8,7 @@
 
 Chat NoControl and PPX Protocol v1 are documented here as a public beta candidate. No stable supported version exists yet. These notes are intentionally narrow and literal.
 
-The repository must remain private during implementation, candidate preparation, and independent review. It may be made public only as part of an explicitly approved public-beta publication after every release gate in [`docs/testing-and-release.md`](docs/testing-and-release.md) has passed.
+The repository must remain private during implementation, candidate preparation, and human review. It may be made public only as part of an explicitly approved public-beta publication after every release gate in [`docs/testing-and-release.md`](docs/testing-and-release.md) has passed. Review and device identities are owner-asserted rather than independently signature-authenticated; this residual identity risk is explicitly accepted by the repository owner.
 
 ## Security Claims
 

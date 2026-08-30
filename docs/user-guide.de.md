@@ -1,5 +1,5 @@
 > **Authority:** Benutzeranleitung für Zielversion `0.2.0-beta.1`.
-> **Status:** Beta; unabhängige Prüfung BLOCKED; Geräteprüfungen NOT RUN.
+> **Status:** Beta; vom Eigentümer bestätigte menschliche Prüfung BLOCKED; Geräteprüfungen NOT RUN.
 > **Depends on:** [product-spec.md](product-spec.md), [legacy-v1-compatibility.md](legacy-v1-compatibility.md)
 
 # Chat-NoControl-Anleitung

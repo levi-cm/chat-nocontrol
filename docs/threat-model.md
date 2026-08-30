@@ -56,6 +56,9 @@ errors. Removing V1 support requires advance notice and separate usable reader.
 
 ## Residual release risk
 
-External independent review is **BLOCKED** until genuine evidence exists.
+Owner-attested human security review is **BLOCKED** until genuine evidence
+exists. The owner-attested model preserves the review contents and exact-byte
+binding but does not independently authenticate reviewer or tester identity;
+the repository owner explicitly accepts that residual identity risk.
 Physical-device validation is **NOT RUN** until real Android/iOS/browser/PWA
 evidence exists. Automated/emulated tests cannot change those labels.

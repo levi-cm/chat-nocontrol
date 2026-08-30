@@ -116,31 +116,30 @@ Android/iPhone/PWA execution remains a separate **NOT RUN** gate.
 
 ## External gates
 
-Independent security review follows one immutable chain:
+Owner-attested human security review follows one immutable chain:
 
-1. Freeze the exact candidate commit. Its `.github/allowed_signers` trust root
-   must already exist in the candidate's parent and remain byte-identical.
-2. A genuinely independent reviewer uses a principal and key distinct from the
-   project release signer and signs the report only in namespace
-   `chat-nocontrol-security-review-cat5-v2`. The project release principal is
-   restricted to namespace `git`; unrestricted or cross-role trust is invalid.
+1. Freeze the exact candidate commit. `.github/allowed_signers` must contain
+   exactly one namespace-`git` release signer; unrestricted, duplicate, or
+   non-Git entries are invalid.
+2. A human reviewer completes the report for that exact candidate. The record
+   retains reviewer identity and an independence statement. The repository
+   owner attests the record with the authenticated GitHub actor and sole release
+   signer principal. This asserts identity; it does not independently
+   authenticate reviewer identity, and the owner accepts that residual risk.
 3. Create exactly one immediate child of the reviewed candidate. It may add
-   only these three regular, non-executable evidence files: the fixed record
-   `docs/independent-security-review.json`, its named report, and exactly
-   `<report>.sig`. It may modify/delete nothing and add no fourth file. The
-   record binds full `reviewedCommit`, report path, SHA-256, signature path,
-   reviewer identity, outcome, and issue count.
+   only these two regular, non-executable evidence files:
+   **docs/security-review-attestation.json** and
+   **docs/reviews/security-review.md**. The closed schema binds candidate, report
+   SHA-256, reviewer identity, outcome, issue count, and canonical timestamps.
 4. At release HEAD prove `HEAD^ == reviewedCommit`, the candidate-to-HEAD diff
-   is exactly those three additions, and worktree evidence matches HEAD.
+   is exactly those two additions, and worktree evidence matches HEAD.
 5. Only then create the exact signed annotated release tag at HEAD and verify
    its `git`-namespace signature, local/remote tag object identity, origin/main
    containment, source/artifact/SBOM/reproducibility bindings, and rollback
    pointer.
 
-This review gate is currently **BLOCKED**: the required distinct external
-reviewer key is not yet in the frozen trust root and no qualifying report chain
-exists. Never use example JSON or a project release signature as review
-evidence.
+This review gate is currently **BLOCKED** because no genuine closed-schema
+record/report chain exists. Never promote example JSON as review evidence.
 
 The complete physical matrix in [qr-message-device-matrix.md](qr-message-device-matrix.md)
 is **NOT RUN**. Every required flow must pass on Android Chrome, Android
@@ -164,41 +163,33 @@ npm run release:physical-evidence-bindings > /tmp/cat5-physical-bindings.json
 Give the tester the build plus the public binding JSON and the closed schema at
 `docs/physical-device-release-evidence.schema.json`. The completed evidence
 must contain no plaintext, ciphertext, contacts, keys, recovery material, or
-unredacted screenshots. A distinct tester key/principal must already be pinned
-in `.github/physical-device-allowed-signers` on the parent of the reviewed
-candidate, use only namespace `chat-nocontrol-physical-device-cat5-v2`, and be
-different from release/review signing roles. The tester signs the exact JSON:
+unredacted screenshots. The owner attests that the named operator performed the
+recorded checks against the exact bytes. This preserves physical-test and byte
+bindings but does not independently authenticate the operator identity.
 
-```bash
-ssh-keygen -Y sign \
-  -f /secure/path/physical-tester-key \
-  -n chat-nocontrol-physical-device-cat5-v2 \
-  /absolute/path/physical-device-release-evidence.json
-```
-
-Import the returned regular JSON plus detached signature only with an
-out-of-band SHA-256 of the JSON:
+Import the returned regular JSON with its out-of-band SHA-256. The importer
+also authenticates the workflow actor as repository owner:
 
 ```bash
 npm run release:import-physical-evidence -- \
   --input /absolute/path/physical-device-release-evidence.json \
-  --signature /absolute/path/physical-device-release-evidence.json.sig \
-  --sha256 <64-lowercase-hex>
+  --sha256 <64-lowercase-hex> \
+  --owner-actor levi-cm
 npm run test:release-prerequisites
 ```
 
 The importer opens without following symlinks, limits size, rejects executable
-or unknown fields, compares the exact digest, verifies the SSH signature against
-the pre-candidate immutable trust root, validates every required row against the
-reviewed candidate and prepared bytes, writes each file atomically, and
-revalidates them. Invalid or dispatcher-authored input does not become release
-evidence.
+or unknown fields, compares the exact digest, validates the owner attestation
+and every required row against the reviewed candidate and prepared bytes,
+writes the JSON atomically, removes the exact legacy generated signature path,
+and revalidates it. Invalid or non-owner-dispatched input does not become
+release evidence.
 
 After all pre-tag prerequisites pass, create and push the exact signed tag.
 Create a draft prerelease for that tag and upload the fixed asset name
-`physical-device-release-evidence.json` plus its exact `.sig`. Dispatch
+`physical-device-release-evidence.json` only. Dispatch
 `release.yml` with the tag, same JSON SHA-256, and explicit deployment
-confirmation. CI downloads only those assets from the matching draft
+confirmation as the repository owner. CI downloads only that asset from the matching draft
 prerelease, prepares release bytes, verifies/imports them, and runs
 `verify:prepared`. It then CAS-appends the exact artifact/run authorization to
 the canonical ledger before Pages can mutate. After live acceptance it
@@ -208,7 +199,7 @@ public prerelease.
 ## Release/deployment gate
 
 Release requires all required automated checks, zero open critical/high issues,
-independent review PASS, physical matrix PASS where required, exact signed tag,
+owner-attested human review PASS, physical matrix PASS where required, exact signed tag,
 commit/artifact hash, SBOM, reproducibility result, rollback pointer, and explicit
 deployment approval. Canonical URL remains GitHub Pages. Failed/blocked/not-run
 gates prevent reviewed-release claims.

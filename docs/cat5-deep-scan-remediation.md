@@ -10,19 +10,21 @@ This ledger rebaselines `CRIT-001`, `LOW-001` through `LOW-008`, and
 `INFO-001` against the merged CAT5 source. The original scan directory is
 provenance and must remain unchanged. `RESOLVED` below means the reported source
 defect or regression-test gap is closed and has focused executable evidence. It
-does not mean independent review, physical-device qualification, deployment, or
+does not mean owner-attested human review, physical-device qualification, deployment, or
 release acceptance has occurred.
 
-The independent-review and physical-device release gates remain `BLOCKED` until
-real external principals and their precommitted public keys exist. In
-particular, the fixed review root currently has no independent-review entry;
-that absence fails closed rather than permitting project code to select a key.
+The owner-attested review and physical-device release gates remain `BLOCKED`
+until genuine completed records exist. Reviewer/tester identity is now asserted
+by the authenticated repository owner rather than independently verified with
+separate SSH keys. The owner explicitly accepts this lost identity-
+authentication property; review contents, exact candidate/byte bindings, human
+work, physical-device checks, signed release tag, CI, and deployment gates remain.
 
 ## Finding ledger
 
 | Finding | Status | Remediation and code authority | Executable evidence |
 | --- | --- | --- | --- |
-| `CRIT-001` | **RESOLVED; external review remains BLOCKED** | `scripts/independent-review-evidence.ts` uses the fixed `.github/allowed_signers` path, the exact `chat-nocontrol-security-review-cat5-v2` namespace, a distinct principal/key role, and an unchanged trust-root blob that predates the candidate. The release head must be the candidate's single immediate child and may add exactly the three named review files. Evidence JSON cannot nominate a signer file. | `src/tests/unit/independent-review-evidence.test.ts` rejects an untrusted key, release-signer reuse, wrong namespace/principal, candidate-time or later trust-root changes, non-child history, altered evidence, and extra files. |
+| `CRIT-001` | **SOURCE FIX RESOLVED; OWNER-ACCEPTED IDENTITY RISK; REVIEW BLOCKED** | `scripts/security-review-attestation.ts` enforces schema v3, exact report hashing, canonical time, repository-owner actor, the sole namespace-`git` signer principal, and an immediate exact two-file evidence-only child. Separate reviewer/tester SSH identity authentication was intentionally removed; the owner accepts that residual risk. | `src/tests/unit/security-review-attestation.test.ts` and `release-signer-policy.test.ts` reject mismatched actor/principal/statement/time, open findings, altered/extra files, wrong history, unknown fields, symlinks, executables, duplicate/unrestricted/non-Git signers, and report-hash mismatch. |
 | `LOW-001` | **RESOLVED** | `DecapsulationCapabilityV2` in `src/protocol/types-v2.ts` contains only request-scoped decapsulation fields. `src/crypto/identity-v2.ts` creates it; `src/workers/crypto-client.ts`, `file-client.ts`, and their runners validate, transfer, and erase it. The isolated V1 reader receives only operation-owned legacy material required for decode/migration. | `src/tests/unit/provider-capability.test.ts`, `crypto-client.test.ts`, and `file-runner.test.ts` prove validation, transfer, zeroization, and absence of `masterEntropy` from V2 decrypt requests. |
 | `LOW-002` | **RESOLVED** | Identity creation retains the prepared vault until the final explicit persistence choice. Session-only completion hands off no vault; remembered completion hands off the verified vault only at the final step. | `src/tests/unit/identity-create-wizard.test.tsx` proves both final-confirmation branches and asserts no earlier `onReady` handoff. |
 | `LOW-003` | **RESOLVED** | `src/crypto/recovery-words.ts` NFKD-normalizes input before canonical lowercase/list validation and rejects words outside the pinned BIP39 list. | `src/tests/unit/recovery-words.test.ts` covers compatibility-character NFKD input, case/space handling, non-wordlist rejection, wrong length, and checksum-invalid words. |
@@ -39,7 +41,8 @@ Run under exact Node `22.23.1`:
 
 ```sh
 npx vitest run \
-  src/tests/unit/independent-review-evidence.test.ts \
+  src/tests/unit/security-review-attestation.test.ts \
+  src/tests/unit/release-signer-policy.test.ts \
   src/tests/unit/provider-capability.test.ts \
   src/tests/unit/crypto-client.test.ts \
   src/tests/unit/file-runner.test.ts \
@@ -74,9 +77,8 @@ not physical iPhone/PWA evidence.
 ## Release consequences
 
 - No critical/high source finding from this scan remains open.
-- A genuine independent reviewer key must still be added to the fixed trust root
-  in a commit that predates the frozen candidate. Until then review is
-  `BLOCKED`, intentionally.
+- Genuine owner-attested review records must still be supplied for the exact
+  frozen candidate. Until then review is `BLOCKED`, intentionally.
 - Physical-device evidence, signed promotion, and Pages deployment are separate
   gates. This remediation ledger cannot satisfy them.
 - Any code change after candidate freeze invalidates later review, physical

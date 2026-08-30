@@ -424,10 +424,10 @@ describe("release workflow structure", () => {
     expect(finalize).toContain("gh release edit");
   });
 
-  it("imports trusted-tester-signed physical evidence only after preparing release bytes", () => {
+  it("imports owner-attested physical evidence only after preparing release bytes", () => {
     expect(releaseWorkflow).toContain("physical_evidence_sha256:");
     expect(releaseWorkflow).toContain(
-      "name: Download signed physical-device evidence from the draft prerelease",
+      "name: Download owner-attested physical-device evidence from the draft prerelease",
     );
     const prepare = releaseWorkflow.indexOf(
       "name: Prepare exact release bytes",
@@ -436,7 +436,7 @@ describe("release workflow structure", () => {
       "name: Import exact physical-device evidence",
     );
     const verify = releaseWorkflow.indexOf(
-      "name: Verify review evidence, signature, quality, reproducibility, SBOM, and archive",
+      "name: Verify owner-attested evidence, quality, reproducibility, SBOM, and archive",
     );
     expect(prepare).toBeGreaterThan(-1);
     expect(importEvidence).toBeGreaterThan(prepare);
@@ -445,8 +445,20 @@ describe("release workflow structure", () => {
     expect(releaseWorkflow).toContain(
       "npm run release:import-physical-evidence",
     );
+    expect(releaseWorkflow).toContain('--owner-actor "$GITHUB_ACTOR"');
+    expect(releaseWorkflow).not.toContain(
+      "physical-device-release-evidence.json.sig",
+    );
     expect(releaseWorkflow).toContain(
-      '--signature "$RUNNER_TEMP/physical-evidence/physical-device-release-evidence.json.sig"',
+      'test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"',
+    );
+    expect(
+      releaseWorkflow.match(
+        /--pattern physical-device-release-evidence\.json/gmu,
+      ),
+    ).toHaveLength(1);
+    expect(releaseWorkflow).toContain(
+      'JSON.stringify(["physical-device-release-evidence.json"])',
     );
     expect(releaseWorkflow).toContain("npm run verify:prepared");
   });
