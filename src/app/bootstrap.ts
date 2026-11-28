@@ -6,29 +6,26 @@ type CanvasTheme = "system" | "light" | "dark";
 const LIGHT_CANVAS = "#f5f7fb";
 const DARK_CANVAS = "#0e1118";
 
-export function readStoredLocale(storage: Storage = localStorage): Locale {
+export function readStoredLocale(storage?: Storage): Locale {
   try {
-    return storage.getItem(LOCALE_KEY) === "de" ? "de" : "en";
+    return (storage ?? localStorage).getItem(LOCALE_KEY) === "de" ? "de" : "en";
   } catch {
     return "en";
   }
 }
 
-export function storeLocale(
-  locale: Locale,
-  storage: Storage = localStorage,
-): boolean {
+export function storeLocale(locale: Locale, storage?: Storage): boolean {
   try {
-    storage.setItem(LOCALE_KEY, locale);
+    (storage ?? localStorage).setItem(LOCALE_KEY, locale);
     return true;
   } catch {
     return false;
   }
 }
 
-export function clearStoredLocale(storage: Storage = localStorage): boolean {
+export function clearStoredLocale(storage?: Storage): boolean {
   try {
-    storage.removeItem(LOCALE_KEY);
+    (storage ?? localStorage).removeItem(LOCALE_KEY);
     return true;
   } catch {
     return false;
