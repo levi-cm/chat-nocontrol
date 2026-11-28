@@ -19,11 +19,9 @@ function isRouteName(value: string): value is RouteName {
   return routeNames.has(value as RouteName);
 }
 
-export function readLastUnlockedRoute(
-  storage: Storage = localStorage,
-): RouteName | null {
+export function readLastUnlockedRoute(storage?: Storage): RouteName | null {
   try {
-    const value = storage.getItem(LAST_UNLOCKED_ROUTE_KEY);
+    const value = (storage ?? localStorage).getItem(LAST_UNLOCKED_ROUTE_KEY);
     return value !== null && isRouteName(value) ? value : null;
   } catch {
     return null;
@@ -32,21 +30,19 @@ export function readLastUnlockedRoute(
 
 export function writeLastUnlockedRoute(
   route: RouteName,
-  storage: Storage = localStorage,
+  storage?: Storage,
 ): boolean {
   try {
-    storage.setItem(LAST_UNLOCKED_ROUTE_KEY, route);
+    (storage ?? localStorage).setItem(LAST_UNLOCKED_ROUTE_KEY, route);
     return true;
   } catch {
     return false;
   }
 }
 
-export function clearLastUnlockedRoute(
-  storage: Storage = localStorage,
-): boolean {
+export function clearLastUnlockedRoute(storage?: Storage): boolean {
   try {
-    storage.removeItem(LAST_UNLOCKED_ROUTE_KEY);
+    (storage ?? localStorage).removeItem(LAST_UNLOCKED_ROUTE_KEY);
     return true;
   } catch {
     return false;

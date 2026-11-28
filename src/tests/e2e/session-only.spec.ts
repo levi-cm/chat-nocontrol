@@ -5,18 +5,25 @@ import {
   encodePublicContactQr,
 } from "../../protocol/ppxc";
 
-test("denied IndexedDB falls back to usable session-only mode", async ({
+test("blocked browser storage falls back to usable session-only mode", async ({
   page,
 }) => {
+  const errors: Error[] = [];
+  page.on("pageerror", (error) => errors.push(error));
   await page.addInitScript(() => {
-    Object.defineProperty(window, "indexedDB", {
-      configurable: true,
-      get() {
-        throw new DOMException("denied", "SecurityError");
-      },
-    });
+    for (const property of ["localStorage", "indexedDB"]) {
+      Object.defineProperty(window, property, {
+        configurable: true,
+        get() {
+          throw new DOMException("denied", "SecurityError");
+        },
+      });
+    }
   });
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Create identity or import identity" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Import identity" }).click();
   await page.getByLabel("Pseudonym").fill("Alice");
   await page
@@ -33,6 +40,7 @@ test("denied IndexedDB falls back to usable session-only mode", async ({
   await expect(
     page.getByRole("heading", { name: "Create identity or import identity" }),
   ).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test("chosen session-only mode does not persist new contacts", async ({
